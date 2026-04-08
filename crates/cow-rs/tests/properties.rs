@@ -1,3 +1,5 @@
+// When miri skips this file, suppress the empty-crate lint
+#![allow(missing_docs)]
 // proptest uses getcwd which is unsupported under miri isolation
 #![cfg(not(miri))]
 #![allow(

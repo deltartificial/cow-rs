@@ -2514,7 +2514,7 @@ async fn get_quote_impl(
 ///
 /// # Example
 ///
-/// ```
+/// ```no_run
 /// use cow_rs::trading::get_order_deadline_from_now;
 ///
 /// let deadline = get_order_deadline_from_now(1800);
