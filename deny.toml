@@ -33,6 +33,8 @@ skip = [
   { crate = "windows_x86_64_gnu@0.52.6" },
   { crate = "windows_x86_64_gnullvm@0.52.6" },
   { crate = "windows_x86_64_msvc@0.52.6" },
+  # syn 1.x kept as direct dep for -Z minimal-versions; syn 2.x used by derive macros
+  { crate = "syn@1.0.109" },
 ]
 skip-tree = []
 

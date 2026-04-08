@@ -1,3 +1,7 @@
+// When miri skips this file, suppress the empty-crate lint
+#![allow(missing_docs)]
+// proptest uses getcwd which is unsupported under miri isolation
+#![cfg(not(miri))]
 #![allow(
     clippy::allow_attributes_without_reason,
     clippy::tests_outside_test_module,

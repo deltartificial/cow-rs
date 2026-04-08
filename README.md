@@ -6,23 +6,23 @@ A complete, type-safe Rust port of the CoW Protocol TypeScript SDK — covering 
 
 ## Modules
 
-| Module | Purpose |
-| --------------- | ------------------------------------------------- |
-| `config` | Chain IDs, contract addresses, token constants |
-| `order_book` | Orderbook HTTP client and API types |
-| `order_signing` | EIP-712 digest and ECDSA signing |
-| `trading` | High-level `TradingSdk` and fee-breakdown types |
-| `app_data` | Order metadata schema and keccak256 hashing |
-| `subgraph` | Historical trading data via GraphQL |
-| `composable` | Conditional orders (TWAP, GAT, stop-loss) and Merkle multiplexer |
-| `onchain` | On-chain reading via JSON-RPC `eth_call` |
-| `permit` | EIP-2612 permit signing and hook building |
-| `ethflow` | Native ETH order flow |
-| `bridging` | Cross-chain bridging |
-| `erc20` | ERC-20 calldata encoding |
-| `weiroll` | Weiroll scripting for batch operations |
-| `cow_shed` | CowShed hook framework |
-| `flash_loans` | Flash loan integration |
+| Module          | Purpose                                                          |
+| --------------- | ---------------------------------------------------------------- |
+| `config`        | Chain IDs, contract addresses, token constants                   |
+| `order_book`    | Orderbook HTTP client and API types                              |
+| `order_signing` | EIP-712 digest and ECDSA signing                                 |
+| `trading`       | High-level `TradingSdk` and fee-breakdown types                  |
+| `app_data`      | Order metadata schema and keccak256 hashing                      |
+| `subgraph`      | Historical trading data via GraphQL                              |
+| `composable`    | Conditional orders (TWAP, GAT, stop-loss) and Merkle multiplexer |
+| `onchain`       | On-chain reading via JSON-RPC `eth_call`                         |
+| `permit`        | EIP-2612 permit signing and hook building                        |
+| `ethflow`       | Native ETH order flow                                            |
+| `bridging`      | Cross-chain bridging                                             |
+| `erc20`         | ERC-20 calldata encoding                                         |
+| `weiroll`       | Weiroll scripting for batch operations                           |
+| `cow_shed`      | CowShed hook framework                                           |
+| `flash_loans`   | Flash loan integration                                           |
 
 ## Quick Start
 

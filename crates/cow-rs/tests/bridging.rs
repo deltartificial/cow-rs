@@ -108,6 +108,7 @@ fn quote_bridge_response_provider_ref() {
 
 // ── get_best_quote — no providers ─────────────────────────────────────────────
 
+#[cfg_attr(miri, ignore)]
 #[tokio::test]
 async fn bridging_sdk_get_best_quote_no_providers_returns_error() {
     let sdk = BridgingSdk::new();
@@ -117,6 +118,7 @@ async fn bridging_sdk_get_best_quote_no_providers_returns_error() {
 
 // ── get_best_quote — all providers fail ───────────────────────────────────────
 
+#[cfg_attr(miri, ignore)]
 #[tokio::test]
 async fn bridging_sdk_get_best_quote_all_fail_returns_no_quote() {
     let mut sdk = BridgingSdk::new();
@@ -127,6 +129,7 @@ async fn bridging_sdk_get_best_quote_all_fail_returns_no_quote() {
 
 // ── get_all_quotes — returns per-provider results ─────────────────────────────
 
+#[cfg_attr(miri, ignore)]
 #[tokio::test]
 async fn bridging_sdk_get_all_quotes_returns_one_per_provider() {
     let mut sdk = BridgingSdk::new();

@@ -963,6 +963,7 @@ dependencies = [
  "serde",
  "serde-wasm-bindgen",
  "serde_json",
+ "syn 1.0.109",
  "thiserror",
  "tokio",
  "tracing",

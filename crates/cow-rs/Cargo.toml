@@ -9,6 +9,9 @@ repository.workspace = true
 homepage.workspace = true
 description = "Rust SDK for the CoW Protocol"
 
+[package.metadata.cargo-udeps.ignore]
+normal = ["serde-wasm-bindgen", "syn"]
+
 [lib]
 doctest = true
 
@@ -16,10 +19,10 @@ doctest = true
 default = ["native"]
 native = ["dep:tokio", "reqwest/rustls-tls", "tokio/rt-multi-thread"]
 wasm = [
-    "getrandom/js",
-    "dep:wasm-bindgen",
-    "dep:wasm-bindgen-futures",
-    "dep:serde-wasm-bindgen",
+  "getrandom/js",
+  "dep:wasm-bindgen",
+  "dep:wasm-bindgen-futures",
+  "dep:serde-wasm-bindgen",
 ]
 
 [dependencies]
@@ -31,20 +34,22 @@ foldhash.workspace = true
 futures.workspace = true
 getrandom = { workspace = true, optional = true }
 reqwest.workspace = true
-serde-wasm-bindgen = { workspace = true, optional = true }
-wasm-bindgen = { workspace = true, optional = true }
-wasm-bindgen-futures = { workspace = true, optional = true }
 rust_decimal.workspace = true
 serde.workspace = true
+serde-wasm-bindgen = { workspace = true, optional = true }
 serde_json.workspace = true
+# Pin minimum syn version for -Z minimal-versions compatibility
+syn.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, optional = true }
 tracing.workspace = true
+wasm-bindgen = { workspace = true, optional = true }
+wasm-bindgen-futures = { workspace = true, optional = true }
 
 [dev-dependencies]
 proptest.workspace = true
-wiremock.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+wiremock.workspace = true
 
 [lints]
 workspace = true
