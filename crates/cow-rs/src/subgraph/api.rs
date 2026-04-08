@@ -65,6 +65,7 @@ pub struct SubgraphApi {
 
 impl SubgraphApi {
     /// Build a `reqwest::Client` with platform-appropriate settings.
+    #[allow(clippy::shadow_reuse, reason = "builder pattern chains naturally shadow")]
     fn build_client() -> reqwest::Client {
         let builder = reqwest::Client::builder();
         #[cfg(not(target_arch = "wasm32"))]
@@ -77,8 +78,8 @@ impl SubgraphApi {
     /// # Parameters
     ///
     /// * `chain` — the target [`SupportedChainId`].
-    /// * `env` — the orderbook [`Env`] (currently unused — the subgraph
-    ///   URL is the same for prod and staging).
+    /// * `env` — the orderbook [`Env`] (currently unused — the subgraph URL is the same for prod
+    ///   and staging).
     ///
     /// # Returns
     ///
@@ -255,8 +256,7 @@ impl SubgraphApi {
     /// # Parameters
     ///
     /// * `owner` — the trader's Ethereum address (lowercase hex).
-    /// * `limit` — maximum number of orders to return (max 1 000 per
-    ///   subgraph page).
+    /// * `limit` — maximum number of orders to return (max 1 000 per subgraph page).
     ///
     /// # Returns
     ///
@@ -599,7 +599,7 @@ impl SubgraphApi {
     }
 }
 
-/// Extract and deserialize a named field from a GraphQL response `data` object.
+/// Extract and deserialize a named field from a `GraphQL` response `data` object.
 fn parse_field<T: DeserializeOwned>(data: &Value, field: &'static str) -> Result<T, CowError> {
     let val =
         data.get(field).ok_or_else(|| CowError::Parse { field, reason: "field missing".into() })?;

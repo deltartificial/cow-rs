@@ -219,15 +219,18 @@ impl fmt::Display for TokenRegistry {
 ///
 /// ```
 /// use alloy_primitives::Address;
-/// use cow_rs::{SupportedChainId, config::{CowSwapConfig, TokenRegistry}};
+/// use cow_rs::{
+///     SupportedChainId,
+///     config::{CowSwapConfig, TokenRegistry},
+/// };
 ///
 /// let empty: Vec<(&str, Address)> = vec![];
 /// let config = CowSwapConfig::prod(
 ///     SupportedChainId::Mainnet,
-///     Address::ZERO,            // sell token
+///     Address::ZERO, // sell token
 ///     TokenRegistry::new(empty),
-///     50,                       // 0.5% slippage
-///     1800,                     // 30 min TTL
+///     50,   // 0.5% slippage
+///     1800, // 30 min TTL
 /// );
 /// assert!(config.env.is_prod());
 /// assert_eq!(config.slippage_bps, 50);

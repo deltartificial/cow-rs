@@ -187,8 +187,8 @@ impl Multiplexer {
     ///
     /// # Arguments
     ///
-    /// * `proof_location` — where the Merkle proofs will be stored or published
-    ///   (e.g. [`ProofLocation::Emitted`], [`ProofLocation::Ipfs`]).
+    /// * `proof_location` — where the Merkle proofs will be stored or published (e.g.
+    ///   [`ProofLocation::Emitted`], [`ProofLocation::Ipfs`]).
     ///
     /// # Returns
     ///
@@ -517,7 +517,7 @@ impl fmt::Display for Multiplexer {
 
 // ── Merkle tree (OpenZeppelin standard) ───────────────────────────────────────
 
-/// Double-hash a leaf per the OpenZeppelin `MerkleTree` convention.
+/// Double-hash a leaf per the `OpenZeppelin` `MerkleTree` convention.
 ///
 /// # Arguments
 ///

@@ -10,7 +10,7 @@
 //! | Module | Purpose |
 //! |---|---|
 //! | [`chain`] | [`SupportedChainId`], [`Env`], API base URLs, explorer links |
-//! | [`chains`] | Extended chain enums ([`EvmChains`](chains::EvmChains), [`NonEvmChains`](chains::NonEvmChains)), rich [`ChainInfo`](chains::ChainInfo) metadata, classification helpers |
+//! | [`chains`] | Extended chain enums ([`EvmChains`], [`NonEvmChains`]), rich [`ChainInfo`] metadata, classification helpers |
 //! | [`contracts`] | Protocol contract addresses (`SETTLEMENT_CONTRACT`, `VAULT_RELAYER`, …), `CREATE2` helpers, EIP-1967 proxy slots |
 //! | [`tokens`] | Native/wrapped currency constants and per-chain [`TokenInfo`] |
 //! | [`params`] | [`CowSwapConfig`] executor configuration and [`TokenRegistry`] |

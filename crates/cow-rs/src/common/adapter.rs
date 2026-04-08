@@ -8,8 +8,8 @@
 //!
 //! 1. Implement [`ProviderAdapter`] for your Ethereum provider/signer.
 //! 2. Call [`set_global_adapter`] once at application startup.
-//! 3. Other SDK modules call [`get_global_adapter`] internally when they
-//!    need to sign or send transactions.
+//! 3. Other SDK modules call [`get_global_adapter`] internally when they need to sign or send
+//!    transactions.
 
 use std::sync::{Arc, OnceLock};
 
@@ -107,8 +107,7 @@ pub trait ProviderAdapter: Send + Sync {
 ///
 /// # Parameters
 ///
-/// * `adapter` — an `Arc<dyn ProviderAdapter>` wrapping your provider
-///   implementation.
+/// * `adapter` — an `Arc<dyn ProviderAdapter>` wrapping your provider implementation.
 pub fn set_global_adapter(adapter: AdapterArc) {
     // OnceLock::set returns Err on duplicate — we intentionally ignore it.
     let _already_set = GLOBAL_ADAPTER.set(adapter);

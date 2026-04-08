@@ -59,8 +59,8 @@ impl CowShedSdk {
     ///
     /// # Arguments
     ///
-    /// * `chain_id` — EIP-155 chain identifier (e.g. `1` for Ethereum mainnet,
-    ///   `100` for Gnosis Chain).
+    /// * `chain_id` — EIP-155 chain identifier (e.g. `1` for Ethereum mainnet, `100` for Gnosis
+    ///   Chain).
     ///
     /// # Returns
     ///
@@ -105,8 +105,7 @@ impl CowShedSdk {
     ///
     /// # Arguments
     ///
-    /// * `params` — The [`CowShedHookParams`] containing the nonce, deadline,
-    ///   and calls to encode.
+    /// * `params` — The [`CowShedHookParams`] containing the nonce, deadline, and calls to encode.
     ///
     /// # Returns
     ///
@@ -133,10 +132,8 @@ impl CowShedSdk {
     /// # Arguments
     ///
     /// * `_user` — The user's EOA address (reserved for future use).
-    /// * `proxy` — The deployed `CowShed` proxy address that will be the hook
-    ///   target.
-    /// * `params` — The [`CowShedHookParams`] describing the calls, nonce, and
-    ///   deadline.
+    /// * `proxy` — The deployed `CowShed` proxy address that will be the hook target.
+    /// * `params` — The [`CowShedHookParams`] describing the calls, nonce, and deadline.
     ///
     /// # Returns
     ///

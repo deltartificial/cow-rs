@@ -60,14 +60,14 @@ fn parse_order(json: &str) -> Result<UnsignedOrder, JsValue> {
         s.parse().map_err(to_js_err)
     };
 
-    let kind_str = v.get("kind").and_then(|s| s.as_str()).unwrap_or("sell");
+    let kind_str = v.get("kind").and_then(|s| s.as_str()).unwrap_or_else(|| "sell");
     let kind = match kind_str {
         "buy" => OrderKind::Buy,
         _ => OrderKind::Sell,
     };
 
     let sell_token_balance_str =
-        v.get("sellTokenBalance").and_then(|s| s.as_str()).unwrap_or("erc20");
+        v.get("sellTokenBalance").and_then(|s| s.as_str()).unwrap_or_else(|| "erc20");
     let sell_token_balance = match sell_token_balance_str {
         "external" => TokenBalance::External,
         "internal" => TokenBalance::Internal,
@@ -75,32 +75,33 @@ fn parse_order(json: &str) -> Result<UnsignedOrder, JsValue> {
     };
 
     let buy_token_balance_str =
-        v.get("buyTokenBalance").and_then(|s| s.as_str()).unwrap_or("erc20");
+        v.get("buyTokenBalance").and_then(|s| s.as_str()).unwrap_or_else(|| "erc20");
     let buy_token_balance = match buy_token_balance_str {
         "external" => TokenBalance::External,
         "internal" => TokenBalance::Internal,
         _ => TokenBalance::Erc20,
     };
 
-    let valid_to = v.get("validTo").and_then(|n| n.as_u64()).unwrap_or(0) as u32;
+    let valid_to = v.get("validTo").and_then(|n| n.as_u64()).unwrap_or_else(|| 0) as u32;
 
     let app_data_str = v
         .get("appData")
         .and_then(|s| s.as_str())
-        .unwrap_or("0x0000000000000000000000000000000000000000000000000000000000000000");
+        .unwrap_or_else(|| "0x0000000000000000000000000000000000000000000000000000000000000000");
     let app_data: alloy_primitives::B256 = app_data_str.parse().map_err(to_js_err)?;
 
-    let partially_fillable = v.get("partiallyFillable").and_then(|b| b.as_bool()).unwrap_or(false);
+    let partially_fillable =
+        v.get("partiallyFillable").and_then(|b| b.as_bool()).unwrap_or_else(|| false);
 
     Ok(UnsignedOrder {
         sell_token: parse_addr("sellToken")?,
         buy_token: parse_addr("buyToken")?,
-        receiver: parse_addr("receiver").unwrap_or(alloy_primitives::Address::ZERO),
+        receiver: parse_addr("receiver").unwrap_or_else(|_| alloy_primitives::Address::ZERO),
         sell_amount: parse_u256("sellAmount")?,
         buy_amount: parse_u256("buyAmount")?,
         valid_to,
         app_data,
-        fee_amount: parse_u256("feeAmount").unwrap_or(alloy_primitives::U256::ZERO),
+        fee_amount: parse_u256("feeAmount").unwrap_or_else(|_| alloy_primitives::U256::ZERO),
         kind,
         partially_fillable,
         sell_token_balance,
@@ -115,10 +116,11 @@ fn hex_b256(b: alloy_primitives::B256) -> String {
 
 // ── EIP-712 Hashing ──────────────────────────────────────────────────────────
 
-/// Compute the EIP-712 domain separator for CoW Protocol on the given chain.
+/// Compute the EIP-712 domain separator for `CoW` Protocol on the given chain.
 ///
 /// Returns a `0x`-prefixed 32-byte hex string.
 #[wasm_bindgen(js_name = "domainSeparator")]
+#[must_use]
 pub fn wasm_domain_separator(chain_id: u32) -> String {
     hex_b256(domain_separator(u64::from(chain_id)))
 }
@@ -148,7 +150,7 @@ pub fn wasm_signing_digest(domain_sep_hex: &str, order_hash_hex: &str) -> Result
     Ok(hex_b256(signing_digest(ds, oh)))
 }
 
-/// Compute the 56-byte order UID for a CoW Protocol order.
+/// Compute the 56-byte order UID for a `CoW` Protocol order.
 ///
 /// Returns a `0x`-prefixed 112-character hex string.
 #[wasm_bindgen(js_name = "computeOrderUid")]
@@ -164,7 +166,7 @@ pub fn wasm_compute_order_uid(
 
 // ── Order Signing ────────────────────────────────────────────────────────────
 
-/// Sign a CoW Protocol order with a private key.
+/// Sign a `CoW` Protocol order with a private key.
 ///
 /// `private_key` is a `0x`-prefixed 32-byte hex string.
 /// `scheme` is `"eip712"` or `"ethsign"`.
@@ -226,7 +228,7 @@ pub fn wasm_get_app_data_info(doc_json: &str) -> Result<String, JsValue> {
     serde_json::to_string(&json).map_err(to_js_err)
 }
 
-/// Validate an `AppDataDoc` JSON string against CoW Protocol schema rules.
+/// Validate an `AppDataDoc` JSON string against `CoW` Protocol schema rules.
 ///
 /// Returns a JSON string: `{ "success": bool, "errors": [...] }`.
 #[wasm_bindgen(js_name = "validateAppDataDoc")]
@@ -242,13 +244,13 @@ pub fn wasm_validate_app_data_doc(doc_json: &str) -> Result<String, JsValue> {
 
 // ── CID Conversion ───────────────────────────────────────────────────────────
 
-/// Convert an `appDataHex` (32-byte keccak256) to a CIDv1 base16 string.
+/// Convert an `appDataHex` (32-byte keccak256) to a `CIDv1` base16 string.
 #[wasm_bindgen(js_name = "appdataHexToCid")]
 pub fn wasm_appdata_hex_to_cid(app_data_hex: &str) -> Result<String, JsValue> {
     appdata_hex_to_cid(app_data_hex).map_err(to_js_err)
 }
 
-/// Extract the `appData` hex from a CIDv1 base16 string.
+/// Extract the `appData` hex from a `CIDv1` base16 string.
 ///
 /// Returns a `0x`-prefixed 32-byte hex string.
 #[wasm_bindgen(js_name = "cidToAppdataHex")]
@@ -298,6 +300,7 @@ pub fn wasm_api_base_url(chain_id: u32, env: &str) -> Result<String, JsValue> {
 ///
 /// Returns a JSON array of chain ID numbers.
 #[wasm_bindgen(js_name = "supportedChainIds")]
+#[must_use]
 pub fn wasm_supported_chain_ids() -> String {
     let ids: Vec<u64> = SupportedChainId::all().iter().map(|c| c.as_u64()).collect();
     serde_json::to_string(&ids).unwrap_or_else(|_| "[]".to_owned())
@@ -308,6 +311,7 @@ pub fn wasm_supported_chain_ids() -> String {
 /// Parse a `chain_id` / `env` pair into typed values.
 ///
 /// `env` accepts `"staging"` or defaults to `"prod"`.
+#[allow(clippy::type_complexity, reason = "tuple return matches domain parse requirements")]
 fn parse_chain_env(
     chain_id: u32,
     env: &str,
@@ -321,7 +325,7 @@ fn parse_chain_env(
     Ok((chain, environment))
 }
 
-/// Fetch a price quote from the CoW Protocol orderbook.
+/// Fetch a price quote from the `CoW` Protocol orderbook.
 ///
 /// `request_json` is a JSON string matching the `OrderQuoteRequest` schema
 /// (fields: `sellToken`, `buyToken`, `kind`, `sellAmountBeforeFee` or
@@ -342,7 +346,7 @@ pub async fn wasm_get_quote(
     serde_json::to_string(&resp).map_err(to_js_err)
 }
 
-/// Submit a signed order to the CoW Protocol orderbook.
+/// Submit a signed order to the `CoW` Protocol orderbook.
 ///
 /// `order_creation_json` is a JSON string matching the `OrderCreation` schema.
 ///
@@ -361,7 +365,7 @@ pub async fn wasm_send_order(
     serde_json::to_string(&uid).map_err(to_js_err)
 }
 
-/// Fetch an order by its UID from the CoW Protocol orderbook.
+/// Fetch an order by its UID from the `CoW` Protocol orderbook.
 ///
 /// Returns the full order as a JSON string.
 #[wasm_bindgen(js_name = "getOrder")]
@@ -372,7 +376,7 @@ pub async fn wasm_get_order(chain_id: u32, env: &str, order_uid: &str) -> Result
     serde_json::to_string(&order).map_err(to_js_err)
 }
 
-/// Fetch trades for an order UID from the CoW Protocol orderbook.
+/// Fetch trades for an order UID from the `CoW` Protocol orderbook.
 ///
 /// Returns a JSON array of trades.
 #[wasm_bindgen(js_name = "getTrades")]
@@ -383,7 +387,7 @@ pub async fn wasm_get_trades(chain_id: u32, env: &str, order_uid: &str) -> Resul
     serde_json::to_string(&trades).map_err(to_js_err)
 }
 
-/// Fetch all orders for an account from the CoW Protocol orderbook.
+/// Fetch all orders for an account from the `CoW` Protocol orderbook.
 ///
 /// Returns a JSON array of orders.
 #[wasm_bindgen(js_name = "getOrdersByOwner")]
@@ -399,7 +403,7 @@ pub async fn wasm_get_orders_by_owner(
     serde_json::to_string(&orders).map_err(to_js_err)
 }
 
-/// Get the native token price for a token from the CoW Protocol orderbook.
+/// Get the native token price for a token from the `CoW` Protocol orderbook.
 ///
 /// Returns the price as a JSON string.
 #[wasm_bindgen(js_name = "getNativePrice")]
@@ -417,7 +421,7 @@ pub async fn wasm_get_native_price(
 
 // ── Subgraph API (async HTTP) ────────────────────────────────────────────────
 
-/// Fetch aggregate protocol totals from the CoW Protocol subgraph.
+/// Fetch aggregate protocol totals from the `CoW` Protocol subgraph.
 ///
 /// Returns a JSON string with total volumes, trades, fees, etc.
 #[wasm_bindgen(js_name = "getSubgraphTotals")]
@@ -430,7 +434,7 @@ pub async fn wasm_get_subgraph_totals(chain_id: u32, env: &str) -> Result<String
 
 // ── IPFS / App-Data Fetch (async HTTP) ───────────────────────────────────────
 
-/// Fetch an `AppDataDoc` from IPFS by its CIDv1.
+/// Fetch an `AppDataDoc` from IPFS by its `CIDv1`.
 ///
 /// Returns the document as a JSON string.
 #[wasm_bindgen(js_name = "fetchDocFromCid")]
@@ -459,7 +463,7 @@ pub async fn wasm_fetch_doc_from_app_data_hex(
 
 // ── TradingSdk (async HTTP) ──────────────────────────────────────────────────
 
-/// Create a TradingSdk, fetch a quote, sign and submit a swap order.
+/// Create a `TradingSdk`, fetch a quote, sign and submit a swap order.
 ///
 /// `params_json`: `{ "kind": "sell"|"buy", "sellToken": "0x...",
 /// "sellTokenDecimals": 18, "buyToken": "0x...", "buyTokenDecimals": 6,
@@ -493,7 +497,7 @@ pub async fn wasm_post_swap_order(
             .map_err(to_js_err)
     };
 
-    let kind_str = v.get("kind").and_then(|s| s.as_str()).unwrap_or("sell");
+    let kind_str = v.get("kind").and_then(|s| s.as_str()).unwrap_or_else(|| "sell");
     let kind = match kind_str {
         "buy" => OrderKind::Buy,
         _ => OrderKind::Sell,
@@ -508,10 +512,13 @@ pub async fn wasm_post_swap_order(
     let params = crate::trading::TradeParameters {
         kind,
         sell_token: parse_addr("sellToken")?,
-        sell_token_decimals: v.get("sellTokenDecimals").and_then(|n| n.as_u64()).unwrap_or(18)
-            as u8,
+        sell_token_decimals: v
+            .get("sellTokenDecimals")
+            .and_then(|n| n.as_u64())
+            .unwrap_or_else(|| 18) as u8,
         buy_token: parse_addr("buyToken")?,
-        buy_token_decimals: v.get("buyTokenDecimals").and_then(|n| n.as_u64()).unwrap_or(18) as u8,
+        buy_token_decimals: v.get("buyTokenDecimals").and_then(|n| n.as_u64()).unwrap_or_else(|| 18)
+            as u8,
         amount,
         slippage_bps: v.get("slippageBps").and_then(|n| n.as_u64()).map(|n| n as u32),
         receiver: None,

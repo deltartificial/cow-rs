@@ -524,14 +524,14 @@ pub fn is_valid_across_status_response(response: &serde_json::Value) -> bool {
 /// bytes32,bytes32,bytes)`
 pub const ACROSS_FUNDS_DEPOSITED_TOPIC: &str = "event FundsDeposited(bytes32 inputToken, bytes32 outputToken, uint256 inputAmount, uint256 outputAmount, uint256 indexed destinationChainId, uint256 indexed depositId, uint32 quoteTimestamp, uint32 fillDeadline, uint32 exclusivityDeadline, bytes32 indexed depositor, bytes32 recipient, bytes32 exclusiveRelayer, bytes message)";
 
-/// Alias for [`ACROSS_FUNDS_DEPOSITED_TOPIC`] matching the TypeScript
+/// Alias for [`ACROSS_FUNDS_DEPOSITED_TOPIC`] matching the `TypeScript`
 /// `ACROSS_DEPOSIT_EVENT_INTERFACE` export.
 pub const ACROSS_DEPOSIT_EVENT_INTERFACE: &str = ACROSS_FUNDS_DEPOSITED_TOPIC;
 
 /// Keccak-256 topic for the `CoW` Protocol `Trade` event.
 pub const COW_TRADE_EVENT_SIGNATURE: &str = "event Trade(address indexed owner, address sellToken, address buyToken, uint256 sellAmount, uint256 buyAmount, uint256 feeAmount, bytes orderUid)";
 
-/// Alias for [`COW_TRADE_EVENT_SIGNATURE`] matching the TypeScript
+/// Alias for [`COW_TRADE_EVENT_SIGNATURE`] matching the `TypeScript`
 /// `COW_TRADE_EVENT_INTERFACE` export.
 pub const COW_TRADE_EVENT_INTERFACE: &str = COW_TRADE_EVENT_SIGNATURE;
 

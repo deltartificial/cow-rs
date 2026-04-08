@@ -10,7 +10,7 @@ description = "Native examples for the cow-rs SDK"
 workspace = true
 
 [dependencies]
-cow-rs = { path = "../../crates/cow-rs" }
+cow-rs = { path = "../../crates/cow-rs", version = "1" }
 alloy-primitives = { version = "1", features = ["serde"] }
 alloy-signer-local = "1"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }

@@ -44,6 +44,7 @@ use serde::Serializer;
 /// let json = serde_json::to_string(&cow_rs::common::serialize::U256DecString(val)).unwrap();
 /// assert_eq!(json, "\"123456789\"");
 /// ```
+#[allow(clippy::type_complexity, reason = "serde Serializer trait requires this signature")]
 pub fn u256_to_dec_string<S: Serializer>(value: &U256, serializer: S) -> Result<S::Ok, S::Error> {
     serializer.serialize_str(&value.to_string())
 }
@@ -109,7 +110,7 @@ pub fn json_with_bigint_replacer<T: serde::Serialize>(
 ///
 /// ```
 /// use alloy_primitives::U256;
-/// use serde::{Serialize, Deserialize};
+/// use serde::{Deserialize, Serialize};
 ///
 /// #[derive(Serialize, Deserialize, PartialEq, Debug)]
 /// struct Wrapper {
@@ -137,6 +138,7 @@ pub mod u256_string {
     /// # Returns
     ///
     /// The serializer's `Ok` type on success.
+    #[allow(clippy::type_complexity, reason = "serde Serializer trait requires this signature")]
     pub fn serialize<S: Serializer>(value: &U256, serializer: S) -> Result<S::Ok, S::Error> {
         serializer.serialize_str(&value.to_string())
     }

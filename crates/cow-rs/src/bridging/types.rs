@@ -21,7 +21,7 @@ pub enum BridgeProviderType {
 impl BridgeProviderType {
     /// Returns `true` if this is a [`HookBridgeProvider`](Self::HookBridgeProvider).
     ///
-    /// Equivalent to the TypeScript `isHookBridgeProvider` type guard.
+    /// Equivalent to the `TypeScript` `isHookBridgeProvider` type guard.
     #[must_use]
     pub const fn is_hook_bridge_provider(self) -> bool {
         matches!(self, Self::HookBridgeProvider)
@@ -30,7 +30,7 @@ impl BridgeProviderType {
     /// Returns `true` if this is a
     /// [`ReceiverAccountBridgeProvider`](Self::ReceiverAccountBridgeProvider).
     ///
-    /// Equivalent to the TypeScript `isReceiverAccountBridgeProvider` type guard.
+    /// Equivalent to the `TypeScript` `isReceiverAccountBridgeProvider` type guard.
     #[must_use]
     pub const fn is_receiver_account_bridge_provider(self) -> bool {
         matches!(self, Self::ReceiverAccountBridgeProvider)

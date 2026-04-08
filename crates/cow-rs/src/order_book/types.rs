@@ -1177,7 +1177,7 @@ impl Order {
     ///
     /// Returns `Some(executed_fee_amount + executed_fee)` when both fields can
     /// be parsed as `U256`.  Returns `None` when either field is missing or
-    /// unparseable.
+    /// unparsable.
     ///
     /// The executed fee is the sum of:
     /// - `executed_fee_amount` — the network (gas) fee taken from the sell token

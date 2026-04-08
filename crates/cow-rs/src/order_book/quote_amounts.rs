@@ -70,7 +70,7 @@ pub struct QuoteCosts {
 
 /// Complete breakdown of quote amounts at every fee stage.
 ///
-/// See the TypeScript SDK's `QuoteAmountsAndCosts` for the canonical
+/// See the `TypeScript` SDK's `QuoteAmountsAndCosts` for the canonical
 /// description of each stage and how fees are layered.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct QuoteAmountsAndCostsResult {
@@ -142,8 +142,8 @@ pub struct ProtocolFeeAmountParams {
 ///
 /// # Parameters
 ///
-/// * `params` — a [`ProtocolFeeAmountParams`] containing the order
-///   parameters and the protocol fee rate in BPS.
+/// * `params` — a [`ProtocolFeeAmountParams`] containing the order parameters and the protocol fee
+///   rate in BPS.
 ///
 /// For **sell orders** the fee was deducted from `buyAmount`:
 /// ```text
@@ -315,9 +315,8 @@ pub fn get_quote_amounts_after_slippage(
 ///
 /// # Parameters
 ///
-/// * `params` — a [`QuoteAmountsAndCostsParams`] containing the order
-///   parameters from the `/quote` response, protocol/partner fee rates,
-///   and slippage tolerance.
+/// * `params` — a [`QuoteAmountsAndCostsParams`] containing the order parameters from the `/quote`
+///   response, protocol/partner fee rates, and slippage tolerance.
 ///
 /// # Returns
 ///
@@ -334,8 +333,8 @@ pub fn get_quote_amounts_and_costs(
         slippage_percent_bps,
     } = params;
 
-    let partner_fee_bps = partner_fee_bps.unwrap_or(0);
-    let protocol_fee_bps = protocol_fee_bps.unwrap_or(0.0);
+    let partner_fee = partner_fee_bps.map_or(0, |v| v);
+    let protocol_fee = protocol_fee_bps.map_or(0.0, |v| v);
     let is_sell = order_params.kind.is_sell();
 
     let sell_amount = order_params.sell_amount;
@@ -352,7 +351,7 @@ pub fn get_quote_amounts_and_costs(
     // Reconstruct the protocol fee amount from the baked-in quote.
     let protocol_fee_amount = get_protocol_fee_amount(&ProtocolFeeAmountParams {
         order_params: order_params.clone(),
-        protocol_fee_bps,
+        protocol_fee_bps: protocol_fee,
     });
 
     // Stage 0: before all fees (spot price).
@@ -391,7 +390,7 @@ pub fn get_quote_amounts_and_costs(
             &after_network_costs,
             &before_all_fees,
             is_sell,
-            partner_fee_bps,
+            partner_fee,
         );
 
     // Stage 4: after slippage.
@@ -418,11 +417,8 @@ pub fn get_quote_amounts_and_costs(
                 amount_in_sell_currency: network_cost_amount,
                 amount_in_buy_currency: network_cost_in_buy,
             },
-            partner_fee: QuoteFeeComponent {
-                amount: partner_fee_amount,
-                bps: partner_fee_bps as f64,
-            },
-            protocol_fee: QuoteFeeComponent { amount: protocol_fee_amount, bps: protocol_fee_bps },
+            partner_fee: QuoteFeeComponent { amount: partner_fee_amount, bps: partner_fee as f64 },
+            protocol_fee: QuoteFeeComponent { amount: protocol_fee_amount, bps: protocol_fee },
         },
         before_all_fees,
         before_network_costs: after_protocol_fees,
@@ -444,7 +440,8 @@ pub fn get_quote_amounts_and_costs(
 ///
 /// - `valid_to` is overwritten with the user's original validity.
 /// - `owner` is overwritten with the on-chain user address.
-/// - `sell_token` is replaced with [`NATIVE_CURRENCY_ADDRESS`](crate::config::NATIVE_CURRENCY_ADDRESS).
+/// - `sell_token` is replaced with
+///   [`NATIVE_CURRENCY_ADDRESS`](crate::config::NATIVE_CURRENCY_ADDRESS).
 ///
 /// Mirrors `transformOrder` from the `TypeScript` SDK.
 ///
@@ -458,9 +455,9 @@ pub fn get_quote_amounts_and_costs(
 #[must_use]
 pub fn transform_order(mut order: super::Order) -> super::Order {
     // Compute total fee.
-    let executed_fee_amount: U256 = order.executed_fee_amount.parse().unwrap_or(U256::ZERO);
+    let executed_fee_amount: U256 = order.executed_fee_amount.parse().map_or(U256::ZERO, |v| v);
     let executed_fee: U256 =
-        order.executed_fee.as_deref().and_then(|s| s.parse().ok()).unwrap_or(U256::ZERO);
+        order.executed_fee.as_deref().and_then(|s| s.parse().ok()).map_or(U256::ZERO, |v| v);
     order.total_fee = Some((executed_fee_amount + executed_fee).to_string());
 
     // Apply EthFlow transformations (no-op for regular orders).
@@ -578,7 +575,7 @@ mod tests {
     fn buy_buy_amount_unchanged_by_network_costs() {
         let order_params = buy_order();
         let result = get_quote_amounts_and_costs(&QuoteAmountsAndCostsParams {
-            order_params: order_params.clone(),
+            order_params,
             slippage_percent_bps: 0,
             partner_fee_bps: None,
             protocol_fee_bps: None,
@@ -693,7 +690,7 @@ mod tests {
         let order_params = sell_order();
         let protocol_fee_bps = 20.0;
         let result = get_quote_amounts_and_costs(&QuoteAmountsAndCostsParams {
-            order_params: order_params.clone(),
+            order_params,
             slippage_percent_bps: 0,
             partner_fee_bps: None,
             protocol_fee_bps: Some(protocol_fee_bps),
@@ -709,7 +706,7 @@ mod tests {
         let order_params = buy_order();
         let protocol_fee_bps = 20.0;
         let result = get_quote_amounts_and_costs(&QuoteAmountsAndCostsParams {
-            order_params: order_params.clone(),
+            order_params,
             slippage_percent_bps: 0,
             partner_fee_bps: None,
             protocol_fee_bps: Some(protocol_fee_bps),
@@ -744,7 +741,7 @@ mod tests {
         let order_params = buy_order();
         let protocol_fee_bps: f64 = 0.00071;
         let result = get_quote_amounts_and_costs(&QuoteAmountsAndCostsParams {
-            order_params: order_params.clone(),
+            order_params,
             slippage_percent_bps: 0,
             partner_fee_bps: None,
             protocol_fee_bps: Some(protocol_fee_bps),

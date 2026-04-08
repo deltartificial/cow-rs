@@ -47,6 +47,7 @@ impl OnchainReader {
     /// A configured [`reqwest::Client`] with a 30-second timeout on native targets,
     /// or a default client on WASM targets. Falls back to [`reqwest::Client::default`]
     /// if the builder fails.
+    #[allow(clippy::shadow_reuse, reason = "builder pattern chains naturally shadow")]
     fn build_client() -> reqwest::Client {
         let builder = reqwest::Client::builder();
         #[cfg(not(target_arch = "wasm32"))]
@@ -61,8 +62,8 @@ impl OnchainReader {
     ///
     /// # Arguments
     ///
-    /// * `rpc_url` - The JSON-RPC endpoint URL (e.g. `"https://rpc.sepolia.org"`).
-    ///   Accepts any type that implements `Into<String>`.
+    /// * `rpc_url` - The JSON-RPC endpoint URL (e.g. `"https://rpc.sepolia.org"`). Accepts any type
+    ///   that implements `Into<String>`.
     ///
     /// # Returns
     ///
@@ -197,7 +198,7 @@ impl OnchainReader {
 
     /// Read the EIP-1967 implementation address of a proxy contract.
     ///
-    /// Mirrors `implementationAddress` from the TypeScript `contracts-ts` package.
+    /// Mirrors `implementationAddress` from the `TypeScript` `contracts-ts` package.
     /// Makes an `eth_getStorageAt` JSON-RPC call to read the implementation slot
     /// and decodes the result as an [`Address`].
     ///
@@ -220,7 +221,7 @@ impl OnchainReader {
 
     /// Read the EIP-1967 admin/owner address of a proxy contract.
     ///
-    /// Mirrors `ownerAddress` from the TypeScript `contracts-ts` package.
+    /// Mirrors `ownerAddress` from the `TypeScript` `contracts-ts` package.
     /// Makes an `eth_getStorageAt` JSON-RPC call to read the admin slot
     /// and decodes the result as an [`Address`].
     ///
@@ -309,8 +310,8 @@ pub(crate) fn decode_u8(bytes: &[u8]) -> Result<u8, CowError> {
 ///
 /// # Arguments
 ///
-/// * `bytes` - The raw ABI-encoded response bytes (must be at least 64 bytes,
-///   plus the string length indicated in the length word).
+/// * `bytes` - The raw ABI-encoded response bytes (must be at least 64 bytes, plus the string
+///   length indicated in the length word).
 ///
 /// # Returns
 ///

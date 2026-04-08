@@ -41,7 +41,7 @@ use crate::config::{
 /// # Example
 ///
 /// ```
-/// use cow_rs::common::address::{get_address_key, AddressKey};
+/// use cow_rs::common::address::{AddressKey, get_address_key};
 ///
 /// let key = get_address_key("0xABCDEF1234567890abcdef1234567890ABCDEF12");
 /// assert!(matches!(key, AddressKey::Evm(_)));
@@ -174,7 +174,7 @@ pub fn is_evm_address(address: &str) -> bool {
 #[must_use]
 pub fn is_btc_address(address: &str) -> bool {
     let len = address.len();
-    if len < 25 || len > 62 {
+    if !(25..=62).contains(&len) {
         return false;
     }
     is_btc_legacy(address) || is_btc_bech32_mainnet(address)
@@ -202,7 +202,7 @@ pub fn is_btc_address(address: &str) -> bool {
 #[must_use]
 pub fn is_solana_address(address: &str) -> bool {
     let len = address.len();
-    if len < 32 || len > 44 {
+    if !(32..=44).contains(&len) {
         return false;
     }
     address.bytes().all(is_base58_char)
@@ -360,6 +360,7 @@ pub fn get_address_key(address: &str) -> AddressKey {
 /// assert!(!are_addresses_equal(None, Some("0x1234")));
 /// ```
 #[must_use]
+#[allow(clippy::shadow_reuse, reason = "destructuring Option parameters into inner values")]
 pub fn are_addresses_equal(a: Option<&str>, b: Option<&str>) -> bool {
     let (Some(a), Some(b)) = (a, b) else {
         return false;
@@ -423,6 +424,7 @@ pub trait TokenLike {
 /// assert!(are_tokens_equal(Some(&a), Some(&b)));
 /// ```
 #[must_use]
+#[allow(clippy::shadow_reuse, reason = "destructuring Option parameters into inner values")]
 pub fn are_tokens_equal<T: TokenLike>(a: Option<&T>, b: Option<&T>) -> bool {
     let (Some(a), Some(b)) = (a, b) else {
         return false;
@@ -531,8 +533,8 @@ pub fn is_wrapped_native_token(chain_id: u64, address: &str) -> bool {
 /// # Parameters
 ///
 /// * `address` — the contract address to check.
-/// * `_chain_id` — the [`SupportedChainId`] (currently unused since
-///   settlement addresses are the same across chains).
+/// * `_chain_id` — the [`SupportedChainId`] (currently unused since settlement addresses are the
+///   same across chains).
 ///
 /// # Returns
 ///
@@ -549,8 +551,8 @@ pub fn is_wrapped_native_token(chain_id: u64, address: &str) -> bool {
 #[must_use]
 pub fn is_cow_settlement_contract(address: &str, _chain_id: SupportedChainId) -> bool {
     let key = get_address_key(address);
-    let prod = format!("{:#x}", SETTLEMENT_CONTRACT);
-    let staging = format!("{:#x}", SETTLEMENT_CONTRACT_STAGING);
+    let prod = format!("{SETTLEMENT_CONTRACT:#x}");
+    let staging = format!("{SETTLEMENT_CONTRACT_STAGING:#x}");
     are_addresses_equal(Some(key.as_str()), Some(&prod)) ||
         are_addresses_equal(Some(key.as_str()), Some(&staging))
 }
@@ -564,8 +566,8 @@ pub fn is_cow_settlement_contract(address: &str, _chain_id: SupportedChainId) ->
 /// # Parameters
 ///
 /// * `address` — the contract address to check.
-/// * `_chain_id` — the [`SupportedChainId`] (currently unused since
-///   vault relayer addresses are the same across chains).
+/// * `_chain_id` — the [`SupportedChainId`] (currently unused since vault relayer addresses are the
+///   same across chains).
 ///
 /// # Returns
 ///
@@ -582,8 +584,8 @@ pub fn is_cow_settlement_contract(address: &str, _chain_id: SupportedChainId) ->
 #[must_use]
 pub fn is_cow_vault_relayer_contract(address: &str, _chain_id: SupportedChainId) -> bool {
     let key = get_address_key(address);
-    let prod = format!("{:#x}", VAULT_RELAYER);
-    let staging = format!("{:#x}", VAULT_RELAYER_STAGING);
+    let prod = format!("{VAULT_RELAYER:#x}");
+    let staging = format!("{VAULT_RELAYER_STAGING:#x}");
     are_addresses_equal(Some(key.as_str()), Some(&prod)) ||
         are_addresses_equal(Some(key.as_str()), Some(&staging))
 }
@@ -614,7 +616,7 @@ fn is_btc_legacy(address: &str) -> bool {
     }
     // Remaining characters (indices 1..) must be base58, total length 25-34.
     let len = bytes.len();
-    if len < 25 || len > 34 {
+    if !(25..=34).contains(&len) {
         return false;
     }
     bytes[1..].iter().all(|&b| is_base58_char(b))
@@ -624,7 +626,7 @@ fn is_btc_legacy(address: &str) -> bool {
 fn is_btc_bech32_mainnet(address: &str) -> bool {
     let len = address.len();
     // bc1 + 39..=59 chars -> total 42..=62
-    if len < 42 || len > 62 {
+    if !(42..=62).contains(&len) {
         return false;
     }
     if let Some(rest) = address.strip_prefix("bc1") {
@@ -646,12 +648,12 @@ fn is_btc_bech32_mainnet(address: &str) -> bool {
 
 /// Alias for [`is_cow_settlement_contract`] — provided for analyzer compatibility.
 ///
-/// Some automated tools convert `CoW` to `co_w` when snake-casing TypeScript names.
+/// Some automated tools convert `CoW` to `co_w` when snake-casing `TypeScript` names.
 pub use is_cow_settlement_contract as is_co_w_settlement_contract;
 
 /// Alias for [`is_cow_vault_relayer_contract`] — provided for analyzer compatibility.
 ///
-/// Some automated tools convert `CoW` to `co_w` when snake-casing TypeScript names.
+/// Some automated tools convert `CoW` to `co_w` when snake-casing `TypeScript` names.
 pub use is_cow_vault_relayer_contract as is_co_w_vault_relayer_contract;
 
 #[cfg(test)]

@@ -522,7 +522,7 @@ pub async fn get_intermediate_swap_result(
 /// Create a bridge request timeout future.
 ///
 /// Returns a future that resolves to a [`BridgeError::Timeout`] after
-/// `timeout_ms` milliseconds. This is the Rust equivalent of the TypeScript
+/// `timeout_ms` milliseconds. This is the Rust equivalent of the `TypeScript`
 /// `createBridgeRequestTimeoutPromise(timeoutMs, prefix)`.
 ///
 /// # Example
@@ -545,7 +545,7 @@ pub async fn create_bridge_request_timeout(timeout_ms: u64, prefix: &str) -> Bri
 
 /// Strategy variant for quote retrieval.
 ///
-/// Mirrors the TypeScript `createStrategies` factory which returns
+/// Mirrors the `TypeScript` `createStrategies` factory which returns
 /// `SingleQuoteStrategy`, `MultiQuoteStrategy`, and `BestQuoteStrategy`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum QuoteStrategy {
@@ -585,13 +585,13 @@ impl QuoteStrategy {
 /// Create all available quote strategies.
 ///
 /// Returns the three strategy variants (Single, Multi, Best). In the
-/// TypeScript SDK each is a class instance backed by an optional
+/// `TypeScript` SDK each is a class instance backed by an optional
 /// `intermediateTokensCache`; in Rust the strategies are simple enum
 /// variants and caching is handled by the caller.
 ///
 /// Mirrors `createStrategies(cache)` from `strategies/createStrategies.ts`.
 #[must_use]
-pub fn create_strategies() -> [QuoteStrategy; 3] {
+pub const fn create_strategies() -> [QuoteStrategy; 3] {
     [QuoteStrategy::Single, QuoteStrategy::Multi, QuoteStrategy::Best]
 }
 
@@ -670,10 +670,10 @@ pub async fn execute_provider_quotes(
         .collect();
 
     // Race all futures against a global timeout
-    let results =
+    let fetched_results =
         tokio::time::timeout(std::time::Duration::from_millis(timeout_ms), join_all(futs)).await;
 
-    match results {
+    match fetched_results {
         Ok(results) => results,
         Err(_timeout) => {
             // Return timeout errors for all providers
@@ -682,7 +682,7 @@ pub async fn execute_provider_quotes(
                 .map(|p| MultiQuoteResult {
                     provider_dapp_id: p.name().to_owned(),
                     quote: None,
-                    error: Some(format!("Multi-quote timeout after {}ms", timeout_ms)),
+                    error: Some(format!("Multi-quote timeout after {timeout_ms}ms")),
                 })
                 .collect()
         }
@@ -706,7 +706,7 @@ pub async fn fetch_multi_quote(
     request: &QuoteBridgeRequest,
     timeout_ms: Option<u64>,
 ) -> Vec<MultiQuoteResult> {
-    let timeout = timeout_ms.unwrap_or(DEFAULT_TOTAL_TIMEOUT_MS);
+    let timeout = timeout_ms.map_or(DEFAULT_TOTAL_TIMEOUT_MS, |v| v);
     let mut results = execute_provider_quotes(sdk, request, timeout).await;
 
     // Fill timeout results
@@ -845,7 +845,7 @@ pub async fn get_quote_with_receiver_account_bridge(
 
 #[cfg(test)]
 pub mod test_helpers {
-    //! Test helper utilities ported from the TypeScript bridging test package.
+    //! Test helper utilities ported from the `TypeScript` bridging test package.
     //!
     //! Mirrors:
     //! - `expectToEqual` from `test/utils.ts`
@@ -862,7 +862,7 @@ pub mod test_helpers {
 
     /// Return the test private key hex string.
     ///
-    /// Mirrors `getPk()` from the TypeScript test utilities.
+    /// Mirrors `getPk()` from the `TypeScript` test utilities.
     #[must_use]
     pub fn get_pk() -> &'static str {
         TEST_PRIVATE_KEY
@@ -870,7 +870,7 @@ pub mod test_helpers {
 
     /// Create a [`PrivateKeySigner`] from the test private key.
     ///
-    /// Mirrors `getMockSigner()` / `getWallet()` from the TypeScript test utilities.
+    /// Mirrors `getMockSigner()` / `getWallet()` from the `TypeScript` test utilities.
     #[must_use]
     pub fn get_mock_signer() -> PrivateKeySigner {
         TEST_PRIVATE_KEY.parse::<PrivateKeySigner>().expect("valid test key")
@@ -884,7 +884,7 @@ pub mod test_helpers {
 
     /// Return a test RPC URL.
     ///
-    /// Mirrors `getRpcProvider()` from the TypeScript test utilities.
+    /// Mirrors `getRpcProvider()` from the `TypeScript` test utilities.
     /// Returns the default Ethereum mainnet public RPC endpoint.
     #[must_use]
     pub fn get_rpc_provider() -> &'static str {
@@ -893,7 +893,7 @@ pub mod test_helpers {
 
     /// Assert that two serializable values produce the same JSON string.
     ///
-    /// Mirrors `expectToEqual(a, b)` from the TypeScript test utilities,
+    /// Mirrors `expectToEqual(a, b)` from the `TypeScript` test utilities,
     /// which compares `JSON.stringify(a, jsonWithBigintReplacer)` outputs.
     ///
     /// # Panics

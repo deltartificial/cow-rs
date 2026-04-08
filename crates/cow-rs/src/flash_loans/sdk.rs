@@ -64,9 +64,9 @@ pub const ADAPTER_DOMAIN_VERSION: &str = "1";
 /// [`CowHook`](crate::app_data::CowHook) ready to attach to an order's
 /// app-data.
 ///
-/// Currently only **Balancer** flash loan encoding is implemented. MakerDAO
+/// Currently only **Balancer** flash loan encoding is implemented. `MakerDAO`
 /// and Aave V3 encoding will return
-/// [`CowError::Unsupported`](crate::CowError::Unsupported).
+/// [`CowError::Unsupported`].
 #[derive(Debug, Clone, Copy)]
 pub struct FlashLoanSdk;
 
@@ -100,12 +100,12 @@ impl FlashLoanSdk {
     ///
     /// # Parameters
     ///
-    /// * `receiver` — the [`Address`] that receives the borrowed tokens and
-    ///   must implement `IFlashLoanRecipient`.
+    /// * `receiver` — the [`Address`] that receives the borrowed tokens and must implement
+    ///   `IFlashLoanRecipient`.
     /// * `token` — the ERC-20 [`Address`] of the token to borrow.
     /// * `amount` — the borrow amount as a [`U256`] in token atoms.
-    /// * `user_data` — arbitrary bytes forwarded to the receiver's callback.
-    ///   Pass `&[]` when no extra data is needed.
+    /// * `user_data` — arbitrary bytes forwarded to the receiver's callback. Pass `&[]` when no
+    ///   extra data is needed.
     ///
     /// # Returns
     ///
@@ -212,8 +212,8 @@ impl FlashLoanSdk {
     /// # Parameters
     ///
     /// * `params` — the [`FlashLoanParams`] (provider, token, amount, chain).
-    /// * `receiver` — the [`Address`] that receives the borrowed tokens and
-    ///   implements the flash loan callback.
+    /// * `receiver` — the [`Address`] that receives the borrowed tokens and implements the flash
+    ///   loan callback.
     /// * `user_data` — arbitrary bytes forwarded to the receiver's callback.
     ///
     /// # Returns
@@ -223,10 +223,9 @@ impl FlashLoanSdk {
     ///
     /// # Errors
     ///
-    /// - [`CowError::Unsupported`] if the provider is not deployed on
-    ///   `params.chain_id`.
-    /// - [`CowError::Unsupported`] if the provider's calldata encoding is
-    ///   not yet implemented (MakerDAO, Aave V3).
+    /// - [`CowError::Unsupported`] if the provider is not deployed on `params.chain_id`.
+    /// - [`CowError::Unsupported`] if the provider's calldata encoding is not yet implemented
+    ///   (`MakerDAO`, Aave V3).
     pub fn build_flash_loan_hook(
         params: &FlashLoanParams,
         receiver: Address,

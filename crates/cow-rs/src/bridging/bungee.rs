@@ -666,7 +666,7 @@ impl BridgeProvider for BungeeProvider {
 
     /// Fetch a bridge quote from the Bungee / Socket aggregator API.
     ///
-    /// Delegates to [`BungeeProvider::get_quote_inner`] and returns the result
+    /// Delegates to `BungeeProvider::get_quote_inner` and returns the result
     /// as a pinned, boxed future suitable for the [`BridgeProvider`] trait.
     fn get_quote<'a>(&'a self, req: &'a QuoteBridgeRequest) -> QuoteFuture<'a> {
         Box::pin(self.get_quote_inner(req))

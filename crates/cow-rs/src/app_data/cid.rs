@@ -39,7 +39,7 @@ const HASH_SHA2_256: u8 = 0x12;
 /// order struct) into a `CIDv1` string.
 ///
 /// The CID is built by hashing the raw bytes of `app_data_hex` with
-/// `keccak256`, then wrapping the digest in a CIDv1 envelope:
+/// `keccak256`, then wrapping the digest in a `CIDv1` envelope:
 /// `[version=0x01, codec=0x55 (raw), hash_fn=0x1b (keccak256), len=0x20, ...digest]`.
 /// The result is returned as a multibase base16 string (prefix `f`).
 ///
@@ -259,7 +259,7 @@ pub fn app_data_hex_to_cid_legacy(app_data_hex: &str) -> Result<String, CowError
 /// ```
 #[derive(Debug, Clone)]
 pub struct CidComponents {
-    /// CID version (e.g. `1` for CIDv1).
+    /// CID version (e.g. `1` for `CIDv1`).
     pub version: u8,
     /// Multicodec code (e.g. `0x55` for raw, `0x70` for dag-pb).
     pub codec: u8,

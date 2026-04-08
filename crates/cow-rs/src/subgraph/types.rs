@@ -721,7 +721,7 @@ impl fmt::Display for Bundle {
 
 /// Protocol-wide singleton accumulator entity from the subgraph.
 ///
-/// Mirrors the `Total` GraphQL type. Unlike [`Totals`] (which is the
+/// Mirrors the `Total` `GraphQL` type. Unlike [`Totals`] (which is the
 /// flattened query-response shape), this type matches the full subgraph
 /// entity including its `id` field.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -763,7 +763,7 @@ impl fmt::Display for Total {
 
 /// A Uniswap token entity indexed by the `CoW` Protocol subgraph.
 ///
-/// Mirrors the `UniswapToken` GraphQL type.
+/// Mirrors the `UniswapToken` `GraphQL` type.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UniswapToken {
@@ -795,7 +795,7 @@ impl fmt::Display for UniswapToken {
 
 /// A Uniswap pool entity indexed by the `CoW` Protocol subgraph.
 ///
-/// Mirrors the `UniswapPool` GraphQL type.
+/// Mirrors the `UniswapPool` `GraphQL` type.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UniswapPool {
@@ -830,7 +830,7 @@ impl fmt::Display for UniswapPool {
 
 /// Block information returned by the subgraph `_meta` field.
 ///
-/// Mirrors the `_Block_` GraphQL type.
+/// Mirrors the `_Block_` `GraphQL` type.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SubgraphBlock {
@@ -855,7 +855,7 @@ impl fmt::Display for SubgraphBlock {
 
 /// Top-level subgraph indexing metadata returned by the `_meta` field.
 ///
-/// Mirrors the `_Meta_` GraphQL type.
+/// Mirrors the `_Meta_` `GraphQL` type.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SubgraphMeta {

@@ -1696,7 +1696,8 @@ impl OrderPostingResult {
     ///
     /// # Returns
     ///
-    /// `true` when `signing_scheme` is [`SigningScheme::Eip712`](crate::types::SigningScheme::Eip712).
+    /// `true` when `signing_scheme` is
+    /// [`SigningScheme::Eip712`](crate::types::SigningScheme::Eip712).
     #[must_use]
     pub const fn is_eip712(&self) -> bool {
         matches!(self.signing_scheme, crate::types::SigningScheme::Eip712)
@@ -1706,7 +1707,8 @@ impl OrderPostingResult {
     ///
     /// # Returns
     ///
-    /// `true` when `signing_scheme` is [`SigningScheme::EthSign`](crate::types::SigningScheme::EthSign).
+    /// `true` when `signing_scheme` is
+    /// [`SigningScheme::EthSign`](crate::types::SigningScheme::EthSign).
     #[must_use]
     pub const fn is_eth_sign(&self) -> bool {
         matches!(self.signing_scheme, crate::types::SigningScheme::EthSign)
@@ -1716,7 +1718,8 @@ impl OrderPostingResult {
     ///
     /// # Returns
     ///
-    /// `true` when `signing_scheme` is [`SigningScheme::Eip1271`](crate::types::SigningScheme::Eip1271).
+    /// `true` when `signing_scheme` is
+    /// [`SigningScheme::Eip1271`](crate::types::SigningScheme::Eip1271).
     #[must_use]
     pub const fn is_eip1271(&self) -> bool {
         matches!(self.signing_scheme, crate::types::SigningScheme::Eip1271)
@@ -1726,7 +1729,8 @@ impl OrderPostingResult {
     ///
     /// # Returns
     ///
-    /// `true` when `signing_scheme` is [`SigningScheme::PreSign`](crate::types::SigningScheme::PreSign).
+    /// `true` when `signing_scheme` is
+    /// [`SigningScheme::PreSign`](crate::types::SigningScheme::PreSign).
     #[must_use]
     pub const fn is_presign(&self) -> bool {
         matches!(self.signing_scheme, crate::types::SigningScheme::PreSign)
@@ -1997,7 +2001,7 @@ impl SlippageToleranceResponse {
 impl fmt::Display for SlippageToleranceResponse {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.slippage_bps {
-            Some(bps) => write!(f, "slippage-resp({}bps)", bps),
+            Some(bps) => write!(f, "slippage-resp({bps}bps)"),
             None => f.write_str("slippage-resp(none)"),
         }
     }

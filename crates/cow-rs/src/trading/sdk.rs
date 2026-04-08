@@ -424,7 +424,7 @@ impl TradingSdk {
         Ok(Self { config: Arc::new(config), api: Arc::new(api), signer: Arc::new(signer) })
     }
 
-    /// Fetch a price quote from the CoW Protocol orderbook.
+    /// Fetch a price quote from the `CoW` Protocol orderbook.
     ///
     /// Builds an order-quote request from `params`, submits it to the orderbook
     /// API, and returns the resulting quote with computed amounts, costs, and a
@@ -590,8 +590,7 @@ impl TradingSdk {
     /// # Arguments
     ///
     /// * `order_uids` — list of order UIDs to cancel.
-    /// * `signing_scheme` — the ECDSA signing scheme used for the cancellation
-    ///   signature.
+    /// * `signing_scheme` — the ECDSA signing scheme used for the cancellation signature.
     ///
     /// # Returns
     ///
@@ -625,8 +624,7 @@ impl TradingSdk {
     /// # Arguments
     ///
     /// * `order_uid` — the UID of the order to cancel.
-    /// * `signing_scheme` — the ECDSA signing scheme used for the cancellation
-    ///   signature.
+    /// * `signing_scheme` — the ECDSA signing scheme used for the cancellation signature.
     ///
     /// # Returns
     ///
@@ -917,8 +915,7 @@ impl TradingSdk {
     /// # Arguments
     ///
     /// * `order` — the [`UnsignedOrder`] to submit.
-    /// * `signature_bytes` — the raw EIP-1271 signature bytes from the
-    ///   smart-contract wallet.
+    /// * `signature_bytes` — the raw EIP-1271 signature bytes from the smart-contract wallet.
     ///
     /// # Returns
     ///
@@ -1503,6 +1500,7 @@ impl TradingSdk {
 /// * `params` — the limit-order parameters (token pair, amounts, validity, etc.).
 /// * `app_data_keccak256` — `0x`-prefixed 32-byte hex string of the app-data hash.
 #[must_use]
+#[allow(clippy::too_many_arguments, reason = "domain parameters that belong together")]
 pub fn get_order_to_sign(
     chain_id: SupportedChainId,
     from: Address,
@@ -1577,7 +1575,7 @@ pub fn get_order_to_sign(
 /// An [`OrderTypedData`](crate::order_signing::types::OrderTypedData) ready
 /// for EIP-712 signing.
 #[must_use]
-pub fn get_order_typed_data(
+pub const fn get_order_typed_data(
     chain_id: SupportedChainId,
     order_to_sign: UnsignedOrder,
 ) -> crate::order_signing::types::OrderTypedData {
@@ -1654,14 +1652,14 @@ pub fn get_slippage_percent(
     };
 
     // Convert from scale to f64
-    let result_u64: u64 = result.try_into().unwrap_or(u64::MAX);
+    let result_u64: u64 = result.try_into().map_or(u64::MAX, |v| v);
     Ok(result_u64 as f64 / 1_000_000.0)
 }
 
 /// Resolve the slippage suggestion for a trade.
 ///
 /// When a custom `getSlippageSuggestion` callback is not provided, this falls
-/// back to the built-in [`suggest_slippage_bps`] heuristic. When a callback
+/// back to the built-in `suggest_slippage_bps` heuristic. When a callback
 /// is available but the quote is `FAST` quality, the heuristic is also used
 /// directly.
 ///
@@ -1697,7 +1695,7 @@ pub fn resolve_slippage_suggestion(
         if is_eth_flow { default_bps } else { 0 },
     );
 
-    if suggested > slippage_bps { Some(suggested) } else { None }
+    (suggested > slippage_bps).then_some(suggested)
 }
 
 /// Adjust trade parameters for ETH-flow orders by replacing the sell token
@@ -1814,8 +1812,8 @@ pub fn adjust_eth_flow_limit_order_params(
 ///
 /// # Arguments
 ///
-/// * `quote_parameters` — the trade parameters returned from quoting (with
-///   wrapped native currency as sell token).
+/// * `quote_parameters` — the trade parameters returned from quoting (with wrapped native currency
+///   as sell token).
 /// * `original_sell_token` — the original sell token address to restore.
 ///
 /// # Returns
@@ -1882,7 +1880,7 @@ pub fn get_trade_parameters_after_quote(
 /// assert_ne!(addr, alloy_primitives::Address::ZERO);
 /// ```
 #[must_use]
-pub fn get_eth_flow_contract(chain_id: SupportedChainId, env: Env) -> Address {
+pub const fn get_eth_flow_contract(chain_id: SupportedChainId, env: Env) -> Address {
     crate::config::eth_flow_for_env(chain_id, env)
 }
 
@@ -1910,7 +1908,7 @@ pub fn get_eth_flow_contract(chain_id: SupportedChainId, env: Env) -> Address {
 /// assert_ne!(addr, alloy_primitives::Address::ZERO);
 /// ```
 #[must_use]
-pub fn get_settlement_contract(chain_id: SupportedChainId, env: Env) -> Address {
+pub const fn get_settlement_contract(chain_id: SupportedChainId, env: Env) -> Address {
     crate::config::settlement_contract_for_env(chain_id, env)
 }
 
@@ -2087,7 +2085,10 @@ fn sort_keys_value(value: serde_json::Value) -> serde_json::Value {
         serde_json::Value::Array(arr) => {
             serde_json::Value::Array(arr.into_iter().map(sort_keys_value).collect())
         }
-        other => other,
+        other @ (serde_json::Value::Null |
+        serde_json::Value::Bool(_) |
+        serde_json::Value::Number(_) |
+        serde_json::Value::String(_)) => other,
     }
 }
 
@@ -2164,7 +2165,7 @@ pub fn calculate_unique_order_id(
 ///
 /// The same [`UnsignedOrder`] unchanged (identity in the Rust SDK).
 #[must_use]
-pub fn unsigned_order_for_signing(order: UnsignedOrder) -> UnsignedOrder {
+pub const fn unsigned_order_for_signing(order: UnsignedOrder) -> UnsignedOrder {
     // In the Rust SDK, UnsignedOrder already uses compatible types —
     // no conversion is needed. This exists for naming parity with the TS SDK.
     order
@@ -2241,6 +2242,7 @@ pub fn resolve_order_book_api(
 /// # Errors
 ///
 /// Returns [`CowError`] if signing, app-data upload, or order submission fails.
+#[allow(clippy::too_many_arguments, reason = "domain parameters that belong together")]
 pub async fn post_cow_protocol_trade(
     api: &OrderBookApi,
     signer: &PrivateKeySigner,
@@ -2260,11 +2262,12 @@ pub async fn post_cow_protocol_trade(
         .signing_scheme
         .as_ref()
         .map(|s| match s {
-            crate::types::SigningScheme::Eip712 => EcdsaSigningScheme::Eip712,
             crate::types::SigningScheme::EthSign => EcdsaSigningScheme::EthSign,
-            _ => EcdsaSigningScheme::Eip712,
+            crate::types::SigningScheme::Eip712 |
+            crate::types::SigningScheme::Eip1271 |
+            crate::types::SigningScheme::PreSign => EcdsaSigningScheme::Eip712,
         })
-        .unwrap_or(EcdsaSigningScheme::Eip712);
+        .map_or(EcdsaSigningScheme::Eip712, |v| v);
 
     let owner = signer.address();
     let from = params.receiver.map_or(owner, |r| r);
@@ -2274,9 +2277,9 @@ pub async fn post_cow_protocol_trade(
         .network_costs_amount
         .as_deref()
         .and_then(|s| s.parse::<U256>().ok())
-        .unwrap_or(U256::ZERO);
+        .map_or(U256::ZERO, |v| v);
 
-    let apply = additional.apply_costs_slippage_and_fees.unwrap_or(true);
+    let apply = additional.apply_costs_slippage_and_fees.map_or(true, core::convert::identity);
 
     let order_to_sign = get_order_to_sign(
         chain_id,
@@ -2288,7 +2291,8 @@ pub async fn post_cow_protocol_trade(
         &app_data.app_data_keccak256,
     );
 
-    // Upload app-data.
+    // Upload app-data — failure is non-fatal; the order can still be placed.
+    #[allow(clippy::let_underscore_must_use, reason = "upload failure is non-fatal")]
     let _ = api.upload_app_data(&app_data.app_data_keccak256, &app_data.full_app_data).await;
 
     // Sign the order.
@@ -2395,7 +2399,8 @@ pub async fn post_sell_native_currency_order(
         value: order_to_sign.sell_amount,
     };
 
-    // Upload app-data.
+    // Upload app-data — failure is non-fatal; the order can still be placed.
+    #[allow(clippy::let_underscore_must_use, reason = "upload failure is non-fatal")]
     let _ = api.upload_app_data(&app_data.app_data_keccak256, &app_data.full_app_data).await;
 
     let result = OrderPostingResult {
@@ -2741,7 +2746,7 @@ pub async fn get_quote_raw(
 /// Resolve a signer from an optional hex private key.
 ///
 /// When `private_key_hex` is `Some`, parses and returns the corresponding
-/// [`PrivateKeySigner`]. When `None`, returns an error — in the TypeScript SDK
+/// [`PrivateKeySigner`]. When `None`, returns an error — in the `TypeScript` SDK
 /// this falls back to the global adapter's signer, but in Rust the signer is
 /// always explicit.
 ///
@@ -2780,7 +2785,7 @@ pub fn resolve_signer(private_key_hex: Option<&str>) -> Result<PrivateKeySigner,
 
 /// Trader information extracted from swap parameters.
 ///
-/// Mirrors `QuoterParameters` from the TypeScript SDK.
+/// Mirrors `QuoterParameters` from the `TypeScript` SDK.
 #[derive(Debug, Clone)]
 pub struct QuoterParameters {
     /// Target chain.
@@ -2800,8 +2805,7 @@ pub struct QuoterParameters {
 ///
 /// * `chain_id` — target chain.
 /// * `app_code` — application identifier string.
-/// * `owner` — optional explicit trader address; when `None`, the signer's
-///   address is used.
+/// * `owner` — optional explicit trader address; when `None`, the signer's address is used.
 /// * `signer` — the private-key signer (used as fallback for the account address).
 ///
 /// # Returns
@@ -2824,6 +2828,7 @@ pub struct QuoterParameters {
 /// // Without an explicit owner, the signer's address is used.
 /// assert_ne!(trader.account, Address::ZERO);
 /// ```
+#[must_use]
 pub fn get_trader(
     chain_id: SupportedChainId,
     app_code: &str,
@@ -2836,7 +2841,7 @@ pub fn get_trader(
 
 /// Quote results bundled with the signer that produced them.
 ///
-/// Mirrors `QuoteResultsWithSigner` from the TypeScript SDK.
+/// Mirrors `QuoteResultsWithSigner` from the `TypeScript` SDK.
 #[derive(Debug, Clone)]
 pub struct QuoteResultsWithSigner {
     /// The quote results.

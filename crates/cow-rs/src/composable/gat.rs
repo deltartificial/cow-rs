@@ -69,10 +69,9 @@ impl GatOrder {
     ///
     /// # Arguments
     ///
-    /// * `data` - The [`GatData`] containing the underlying `GPv2Order` and
-    ///   time-gating parameters.
-    /// * `salt` - A caller-chosen 32-byte salt that uniquely identifies this
-    ///   order instance on-chain.
+    /// * `data` - The [`GatData`] containing the underlying `GPv2Order` and time-gating parameters.
+    /// * `salt` - A caller-chosen 32-byte salt that uniquely identifies this order instance
+    ///   on-chain.
     ///
     /// # Returns
     ///
@@ -279,8 +278,7 @@ pub fn decode_gat_static_input(bytes: &[u8]) -> Result<GatData, CowError> {
 ///
 /// # Arguments
 ///
-/// * `bytes` - A 20-byte (or shorter) slice to right-align within a 32-byte
-///   ABI word.
+/// * `bytes` - A 20-byte (or shorter) slice to right-align within a 32-byte ABI word.
 ///
 /// # Returns
 ///
@@ -341,8 +339,8 @@ const fn bool_word(v: bool) -> [u8; 32] {
 ///
 /// # Arguments
 ///
-/// * `d` - The [`GatData`] whose key fields (`sell_token`, `buy_token`,
-///   `sell_amount`, `start_time`, `tx_deadline`) are concatenated and hashed.
+/// * `d` - The [`GatData`] whose key fields (`sell_token`, `buy_token`, `sell_amount`,
+///   `start_time`, `tx_deadline`) are concatenated and hashed.
 ///
 /// # Returns
 ///

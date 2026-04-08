@@ -53,6 +53,7 @@ impl OrderBookApi {
     ///
     /// On native targets a 30-second timeout is applied; on WASM the browser
     /// `fetch` API does not support client-level timeouts so it is omitted.
+    #[allow(clippy::shadow_reuse, reason = "builder pattern chains naturally shadow")]
     fn build_client() -> reqwest::Client {
         let builder = reqwest::Client::builder();
         #[cfg(not(target_arch = "wasm32"))]
@@ -63,7 +64,7 @@ impl OrderBookApi {
     /// Create a new client for `chain` in `env`.
     ///
     /// The base URL is derived automatically via
-    /// [`api_base_url`](crate::config::api_base_url). A 30-second timeout
+    /// [`api_base_url`]. A 30-second timeout
     /// is applied on native targets; on WASM no timeout is set.
     ///
     /// # Parameters
@@ -662,7 +663,7 @@ impl OrderBookApi {
 
 /// Generic HTTP request helper for the orderbook API.
 ///
-/// Mirrors the `request` function from the TypeScript SDK's `order-book` package.
+/// Mirrors the `request` function from the `TypeScript` SDK's `order-book` package.
 /// Performs a JSON HTTP request with retries and returns the deserialized response.
 ///
 /// For most use cases, prefer the typed methods on [`OrderBookApi`] instead.
@@ -689,37 +690,37 @@ pub async fn request<T: serde::de::DeserializeOwned>(
 
 /// Return a mock [`Order`] for testing purposes.
 ///
-/// Mirrors `mockGetOrder` from the TypeScript SDK's `order-book` package.
+/// Mirrors `mockGetOrder` from the `TypeScript` SDK's `order-book` package.
 /// The returned order has sensible defaults with the given `uid`.
 #[must_use]
 pub fn mock_get_order(uid: &str) -> Order {
     use crate::{OrderKind, SigningScheme, order_book::types::OrderStatus};
     use alloy_primitives::Address;
     Order {
-        uid: uid.to_string(),
+        uid: uid.to_owned(),
         owner: Address::ZERO,
-        creation_date: "2024-01-01T00:00:00Z".to_string(),
+        creation_date: "2024-01-01T00:00:00Z".to_owned(),
         status: OrderStatus::Open,
         class: None,
         sell_token: Address::ZERO,
         buy_token: Address::ZERO,
         receiver: Some(Address::ZERO),
-        sell_amount: "1000000000000000000".to_string(),
-        buy_amount: "900000000000000000".to_string(),
+        sell_amount: "1000000000000000000".to_owned(),
+        buy_amount: "900000000000000000".to_owned(),
         valid_to: 1_999_999_999,
-        app_data: "0x0000000000000000000000000000000000000000000000000000000000000000".to_string(),
+        app_data: "0x0000000000000000000000000000000000000000000000000000000000000000".to_owned(),
         full_app_data: None,
-        fee_amount: "0".to_string(),
+        fee_amount: "0".to_owned(),
         kind: OrderKind::Sell,
         partially_fillable: false,
-        executed_sell_amount: "0".to_string(),
-        executed_buy_amount: "0".to_string(),
-        executed_sell_amount_before_fees: "0".to_string(),
-        executed_fee_amount: "0".to_string(),
+        executed_sell_amount: "0".to_owned(),
+        executed_buy_amount: "0".to_owned(),
+        executed_sell_amount_before_fees: "0".to_owned(),
+        executed_fee_amount: "0".to_owned(),
         invalidated: false,
         is_liquidity_order: None,
         signing_scheme: SigningScheme::Eip712,
-        signature: "0x".to_string(),
+        signature: "0x".to_owned(),
         interactions: None,
         total_fee: None,
         full_fee_amount: None,

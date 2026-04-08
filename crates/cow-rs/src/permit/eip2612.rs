@@ -113,8 +113,7 @@ pub fn permit_domain_separator(name: &str, version: &str, chain_id: u64, token: 
 ///
 /// # Parameters
 ///
-/// * `domain_sep` — the EIP-712 domain separator (from
-///   [`permit_domain_separator`]).
+/// * `domain_sep` — the EIP-712 domain separator (from [`permit_domain_separator`]).
 /// * `info` — the [`PermitInfo`] containing the permit fields.
 ///
 /// # Returns
@@ -149,10 +148,9 @@ pub fn permit_digest(domain_sep: B256, info: &PermitInfo) -> B256 {
 ///
 /// # Parameters
 ///
-/// * `info` — the [`PermitInfo`] containing owner, spender, value, nonce,
-///   and deadline.
-/// * `erc20_info` — the [`Erc20PermitInfo`] containing the token's name,
-///   domain version, and chain ID.
+/// * `info` — the [`PermitInfo`] containing owner, spender, value, nonce, and deadline.
+/// * `erc20_info` — the [`Erc20PermitInfo`] containing the token's name, domain version, and chain
+///   ID.
 /// * `signer` — the [`PrivateKeySigner`] to sign with.
 ///
 /// # Returns
@@ -194,8 +192,7 @@ pub async fn sign_permit(
 /// # Parameters
 ///
 /// * `info` — the [`PermitInfo`] containing the permit fields.
-/// * `signature` — the 65-byte `[r(32) | s(32) | v(1)]` ECDSA signature
-///   (from [`sign_permit`]).
+/// * `signature` — the 65-byte `[r(32) | s(32) | v(1)]` ECDSA signature (from [`sign_permit`]).
 ///
 /// # Returns
 ///
@@ -244,8 +241,7 @@ pub fn build_permit_calldata(info: &PermitInfo, signature: [u8; 65]) -> Vec<u8> 
 ///
 /// # Parameters
 ///
-/// * `info` — the [`PermitInfo`] (token, owner, spender, value, nonce,
-///   deadline).
+/// * `info` — the [`PermitInfo`] (token, owner, spender, value, nonce, deadline).
 /// * `erc20_info` — the [`Erc20PermitInfo`] (token name, version, chain).
 /// * `signer` — the [`PrivateKeySigner`] to sign with.
 ///

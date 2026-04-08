@@ -1,13 +1,13 @@
 //! Interaction normalization for `CoW` Protocol settlement encoding.
 //!
 //! Mirrors `normalizeInteraction` and `normalizeInteractions` from the
-//! TypeScript `contracts-ts` package.
+//! `TypeScript` `contracts-ts` package.
 
 use alloy_primitives::{Address, Bytes, U256};
 
 /// Normalized interaction data for a settlement contract call.
 ///
-/// Corresponds to the TypeScript `Interaction` type.
+/// Corresponds to the `TypeScript` `Interaction` type.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Interaction {
     /// Address of the smart contract to call.
@@ -20,7 +20,7 @@ pub struct Interaction {
 
 /// Partially specified interaction, where `value` and `call_data` are optional.
 ///
-/// Corresponds to the TypeScript `InteractionLike` type.
+/// Corresponds to the `TypeScript` `InteractionLike` type.
 #[derive(Debug, Clone)]
 pub struct InteractionLike {
     /// Address of the smart contract to call.
@@ -91,7 +91,7 @@ impl InteractionLike {
 /// - `value` defaults to `0`
 /// - `call_data` defaults to empty bytes (`0x`)
 ///
-/// Mirrors `normalizeInteraction` from the TypeScript SDK.
+/// Mirrors `normalizeInteraction` from the `TypeScript` SDK.
 ///
 /// # Arguments
 ///
@@ -115,14 +115,14 @@ impl InteractionLike {
 pub fn normalize_interaction(interaction: InteractionLike) -> Interaction {
     Interaction {
         target: interaction.target,
-        value: interaction.value.unwrap_or(U256::ZERO),
+        value: interaction.value.map_or(U256::ZERO, |v| v),
         call_data: interaction.call_data.unwrap_or_default(),
     }
 }
 
 /// Normalize a list of interactions by filling in defaults for optional fields.
 ///
-/// Mirrors `normalizeInteractions` from the TypeScript SDK.
+/// Mirrors `normalizeInteractions` from the `TypeScript` SDK.
 ///
 /// # Arguments
 ///
