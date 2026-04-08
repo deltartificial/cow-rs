@@ -85,6 +85,7 @@ const fn spender() -> Address {
 
 // ── erc20_balance ─────────────────────────────────────────────────────────────
 
+#[cfg_attr(miri, ignore)]
 #[tokio::test]
 async fn erc20_balance_returns_parsed_u256() {
     let server = MockServer::start().await;
@@ -98,6 +99,7 @@ async fn erc20_balance_returns_parsed_u256() {
     assert_eq!(bal, U256::from(1_000_000u64));
 }
 
+#[cfg_attr(miri, ignore)]
 #[tokio::test]
 async fn erc20_balance_zero_returns_zero() {
     let server = MockServer::start().await;
@@ -110,6 +112,7 @@ async fn erc20_balance_zero_returns_zero() {
     assert_eq!(bal, U256::ZERO);
 }
 
+#[cfg_attr(miri, ignore)]
 #[tokio::test]
 async fn erc20_balance_large_value() {
     let server = MockServer::start().await;
@@ -125,6 +128,7 @@ async fn erc20_balance_large_value() {
 
 // ── erc20_allowance ───────────────────────────────────────────────────────────
 
+#[cfg_attr(miri, ignore)]
 #[tokio::test]
 async fn erc20_allowance_returns_parsed_u256() {
     let server = MockServer::start().await;
@@ -138,6 +142,7 @@ async fn erc20_allowance_returns_parsed_u256() {
     assert_eq!(allowance, U256::from(500_000u64));
 }
 
+#[cfg_attr(miri, ignore)]
 #[tokio::test]
 async fn erc20_allowance_zero_means_no_approval() {
     let server = MockServer::start().await;
@@ -153,6 +158,7 @@ async fn erc20_allowance_zero_means_no_approval() {
 
 // ── erc20_decimals ────────────────────────────────────────────────────────────
 
+#[cfg_attr(miri, ignore)]
 #[tokio::test]
 async fn erc20_decimals_returns_18() {
     let server = MockServer::start().await;
@@ -165,6 +171,7 @@ async fn erc20_decimals_returns_18() {
     assert_eq!(dec, 18u8);
 }
 
+#[cfg_attr(miri, ignore)]
 #[tokio::test]
 async fn erc20_decimals_returns_6() {
     let server = MockServer::start().await;
@@ -179,6 +186,7 @@ async fn erc20_decimals_returns_6() {
 
 // ── erc20_name ────────────────────────────────────────────────────────────────
 
+#[cfg_attr(miri, ignore)]
 #[tokio::test]
 async fn erc20_name_returns_wrapped_ether() {
     let server = MockServer::start().await;
@@ -193,6 +201,7 @@ async fn erc20_name_returns_wrapped_ether() {
     assert_eq!(name, "Wrapped Ether");
 }
 
+#[cfg_attr(miri, ignore)]
 #[tokio::test]
 async fn erc20_name_returns_usd_coin() {
     let server = MockServer::start().await;
@@ -209,6 +218,7 @@ async fn erc20_name_returns_usd_coin() {
 
 // ── eip2612_nonce ─────────────────────────────────────────────────────────────
 
+#[cfg_attr(miri, ignore)]
 #[tokio::test]
 async fn eip2612_nonce_returns_zero_for_new_account() {
     let server = MockServer::start().await;
@@ -221,6 +231,7 @@ async fn eip2612_nonce_returns_zero_for_new_account() {
     assert_eq!(nonce, U256::ZERO);
 }
 
+#[cfg_attr(miri, ignore)]
 #[tokio::test]
 async fn eip2612_nonce_increments_after_permit() {
     let server = MockServer::start().await;
@@ -235,6 +246,7 @@ async fn eip2612_nonce_increments_after_permit() {
 
 // ── eip2612_version ───────────────────────────────────────────────────────────
 
+#[cfg_attr(miri, ignore)]
 #[tokio::test]
 async fn eip2612_version_returns_one() {
     let server = MockServer::start().await;
@@ -247,6 +259,7 @@ async fn eip2612_version_returns_one() {
     assert_eq!(version, "1");
 }
 
+#[cfg_attr(miri, ignore)]
 #[tokio::test]
 async fn eip2612_version_returns_two() {
     let server = MockServer::start().await;
@@ -261,6 +274,7 @@ async fn eip2612_version_returns_two() {
 
 // ── JSON-RPC error propagation ─────────────────────────────────────────────────
 
+#[cfg_attr(miri, ignore)]
 #[tokio::test]
 async fn rpc_error_in_response_is_propagated() {
     let server = MockServer::start().await;
@@ -280,6 +294,7 @@ async fn rpc_error_in_response_is_propagated() {
     }
 }
 
+#[cfg_attr(miri, ignore)]
 #[tokio::test]
 async fn http_500_returns_rpc_error() {
     let server = MockServer::start().await;

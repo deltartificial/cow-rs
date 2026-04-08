@@ -59,6 +59,7 @@ fn graphql_data(data: serde_json::Value) -> serde_json::Value {
 
 // ── get_totals ────────────────────────────────────────────────────────────────
 
+#[cfg_attr(miri, ignore)]
 #[tokio::test]
 async fn get_totals_returns_parsed_totals() {
     let server = MockServer::start().await;
@@ -85,6 +86,7 @@ async fn get_totals_returns_parsed_totals() {
     assert_eq!(totals[0].tokens, "500");
 }
 
+#[cfg_attr(miri, ignore)]
 #[tokio::test]
 async fn get_totals_empty_returns_empty_vec() {
     let server = MockServer::start().await;
@@ -101,6 +103,7 @@ async fn get_totals_empty_returns_empty_vec() {
 
 // ── get_last_days_volume ──────────────────────────────────────────────────────
 
+#[cfg_attr(miri, ignore)]
 #[tokio::test]
 async fn get_last_days_volume_returns_two_entries() {
     let server = MockServer::start().await;
@@ -122,6 +125,7 @@ async fn get_last_days_volume_returns_two_entries() {
 
 // ── get_last_hours_volume ─────────────────────────────────────────────────────
 
+#[cfg_attr(miri, ignore)]
 #[tokio::test]
 async fn get_last_hours_volume_returns_hourly_entries() {
     let server = MockServer::start().await;
@@ -141,6 +145,7 @@ async fn get_last_hours_volume_returns_hourly_entries() {
 
 // ── get_daily_totals ──────────────────────────────────────────────────────────
 
+#[cfg_attr(miri, ignore)]
 #[tokio::test]
 async fn get_daily_totals_parses_all_fields() {
     let server = MockServer::start().await;
@@ -169,6 +174,7 @@ async fn get_daily_totals_parses_all_fields() {
 
 // ── get_tokens ────────────────────────────────────────────────────────────────
 
+#[cfg_attr(miri, ignore)]
 #[tokio::test]
 async fn get_tokens_returns_token_list() {
     let server = MockServer::start().await;
@@ -185,6 +191,7 @@ async fn get_tokens_returns_token_list() {
     assert_eq!(tokens[0].decimals, "18");
 }
 
+#[cfg_attr(miri, ignore)]
 #[tokio::test]
 async fn get_tokens_empty_returns_empty_vec() {
     let server = MockServer::start().await;
@@ -201,6 +208,7 @@ async fn get_tokens_empty_returns_empty_vec() {
 
 // ── get_token ─────────────────────────────────────────────────────────────────
 
+#[cfg_attr(miri, ignore)]
 #[tokio::test]
 async fn get_token_returns_single_token() {
     let server = MockServer::start().await;
@@ -219,6 +227,7 @@ async fn get_token_returns_single_token() {
 
 // ── get_eth_price ─────────────────────────────────────────────────────────────
 
+#[cfg_attr(miri, ignore)]
 #[tokio::test]
 async fn get_eth_price_parses_bundle() {
     let server = MockServer::start().await;
@@ -236,6 +245,7 @@ async fn get_eth_price_parses_bundle() {
 
 // ── get_trades ────────────────────────────────────────────────────────────────
 
+#[cfg_attr(miri, ignore)]
 #[tokio::test]
 async fn get_trades_returns_trade_list() {
     let server = MockServer::start().await;
@@ -268,6 +278,7 @@ async fn get_trades_returns_trade_list() {
 
 // ── get_orders_for_owner ──────────────────────────────────────────────────────
 
+#[cfg_attr(miri, ignore)]
 #[tokio::test]
 async fn get_orders_for_owner_returns_order_list() {
     let server = MockServer::start().await;
@@ -311,6 +322,7 @@ async fn get_orders_for_owner_returns_order_list() {
     assert!(!orders[0].is_filled());
 }
 
+#[cfg_attr(miri, ignore)]
 #[tokio::test]
 async fn subgraph_order_kind_predicates() {
     let server = MockServer::start().await;
@@ -357,6 +369,7 @@ async fn subgraph_order_kind_predicates() {
 
 // ── get_settlements ───────────────────────────────────────────────────────────
 
+#[cfg_attr(miri, ignore)]
 #[tokio::test]
 async fn get_settlements_returns_settlement_list() {
     let server = MockServer::start().await;
@@ -383,6 +396,7 @@ async fn get_settlements_returns_settlement_list() {
 
 // ── GraphQL error propagation ─────────────────────────────────────────────────
 
+#[cfg_attr(miri, ignore)]
 #[tokio::test]
 async fn graphql_errors_field_returns_error() {
     let server = MockServer::start().await;
@@ -400,6 +414,7 @@ async fn graphql_errors_field_returns_error() {
     }
 }
 
+#[cfg_attr(miri, ignore)]
 #[tokio::test]
 async fn http_500_returns_api_error() {
     let server = MockServer::start().await;
