@@ -10,7 +10,7 @@ homepage.workspace = true
 description = "Rust SDK for the CoW Protocol"
 
 [package.metadata.cargo-udeps.ignore]
-normal = ["serde-wasm-bindgen"]
+normal = ["serde-wasm-bindgen", "syn"]
 
 [lib]
 doctest = true
@@ -38,6 +38,8 @@ rust_decimal.workspace = true
 serde.workspace = true
 serde-wasm-bindgen = { workspace = true, optional = true }
 serde_json.workspace = true
+# Pin minimum syn version for -Z minimal-versions compatibility
+syn.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, optional = true }
 tracing.workspace = true
@@ -46,8 +48,6 @@ wasm-bindgen-futures = { workspace = true, optional = true }
 
 [dev-dependencies]
 proptest.workspace = true
-# syn pinned to fix -Z minimal-versions (wasm-bindgen needs parse_quote_spanned)
-syn.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
 wiremock.workspace = true
 
