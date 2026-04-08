@@ -1,0 +1,60 @@
+[package]
+name = "cow-rs-examples"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.93"
+publish = false
+description = "Native examples for the cow-rs SDK"
+
+[lints]
+workspace = true
+
+[dependencies]
+cow-rs = { path = "../../crates/cow-rs" }
+alloy-primitives = { version = "1", features = ["serde"] }
+alloy-signer-local = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+
+[[example]]
+name = "get_quote"
+path = "examples/get_quote.rs"
+
+[[example]]
+name = "swap_order"
+path = "examples/swap_order.rs"
+
+[[example]]
+name = "limit_order"
+path = "examples/limit_order.rs"
+
+[[example]]
+name = "cancel_order"
+path = "examples/cancel_order.rs"
+
+[[example]]
+name = "order_status"
+path = "examples/order_status.rs"
+
+[[example]]
+name = "order_signing"
+path = "examples/order_signing.rs"
+
+[[example]]
+name = "app_data"
+path = "examples/app_data.rs"
+
+[[example]]
+name = "subgraph_query"
+path = "examples/subgraph_query.rs"
+
+[[example]]
+name = "onchain_reader"
+path = "examples/onchain_reader.rs"
+
+[[example]]
+name = "composable_twap"
+path = "examples/composable_twap.rs"
+
+[[example]]
+name = "chain_config"
+path = "examples/chain_config.rs"

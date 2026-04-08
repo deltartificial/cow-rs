@@ -1,0 +1,50 @@
+[package]
+name = "cow-rs"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Rust SDK for the CoW Protocol"
+
+[lib]
+doctest = true
+
+[features]
+default = ["native"]
+native = ["dep:tokio", "reqwest/rustls-tls", "tokio/rt-multi-thread"]
+wasm = [
+    "getrandom/js",
+    "dep:wasm-bindgen",
+    "dep:wasm-bindgen-futures",
+    "dep:serde-wasm-bindgen",
+]
+
+[dependencies]
+alloy-primitives.workspace = true
+alloy-signer.workspace = true
+alloy-signer-local.workspace = true
+chrono.workspace = true
+foldhash.workspace = true
+futures.workspace = true
+getrandom = { workspace = true, optional = true }
+reqwest.workspace = true
+serde-wasm-bindgen = { workspace = true, optional = true }
+wasm-bindgen = { workspace = true, optional = true }
+wasm-bindgen-futures = { workspace = true, optional = true }
+rust_decimal.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, optional = true }
+tracing.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
+wiremock.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+
+[lints]
+workspace = true
