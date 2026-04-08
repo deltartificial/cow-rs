@@ -274,10 +274,9 @@ pub struct WeirollContractRef {
 /// # Parameters
 ///
 /// * `address` — the on-chain contract [`Address`].
-/// * `abi` — the contract's JSON-ABI as raw bytes (pass `vec![]` if not
-///   needed).
-/// * `command_flags` — optional override for the default call mode. When
-///   `None`, defaults to [`WeirollCommandFlags::Call`].
+/// * `abi` — the contract's JSON-ABI as raw bytes (pass `vec![]` if not needed).
+/// * `command_flags` — optional override for the default call mode. When `None`, defaults to
+///   [`WeirollCommandFlags::Call`].
 ///
 /// # Returns
 ///
@@ -305,7 +304,7 @@ pub fn create_weiroll_contract(
     WeirollContractRef {
         address,
         abi,
-        command_flags: command_flags.unwrap_or(WeirollCommandFlags::Call),
+        command_flags: command_flags.map_or(WeirollCommandFlags::Call, |v| v),
     }
 }
 
@@ -338,7 +337,7 @@ pub fn create_weiroll_contract(
 /// assert_eq!(library.command_flags, WeirollCommandFlags::DelegateCall);
 /// ```
 #[must_use]
-pub fn create_weiroll_library(address: Address, abi: Vec<u8>) -> WeirollContractRef {
+pub const fn create_weiroll_library(address: Address, abi: Vec<u8>) -> WeirollContractRef {
     WeirollContractRef { address, abi, command_flags: WeirollCommandFlags::DelegateCall }
 }
 
@@ -355,8 +354,8 @@ pub fn create_weiroll_library(address: Address, abi: Vec<u8>) -> WeirollContract
 ///
 /// # Parameters
 ///
-/// * `add_to_planner` — a closure that receives `&mut WeirollPlanner` and
-///   populates it with commands and state slots.
+/// * `add_to_planner` — a closure that receives `&mut WeirollPlanner` and populates it with
+///   commands and state slots.
 ///
 /// # Returns
 ///
@@ -434,7 +433,7 @@ fn abi_encode_execute(commands: &[[u8; 32]], state: &[Vec<u8>]) -> Vec<u8> {
     for slot in state {
         buf.extend_from_slice(&pad_u256(current_offset));
         // Each element: 32 bytes length + ceil(len/32)*32 bytes data
-        current_offset += 32 + ((slot.len() + 31) / 32) * 32;
+        current_offset += 32 + slot.len().div_ceil(32) * 32;
     }
 
     // Encode each bytes element
@@ -468,8 +467,7 @@ fn pad_u256(value: usize) -> [u8; 32] {
 /// # Parameters
 ///
 /// * `object` — the value to mutate (consumed by move).
-/// * `setter` — a closure that receives `&mut T` and applies the desired
-///   field assignment.
+/// * `setter` — a closure that receives `&mut T` and applies the desired field assignment.
 ///
 /// # Returns
 ///

@@ -1,3 +1,17 @@
+#![allow(
+    clippy::allow_attributes_without_reason,
+    clippy::tests_outside_test_module,
+    clippy::doc_markdown,
+    clippy::type_complexity,
+    clippy::missing_const_for_fn,
+    clippy::assertions_on_constants,
+    clippy::missing_assert_message,
+    clippy::map_err_ignore,
+    clippy::deref_by_slicing,
+    clippy::redundant_clone,
+    clippy::single_match_else,
+    clippy::single_match
+)]
 //! Integration tests for composable (conditional) orders:
 //!
 //! - [`Multiplexer`] add / remove / root / proof

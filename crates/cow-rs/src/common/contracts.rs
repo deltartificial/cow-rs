@@ -35,8 +35,8 @@ use crate::{error::CowError, types::EcdsaSigningScheme};
 ///
 /// # Parameters
 ///
-/// * `scheme` — the ECDSA signing scheme ([`Eip712`](EcdsaSigningScheme::Eip712)
-///   or [`EthSign`](EcdsaSigningScheme::EthSign)).
+/// * `scheme` — the ECDSA signing scheme ([`Eip712`](EcdsaSigningScheme::Eip712) or
+///   [`EthSign`](EcdsaSigningScheme::EthSign)).
 /// * `domain_sep` — the 32-byte `EIP-712` domain separator hash.
 /// * `struct_hash` — the 32-byte `EIP-712` struct hash.
 /// * `signer` — the private key signer to use.
@@ -93,7 +93,7 @@ pub async fn ecdsa_sign_typed_data(
 /// `EIP-712` signing version, mirroring the `TypeScript` `v3 | v4` parameter.
 ///
 /// In practice, most wallets use `V4` semantics. The distinction matters
-/// primarily for browser wallets (MetaMask) that expose both RPC methods.
+/// primarily for browser wallets (`MetaMask`) that expose both RPC methods.
 /// In Rust with `alloy`, the canonical `EIP-712` algorithm is always used
 /// regardless of version — this enum records the **intent** so callers can
 /// route to the correct RPC method if needed.
@@ -228,10 +228,10 @@ const VAULT_ACTION_IDS: [&str; 4] = [
 ///
 /// # Parameters
 ///
-/// * `authorizer_address` — [`Address`] of the Vault's authorizer contract.
-///   This is the `target` of each generated transaction.
-/// * `vault_relayer_address` — [`Address`] of the `GPv2` vault relayer
-///   that will receive the granted roles.
+/// * `authorizer_address` — [`Address`] of the Vault's authorizer contract. This is the `target` of
+///   each generated transaction.
+/// * `vault_relayer_address` — [`Address`] of the `GPv2` vault relayer that will receive the
+///   granted roles.
 ///
 /// # Returns
 ///
@@ -239,6 +239,7 @@ const VAULT_ACTION_IDS: [&str; 4] = [
 /// Each `calldata` is a 68-byte ABI-encoded `grantRole(bytes32,address)`
 /// call.
 #[must_use]
+#[allow(clippy::type_complexity, reason = "return type matches domain contract encoding")]
 pub fn grant_required_roles(
     authorizer_address: Address,
     vault_relayer_address: Address,

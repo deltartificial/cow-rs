@@ -12,7 +12,7 @@
 //! | [`hash`] | Deterministic JSON serialisation and `keccak256` hashing |
 //! | [`cid`] | Bidirectional `appDataHex` ↔ IPFS `CIDv1` conversion |
 //! | [`ipfs`] | IPFS fetch/upload helpers and the [`MetadataApi`] facade |
-//! | [`validation`] | Constraint validation against the app-data schema |
+//! | `validation` | Constraint validation against the app-data schema |
 //!
 //! # Quick start
 //!

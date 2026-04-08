@@ -7,7 +7,10 @@
 [advisories]
 version = 2
 yanked = "warn"
-# ignore = []
+ignore = [
+  # paste is unmaintained but deeply embedded via alloy-primitives; no drop-in replacement yet
+  "RUSTSEC-2024-0436",
+]
 
 # ============================================================================
 # BANS
@@ -17,7 +20,20 @@ multiple-versions = "deny"
 wildcards = "deny"
 highlight = "all"
 deny = [{ name = "openssl" }]
-skip = []
+skip = [
+  # ring pulls in older windows-sys 0.52 via windows-targets 0.52; socket2 uses 0.60
+  { crate = "windows-sys@0.52.0" },
+  { crate = "windows-sys@0.60.2" },
+  { crate = "windows-targets@0.52.6" },
+  { crate = "windows_aarch64_gnullvm@0.52.6" },
+  { crate = "windows_aarch64_msvc@0.52.6" },
+  { crate = "windows_i686_gnu@0.52.6" },
+  { crate = "windows_i686_gnullvm@0.52.6" },
+  { crate = "windows_i686_msvc@0.52.6" },
+  { crate = "windows_x86_64_gnu@0.52.6" },
+  { crate = "windows_x86_64_gnullvm@0.52.6" },
+  { crate = "windows_x86_64_msvc@0.52.6" },
+]
 skip-tree = []
 
 # ============================================================================

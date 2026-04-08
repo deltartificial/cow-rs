@@ -179,9 +179,8 @@ pub fn encode_eth_flow_create_order(order: &EthFlowOrderData) -> Vec<u8> {
 ///
 /// # Parameters
 ///
-/// * `contract` — the [`Address`] of the `EthFlow` contract on the target
-///   chain (use [`eth_flow_for_env`](crate::config::eth_flow_for_env) to
-///   look it up).
+/// * `contract` — the [`Address`] of the `EthFlow` contract on the target chain (use
+///   [`eth_flow_for_env`](crate::config::eth_flow_for_env) to look it up).
 /// * `order` — the [`EthFlowOrderData`] to encode.
 ///
 /// # Returns

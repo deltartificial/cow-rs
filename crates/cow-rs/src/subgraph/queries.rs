@@ -1,6 +1,6 @@
 //! `GraphQL` query constants for the `CoW` Protocol subgraph.
 //!
-//! These constants mirror the queries defined in the TypeScript SDK's
+//! These constants mirror the queries defined in the `TypeScript` SDK's
 //! `@cowprotocol/subgraph` package and can be passed directly to
 //! [`SubgraphApi::run_query`](super::SubgraphApi::run_query).
 

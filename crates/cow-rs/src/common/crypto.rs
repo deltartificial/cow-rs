@@ -13,8 +13,7 @@ use crate::error::CowError;
 ///
 /// # Parameters
 ///
-/// * `private_key` — the private key string to normalise (with or without
-///   `0x` prefix).
+/// * `private_key` — the private key string to normalise (with or without `0x` prefix).
 ///
 /// # Returns
 ///
@@ -43,7 +42,7 @@ pub fn normalize_private_key(private_key: &str) -> Result<String, CowError> {
         });
     }
 
-    let clean = private_key.strip_prefix("0x").unwrap_or(private_key);
+    let clean = private_key.strip_prefix("0x").map_or(private_key, |v| v);
 
     if clean.len() != 64 || !clean.bytes().all(|b| b.is_ascii_hexdigit()) {
         return Err(CowError::Parse {

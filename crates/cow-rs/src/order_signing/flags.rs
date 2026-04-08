@@ -2,7 +2,7 @@
 //!
 //! Mirrors `encodeOrderFlags`, `decodeOrderFlags`, `encodeTradeFlags`,
 //! `decodeTradeFlags`, `encodeSigningScheme`, and `decodeSigningScheme`
-//! from the TypeScript `contracts-ts` package.
+//! from the `TypeScript` `contracts-ts` package.
 
 use crate::{
     error::CowError,
@@ -11,7 +11,7 @@ use crate::{
 
 /// Order flags extracted from a bitfield.
 ///
-/// Corresponds to the TypeScript `OrderFlags` type.
+/// Corresponds to the `TypeScript` `OrderFlags` type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct OrderFlags {
     /// The order kind (sell or buy).
@@ -26,7 +26,7 @@ pub struct OrderFlags {
 
 /// Trade flags: order flags plus a signing scheme.
 ///
-/// Corresponds to the TypeScript `TradeFlags` type.
+/// Corresponds to the `TypeScript` `TradeFlags` type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TradeFlags {
     /// The underlying order flags.
@@ -104,7 +104,7 @@ pub const fn encode_sell_token_balance(balance: TokenBalance) -> u8 {
 /// Encode a buy [`TokenBalance`] into its flag bits.
 ///
 /// Note: `External` is normalized to `Erc20` for buy token balance, matching
-/// the TypeScript `normalizeBuyTokenBalance` behavior.
+/// the `TypeScript` `normalizeBuyTokenBalance` behavior.
 ///
 /// # Arguments
 ///
@@ -125,7 +125,7 @@ pub const fn encode_buy_token_balance(balance: TokenBalance) -> u8 {
 
 /// Encode a [`SigningScheme`] into its flag bits.
 ///
-/// Mirrors `encodeSigningScheme` from the TypeScript SDK.
+/// Mirrors `encodeSigningScheme` from the `TypeScript` SDK.
 ///
 /// # Arguments
 ///
@@ -157,7 +157,7 @@ pub const fn encode_signing_scheme(scheme: SigningScheme) -> u8 {
 
 /// Encode order flags as a single byte bitfield.
 ///
-/// Mirrors `encodeOrderFlags` from the TypeScript SDK.
+/// Mirrors `encodeOrderFlags` from the `TypeScript` SDK.
 ///
 /// # Arguments
 ///
@@ -200,7 +200,7 @@ pub const fn encode_order_flags(flags: &OrderFlags) -> u8 {
 
 /// Decode order flags from a bitfield.
 ///
-/// Mirrors `decodeOrderFlags` from the TypeScript SDK.
+/// Mirrors `decodeOrderFlags` from the `TypeScript` SDK.
 ///
 /// # Arguments
 ///
@@ -267,7 +267,7 @@ pub fn decode_order_flags(bits: u8) -> Result<OrderFlags, CowError> {
 
 /// Decode a [`SigningScheme`] from a trade-flags bitfield.
 ///
-/// Mirrors `decodeSigningScheme` from the TypeScript SDK.
+/// Mirrors `decodeSigningScheme` from the `TypeScript` SDK.
 ///
 /// # Arguments
 ///
@@ -303,7 +303,7 @@ pub fn decode_signing_scheme(bits: u8) -> Result<SigningScheme, CowError> {
 
 /// Encode trade flags (order flags + signing scheme) as a single byte bitfield.
 ///
-/// Mirrors `encodeTradeFlags` from the TypeScript SDK.
+/// Mirrors `encodeTradeFlags` from the `TypeScript` SDK.
 ///
 /// # Arguments
 ///
@@ -338,7 +338,7 @@ pub const fn encode_trade_flags(flags: &TradeFlags) -> u8 {
 
 /// Decode trade flags from a bitfield.
 ///
-/// Mirrors `decodeTradeFlags` from the TypeScript SDK.
+/// Mirrors `decodeTradeFlags` from the `TypeScript` SDK.
 ///
 /// # Arguments
 ///
@@ -382,7 +382,7 @@ pub fn decode_trade_flags(bits: u8) -> Result<TradeFlags, CowError> {
 /// In the `CoW` Protocol, the `External` balance type only applies to sell
 /// tokens. For buy tokens, `External` is treated as `Erc20`.
 ///
-/// Mirrors `normalizeBuyTokenBalance` from the TypeScript SDK.
+/// Mirrors `normalizeBuyTokenBalance` from the `TypeScript` SDK.
 ///
 /// # Arguments
 ///
@@ -461,7 +461,7 @@ mod tests {
     #[test]
     fn invalid_sell_token_balance_flag() {
         // Bit pattern 01 at offset 2 is unused
-        let bits = 0b0_00_01_0_0;
+        let bits = 0b000_0100;
         let result = decode_order_flags(bits);
         assert!(result.is_err());
     }

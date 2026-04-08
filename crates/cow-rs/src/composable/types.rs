@@ -1477,7 +1477,8 @@ impl IsValidResult {
     ///
     /// # Returns
     ///
-    /// `Some(reason)` for the [`Invalid`](Self::Invalid) variant, `None` for [`Valid`](Self::Valid).
+    /// `Some(reason)` for the [`Invalid`](Self::Invalid) variant, `None` for
+    /// [`Valid`](Self::Valid).
     #[must_use]
     pub fn reason(&self) -> Option<&str> {
         match self {

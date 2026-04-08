@@ -55,8 +55,7 @@ impl PermitInfo {
     ///
     /// * `token_address` — the ERC-20 contract [`Address`].
     /// * `owner` — the address granting the allowance.
-    /// * `spender` — the address receiving the allowance (typically the
-    ///   `CoW` Vault Relayer).
+    /// * `spender` — the address receiving the allowance (typically the `CoW` Vault Relayer).
     /// * `value` — the allowance amount (`U256::MAX` for unlimited).
     ///
     /// # Returns
@@ -91,8 +90,7 @@ impl PermitInfo {
     ///
     /// # Parameters
     ///
-    /// * `deadline` — Unix timestamp (seconds) after which the permit is
-    ///   invalid.
+    /// * `deadline` — Unix timestamp (seconds) after which the permit is invalid.
     ///
     /// # Returns
     ///

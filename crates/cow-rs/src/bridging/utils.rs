@@ -516,7 +516,7 @@ pub fn is_better_quote(
 /// Higher-priority errors (e.g. "sell amount too small") are preferred over
 /// generic errors so the user sees the most actionable message.
 #[must_use]
-pub fn is_better_error(
+pub const fn is_better_error(
     candidate: Option<&BridgeError>,
     current_best: Option<&BridgeError>,
 ) -> bool {
@@ -620,7 +620,7 @@ pub fn is_client_fetch_error(error: &str) -> bool {
 /// Returns `true` if `json_str` looks like a valid app-data document.
 ///
 /// Checks that the JSON object contains `version` and `metadata` fields,
-/// mirroring the TypeScript `isAppDoc` helper.
+/// mirroring the `TypeScript` `isAppDoc` helper.
 #[must_use]
 pub fn is_app_doc(json_str: &str) -> bool {
     let Ok(value) = serde_json::from_str::<serde_json::Value>(json_str) else {
@@ -637,7 +637,7 @@ pub fn is_app_doc(json_str: &str) -> bool {
 /// Otherwise, each requested dApp ID is looked up in `available_dapp_ids`
 /// and an error is returned if any ID is missing.
 ///
-/// This mirrors the TypeScript `resolveProvidersToQuery` function, adapted
+/// This mirrors the `TypeScript` `resolveProvidersToQuery` function, adapted
 /// for Rust where provider objects live behind the bridge provider trait.
 ///
 /// # Errors
@@ -666,14 +666,14 @@ pub fn resolve_providers_to_query<'a>(
 
 // ── Alias ────────────────────────────────────────────────────────────────────
 
-/// Alias for [`find_bridge_provider_dapp_id`] matching the TypeScript name
+/// Alias for [`find_bridge_provider_dapp_id`] matching the `TypeScript` name
 /// `findBridgeProviderFromHook`.
 ///
 /// Extracts the bridge provider dApp ID from app-data JSON, either from
 /// `metadata.bridging.providerId` or from scanning post-hooks.
 pub use find_bridge_provider_dapp_id as find_bridge_provider_from_hook;
 
-/// Alias for [`hook_mock_for_cost_estimation`] matching the TypeScript name
+/// Alias for [`hook_mock_for_cost_estimation`] matching the `TypeScript` name
 /// `getHookMockForCostEstimation`.
 pub use hook_mock_for_cost_estimation as get_hook_mock_for_cost_estimation;
 

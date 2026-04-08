@@ -332,8 +332,8 @@ impl TryFrom<&str> for SupportedChainId {
 /// The `CoW` Protocol runs two parallel orderbooks:
 ///
 /// - **Prod** (`api.cow.fi`) — the production orderbook used for real trades.
-/// - **Staging** (`barn.api.cow.fi`) — the "barn" environment used for
-///   testing with real tokens but lower liquidity.
+/// - **Staging** (`barn.api.cow.fi`) — the "barn" environment used for testing with real tokens but
+///   lower liquidity.
 ///
 /// # Example
 ///
@@ -461,7 +461,7 @@ pub const fn api_url(chain: SupportedChainId, env: Env) -> &'static str {
 /// # Example
 ///
 /// ```
-/// use cow_rs::{SupportedChainId, Env, api_base_url};
+/// use cow_rs::{Env, SupportedChainId, api_base_url};
 ///
 /// let url = api_base_url(SupportedChainId::Mainnet, Env::Prod);
 /// assert_eq!(url, "https://api.cow.fi/mainnet");

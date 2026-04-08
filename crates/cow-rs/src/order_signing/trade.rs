@@ -1,7 +1,7 @@
 //! Trade and swap encoding for `CoW` Protocol settlements.
 //!
 //! Mirrors `encodeTrade`, `encodeSwapStep`, `decodeOrder`, and the
-//! `TokenRegistry` class from the TypeScript `contracts-ts` package.
+//! `TokenRegistry` class from the `TypeScript` `contracts-ts` package.
 
 use alloy_primitives::{Address, B256, Bytes, U256};
 use foldhash::HashMap;
@@ -20,7 +20,7 @@ use crate::{
 
 /// Encoded trade data as used in the settlement contract.
 ///
-/// Corresponds to the TypeScript `Trade` type.
+/// Corresponds to the `TypeScript` `Trade` type.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EncodedTrade {
     /// Index of the sell token in the settlement token array.
@@ -49,7 +49,7 @@ pub struct EncodedTrade {
 
 /// An encoded Balancer batch swap step.
 ///
-/// Corresponds to the TypeScript `BatchSwapStep` type.
+/// Corresponds to the `TypeScript` `BatchSwapStep` type.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BatchSwapStep {
     /// The Balancer pool ID.
@@ -66,7 +66,7 @@ pub struct BatchSwapStep {
 
 /// A Balancer swap used for settling an order against Balancer pools.
 ///
-/// Corresponds to the TypeScript `Swap` type.
+/// Corresponds to the `TypeScript` `Swap` type.
 #[derive(Debug, Clone)]
 pub struct Swap {
     /// The Balancer pool ID.
@@ -83,7 +83,7 @@ pub struct Swap {
 
 /// A registry for tracking token addresses by index in a settlement.
 ///
-/// Mirrors the TypeScript `TokenRegistry` class. Tokens are indexed by their
+/// Mirrors the `TypeScript` `TokenRegistry` class. Tokens are indexed by their
 /// checksummed address to ensure consistent lookups.
 #[derive(Debug, Clone, Default)]
 pub struct SettlementTokenRegistry {
@@ -149,7 +149,7 @@ impl SettlementTokenRegistry {
 
 /// Signature data that includes a signing scheme.
 ///
-/// This is a simplified Rust version of the TypeScript `Signature` union type.
+/// This is a simplified Rust version of the `TypeScript` `Signature` union type.
 #[derive(Debug, Clone)]
 pub struct SignatureData {
     /// The signing scheme.
@@ -160,7 +160,7 @@ pub struct SignatureData {
 
 /// Encode a trade for the settlement contract.
 ///
-/// Mirrors `encodeTrade` from the TypeScript SDK.
+/// Mirrors `encodeTrade` from the `TypeScript` SDK.
 ///
 /// # Arguments
 ///
@@ -243,7 +243,7 @@ pub fn encode_trade(
 
 /// Decode an order from a settlement trade and token list.
 ///
-/// Mirrors `decodeOrder` from the TypeScript SDK.
+/// Mirrors `decodeOrder` from the `TypeScript` SDK.
 ///
 /// # Arguments
 ///
@@ -323,7 +323,7 @@ pub fn decode_order(trade: &EncodedTrade, tokens: &[Address]) -> Result<Unsigned
 
 /// Encode a Balancer swap step for the settlement contract.
 ///
-/// Mirrors `encodeSwapStep` from the TypeScript SDK.
+/// Mirrors `encodeSwapStep` from the `TypeScript` SDK.
 ///
 /// # Arguments
 ///
@@ -364,12 +364,12 @@ pub fn encode_swap_step(tokens: &mut SettlementTokenRegistry, swap: &Swap) -> Ba
 
 /// Encode signature data based on the signing scheme.
 ///
-/// Mirrors `encodeSignatureData` from the TypeScript SDK.
+/// Mirrors `encodeSignatureData` from the `TypeScript` SDK.
 ///
 /// - For ECDSA schemes (EIP-712, EIP-191): returns the raw signature bytes.
 /// - For EIP-1271: returns the verifier address + signature (see
 ///   [`encode_eip1271_signature_data`]).
-/// - For PreSign: returns the signer's address as 20 bytes.
+/// - For `PreSign`: returns the signer's address as 20 bytes.
 ///
 /// # Arguments
 ///
@@ -385,7 +385,7 @@ pub fn encode_signature_data(signature: &SignatureData) -> Bytes {
 
 /// EIP-1271 signature data: a verifier address and the actual signature bytes.
 ///
-/// Corresponds to the TypeScript `Eip1271SignatureData` type.
+/// Corresponds to the `TypeScript` `Eip1271SignatureData` type.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Eip1271SignatureData {
     /// The verifying contract address.
@@ -400,7 +400,7 @@ pub struct Eip1271SignatureData {
 /// encoded as the 20-byte verifier address followed by the arbitrary
 /// signature bytes.
 ///
-/// Mirrors `encodeEip1271SignatureData` from the TypeScript SDK.
+/// Mirrors `encodeEip1271SignatureData` from the `TypeScript` SDK.
 ///
 /// # Arguments
 ///
@@ -478,7 +478,7 @@ pub fn decode_signature_owner(data: &[u8]) -> Result<Address, CowError> {
 /// The first 20 bytes are the verifier address, and the remaining bytes are
 /// the signature data.
 ///
-/// Mirrors `decodeEip1271SignatureData` from the TypeScript SDK.
+/// Mirrors `decodeEip1271SignatureData` from the `TypeScript` SDK.
 ///
 /// # Arguments
 ///

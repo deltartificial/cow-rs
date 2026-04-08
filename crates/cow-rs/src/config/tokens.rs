@@ -52,8 +52,7 @@ pub const BTC_CURRENCY_ADDRESS: &str = "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa";
 /// use alloy_primitives::Address;
 /// use cow_rs::TokenInfo;
 ///
-/// let usdc = TokenInfo::new(Address::ZERO, 6, "USDC")
-///     .with_name("USD Coin");
+/// let usdc = TokenInfo::new(Address::ZERO, 6, "USDC").with_name("USD Coin");
 /// assert_eq!(usdc.decimals_multiplier(), 1_000_000u128);
 /// assert!(usdc.has_name());
 /// assert!(!usdc.has_logo_url());

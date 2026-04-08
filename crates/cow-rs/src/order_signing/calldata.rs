@@ -19,8 +19,7 @@ use crate::error::CowError;
 ///
 /// # Arguments
 ///
-/// * `sig` — the Solidity function signature string (e.g.
-///   `"transfer(address,uint256)"`).
+/// * `sig` — the Solidity function signature string (e.g. `"transfer(address,uint256)"`).
 ///
 /// # Returns
 ///

@@ -15,9 +15,8 @@ use super::types::{ConditionalOrderParams, ProofStruct};
 ///
 /// # Arguments
 ///
-/// * `sig` - A Solidity function signature string (e.g.
-///   `"remove(bytes32)"`). The full canonical form including parameter types
-///   is required for a correct `keccak256` hash.
+/// * `sig` - A Solidity function signature string (e.g. `"remove(bytes32)"`). The full canonical
+///   form including parameter types is required for a correct `keccak256` hash.
 ///
 /// # Returns
 ///
@@ -48,15 +47,13 @@ fn selector(sig: &str) -> [u8; 4] {
 ///
 /// # Arguments
 ///
-/// * `params` - The conditional order parameters (handler address, salt, and
-///   ABI-encoded static input).
-/// * `factory` - The `IValueFactory` contract address. For standard TWAP orders
-///   with `start_time = AtMiningTime`, pass
-///   [`super::types::CURRENT_BLOCK_TIMESTAMP_FACTORY_ADDRESS`].
-/// * `factory_data` - Opaque bytes forwarded to the factory. Pass `&[]` for the
-///   timestamp factory.
-/// * `dispatch` - When `true`, the contract emits a `ConditionalOrderCreated`
-///   event so watchtower services can index the order.
+/// * `params` - The conditional order parameters (handler address, salt, and ABI-encoded static
+///   input).
+/// * `factory` - The `IValueFactory` contract address. For standard TWAP orders with `start_time =
+///   AtMiningTime`, pass [`super::types::CURRENT_BLOCK_TIMESTAMP_FACTORY_ADDRESS`].
+/// * `factory_data` - Opaque bytes forwarded to the factory. Pass `&[]` for the timestamp factory.
+/// * `dispatch` - When `true`, the contract emits a `ConditionalOrderCreated` event so watchtower
+///   services can index the order.
 ///
 /// # Returns
 ///
@@ -133,12 +130,11 @@ pub fn create_with_context_calldata(
 ///
 /// # Arguments
 ///
-/// * `root` - The 32-byte Merkle root hash that commits to the full set of
-///   conditional orders.
-/// * `proof` - A [`ProofStruct`] describing where the Merkle proof data is
-///   stored and the proof bytes themselves.
-/// * `params` - The conditional order parameters (handler, salt, static input)
-///   for the order being registered under this root.
+/// * `root` - The 32-byte Merkle root hash that commits to the full set of conditional orders.
+/// * `proof` - A [`ProofStruct`] describing where the Merkle proof data is stored and the proof
+///   bytes themselves.
+/// * `params` - The conditional order parameters (handler, salt, static input) for the order being
+///   registered under this root.
 ///
 /// # Returns
 ///
@@ -190,16 +186,14 @@ pub fn set_root_calldata(
 ///
 /// # Arguments
 ///
-/// * `root` - The 32-byte Merkle root hash that commits to the full set of
-///   conditional orders.
-/// * `proof` - A [`ProofStruct`] describing where the Merkle proof data is
-///   stored and the proof bytes themselves.
-/// * `params` - The conditional order parameters (handler, salt, static input)
-///   for the order being registered under this root.
+/// * `root` - The 32-byte Merkle root hash that commits to the full set of conditional orders.
+/// * `proof` - A [`ProofStruct`] describing where the Merkle proof data is stored and the proof
+///   bytes themselves.
+/// * `params` - The conditional order parameters (handler, salt, static input) for the order being
+///   registered under this root.
 /// * `factory` - The `IValueFactory` contract address (typically
 ///   [`super::types::CURRENT_BLOCK_TIMESTAMP_FACTORY_ADDRESS`]).
-/// * `factory_data` - Opaque bytes forwarded to the factory. Pass `&[]` for the
-///   timestamp factory.
+/// * `factory_data` - Opaque bytes forwarded to the factory. Pass `&[]` for the timestamp factory.
 ///
 /// # Returns
 ///
@@ -255,8 +249,8 @@ pub fn set_root_with_context_calldata(
 ///
 /// # Arguments
 ///
-/// * `order_id` - The 32-byte identifier of the conditional order to remove,
-///   as returned by `ComposableCow.hash()`.
+/// * `order_id` - The 32-byte identifier of the conditional order to remove, as returned by
+///   `ComposableCow.hash()`.
 ///
 /// # Returns
 ///
@@ -289,12 +283,12 @@ pub fn remove_calldata(order_id: B256) -> Vec<u8> {
 ///
 /// # Arguments
 ///
-/// * `params` - The conditional order parameters (handler address, salt, and
-///   ABI-encoded static input).
-/// * `proof` - A slice of `[B256; 2]` Merkle sibling-hash pairs. Pass an empty
-///   slice (`&[]`) for single (non-multiplexed) orders.
-/// * `offchain_input` - Handler-specific off-chain input bytes. Pass `&[]`
-///   unless the handler requires additional data.
+/// * `params` - The conditional order parameters (handler address, salt, and ABI-encoded static
+///   input).
+/// * `proof` - A slice of `[B256; 2]` Merkle sibling-hash pairs. Pass an empty slice (`&[]`) for
+///   single (non-multiplexed) orders.
+/// * `offchain_input` - Handler-specific off-chain input bytes. Pass `&[]` unless the handler
+///   requires additional data.
 ///
 /// # Returns
 ///
@@ -377,8 +371,8 @@ pub fn create_calldata(
 ///
 /// # Arguments
 ///
-/// * `proof` - A [`ProofStruct`] containing the proof location discriminant and
-///   the associated proof bytes.
+/// * `proof` - A [`ProofStruct`] containing the proof location discriminant and the associated
+///   proof bytes.
 ///
 /// # Returns
 ///
@@ -401,8 +395,8 @@ fn encode_proof_struct(proof: &ProofStruct) -> Vec<u8> {
 ///
 /// # Arguments
 ///
-/// * `params` - The [`ConditionalOrderParams`] to encode, containing the
-///   handler address, a 32-byte salt, and the variable-length static input.
+/// * `params` - The [`ConditionalOrderParams`] to encode, containing the handler address, a 32-byte
+///   salt, and the variable-length static input.
 ///
 /// # Returns
 ///
@@ -444,8 +438,8 @@ fn pad_address(bytes: &[u8]) -> [u8; 32] {
 ///
 /// # Arguments
 ///
-/// * `v` - The value to encode. It is placed in the lowest 8 bytes of the
-///   32-byte word (big-endian), with the upper 24 bytes zeroed.
+/// * `v` - The value to encode. It is placed in the lowest 8 bytes of the 32-byte word
+///   (big-endian), with the upper 24 bytes zeroed.
 ///
 /// # Returns
 ///
@@ -475,10 +469,9 @@ const fn padded32(n: usize) -> usize {
 /// # Arguments
 ///
 /// * `buf` - The buffer to extend with zero bytes.
-/// * `written` - The number of data bytes most recently appended to `buf`.
-///   If `written` is not a multiple of 32, enough zero bytes are appended to
-///   reach the next 32-byte boundary. No bytes are added when `written` is
-///   already aligned.
+/// * `written` - The number of data bytes most recently appended to `buf`. If `written` is not a
+///   multiple of 32, enough zero bytes are appended to reach the next 32-byte boundary. No bytes
+///   are added when `written` is already aligned.
 fn pad_to(buf: &mut Vec<u8>, written: usize) {
     let rem = written % 32;
     if rem != 0 {

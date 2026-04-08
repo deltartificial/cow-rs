@@ -337,8 +337,7 @@ impl fmt::Display for Ipfs {
 /// Performs three steps in sequence:
 /// 1. Serialise `doc` to deterministic JSON via [`stringify_deterministic`].
 /// 2. Compute `keccak256(json_bytes)` to get the `appData` hex.
-/// 3. Convert the hex to a `CIDv1` string via
-///    [`appdata_hex_to_cid`](super::cid::appdata_hex_to_cid).
+/// 3. Convert the hex to a `CIDv1` string via [`appdata_hex_to_cid`].
 ///
 /// Mirrors `getAppDataInfo` from the `@cowprotocol/app-data` `TypeScript`
 /// package.
@@ -509,7 +508,7 @@ pub async fn fetch_doc_from_cid(cid: &str, ipfs_uri: Option<&str>) -> Result<App
 /// Fetch an [`AppDataDoc`] from IPFS using a hex `appData` value.
 ///
 /// Converts `app_data_hex` to a `CIDv1` via
-/// [`appdata_hex_to_cid`](super::cid::appdata_hex_to_cid), then delegates
+/// [`appdata_hex_to_cid`], then delegates
 /// to [`fetch_doc_from_cid`] for the actual HTTP fetch.
 ///
 /// # Parameters
@@ -1016,7 +1015,7 @@ impl MetadataApi {
 
     /// Compute the `keccak256` hash of `doc` as a [`B256`].
     ///
-    /// Delegates to [`appdata_hex`](super::hash::appdata_hex). The document
+    /// Delegates to [`appdata_hex`]. The document
     /// is serialised to deterministic JSON before hashing.
     ///
     /// # Parameters
@@ -1091,7 +1090,7 @@ impl MetadataApi {
     /// Convert `app_data_hex` to a `CIDv1` base16 string.
     ///
     /// Delegates to
-    /// [`appdata_hex_to_cid`](super::cid::appdata_hex_to_cid).
+    /// [`appdata_hex_to_cid`].
     ///
     /// # Parameters
     ///
@@ -1111,7 +1110,7 @@ impl MetadataApi {
     /// Extract the `appData` hex digest from a `CIDv1` string.
     ///
     /// Delegates to
-    /// [`cid_to_appdata_hex`](super::cid::cid_to_appdata_hex).
+    /// [`cid_to_appdata_hex`].
     ///
     /// # Parameters
     ///
@@ -1343,7 +1342,7 @@ impl MetadataApi {
 
     /// Extract the multihash digest from a CID string as `0x`-prefixed hex.
     ///
-    /// Delegates to [`extract_digest`](super::cid::extract_digest).
+    /// Delegates to [`extract_digest`].
     ///
     /// # Parameters
     ///

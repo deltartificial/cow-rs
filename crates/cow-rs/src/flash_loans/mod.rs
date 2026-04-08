@@ -1,7 +1,7 @@
 //! Flash loan provider helpers and calldata builders.
 //!
 //! Supports building pre-interaction hooks that trigger flash loans from
-//! Balancer, MakerDAO, or Aave V3 as part of a `CoW` Protocol order
+//! Balancer, `MakerDAO`, or Aave V3 as part of a `CoW` Protocol order
 //! settlement.
 //!
 //! # Submodules
@@ -15,7 +15,7 @@
 //!
 //! ```rust
 //! use alloy_primitives::{Address, U256};
-//! use cow_rs::flash_loans::{FlashLoanSdk, FlashLoanParams, FlashLoanProvider};
+//! use cow_rs::flash_loans::{FlashLoanParams, FlashLoanProvider, FlashLoanSdk};
 //!
 //! let params = FlashLoanParams::new(
 //!     FlashLoanProvider::Balancer,
@@ -26,8 +26,8 @@
 //!
 //! let hook = FlashLoanSdk::build_flash_loan_hook(
 //!     &params,
-//!     Address::ZERO,  // receiver
-//!     &[],            // user data
+//!     Address::ZERO, // receiver
+//!     &[],           // user data
 //! );
 //! assert!(hook.is_ok());
 //! ```

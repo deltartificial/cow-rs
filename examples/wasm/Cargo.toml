@@ -10,7 +10,7 @@ description = "Browser demo for cow-rs WASM bindings"
 crate-type = ["cdylib"]
 
 [dependencies]
-cow-rs = { path = "../../crates/cow-rs", default-features = false, features = ["wasm"] }
+cow-rs = { path = "../../crates/cow-rs", version = "1", default-features = false, features = ["wasm"] }
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 web-sys = { version = "0.3", features = ["console", "Document", "Element", "HtmlElement", "HtmlButtonElement", "HtmlInputElement", "HtmlPreElement", "Window", "Node"] }

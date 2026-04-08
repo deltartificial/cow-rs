@@ -359,7 +359,7 @@ pub fn get_domain_verifier(safe: Address, domain: B256) -> Vec<u8> {
 }
 
 /// Returns `true` if `hex` is a plausibly valid ABI-encoded
-/// [`ConditionalOrderParams`](super::types::ConditionalOrderParams).
+/// [`ConditionalOrderParams`].
 ///
 /// Checks that the hex decodes to at least 128 bytes (handler word + salt +
 /// offset word + length word) and that the declared `static_input` length fits

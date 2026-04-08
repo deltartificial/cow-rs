@@ -1,3 +1,17 @@
+#![allow(
+    clippy::allow_attributes_without_reason,
+    clippy::disallowed_macros,
+    clippy::print_stdout,
+    clippy::disallowed_methods,
+    clippy::uninlined_format_args,
+    clippy::literal_string_with_formatting_args,
+    clippy::doc_markdown,
+    clippy::type_complexity,
+    clippy::map_err_ignore,
+    clippy::missing_assert_message,
+    clippy::single_match_else,
+    clippy::print_literal
+)]
 //! # App-Data: Metadata Encoding
 //!
 //! Demonstrates how to build, hash, validate, and convert CoW Protocol

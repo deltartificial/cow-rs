@@ -363,6 +363,7 @@ pub const fn extensible_fallback_handler_contract_address(_chain: SupportedChain
 /// assert!(!addr.is_zero());
 /// ```
 #[must_use]
+#[allow(clippy::expect_used, reason = "SALT is a compile-time constant, decode cannot fail")]
 pub fn deterministic_deployment_address(bytecode: &[u8], constructor_args: &[u8]) -> Address {
     let salt_bytes = B256::from_slice(
         &alloy_primitives::hex::decode(SALT.trim_start_matches("0x"))

@@ -1,6 +1,6 @@
 //! Flash loan provider types and parameter structs.
 //!
-//! Defines the [`FlashLoanProvider`] enum (Balancer, MakerDAO, Aave V3) and
+//! Defines the [`FlashLoanProvider`] enum (Balancer, `MakerDAO`, Aave V3) and
 //! the [`FlashLoanParams`] struct that bundles all parameters needed to build
 //! a flash loan pre-interaction hook.
 
@@ -8,7 +8,7 @@ use alloy_primitives::{Address, U256, address};
 
 /// Supported flash loan providers.
 ///
-/// Each variant corresponds to a DeFi protocol that offers flash loans.
+/// Each variant corresponds to a `DeFi` protocol that offers flash loans.
 /// Use [`contract_address`](Self::contract_address) to look up the
 /// provider's contract on a given chain, and
 /// [`is_supported_on`](Self::is_supported_on) to check availability.
@@ -20,7 +20,7 @@ use alloy_primitives::{Address, U256, address};
 ///
 /// let provider = FlashLoanProvider::Balancer;
 /// assert_eq!(provider.name(), "Balancer");
-/// assert!(provider.is_supported_on(1));  // Ethereum mainnet
+/// assert!(provider.is_supported_on(1)); // Ethereum mainnet
 /// assert!(!provider.is_supported_on(42161)); // not on Arbitrum
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

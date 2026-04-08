@@ -19,8 +19,8 @@ use crate::{
 /// This address only has special meaning in the `buyToken` field and will be
 /// treated as a regular ERC-20 token address in the `sellToken` position.
 pub const BUY_ETH_ADDRESS: Address = Address::new([
-    0xEE, 0xee, 0xee, 0xee, 0xEE, 0xeE, 0xee, 0xEe, 0xEe, 0xEe, 0xee, 0xEE, 0xEe, 0xee, 0xee, 0xee,
-    0xee, 0xee, 0xEE, 0xeE,
+    0xee, 0xee, 0xee, 0xee, 0xee, 0xee, 0xee, 0xee, 0xee, 0xee, 0xee, 0xee, 0xee, 0xee, 0xee, 0xee,
+    0xee, 0xee, 0xee, 0xee,
 ]);
 
 // ── Order constants ─────────────────────────────────────────────────────────
@@ -297,7 +297,7 @@ pub fn cancellations_hash(order_uids: &[&str]) -> Result<B256, CowError> {
 
 /// Convert a numeric app-data value to a zero-padded 32-byte hash.
 ///
-/// Mirrors `hashify` from the TypeScript SDK. When the input is already a
+/// Mirrors `hashify` from the `TypeScript` SDK. When the input is already a
 /// `B256`, it is returned as-is. For integer values, this left-pads with
 /// zeros to 32 bytes.
 ///
@@ -326,7 +326,7 @@ pub fn hashify(value: u64) -> B256 {
 ///
 /// This is a convenience function that combines the domain separator and a
 /// struct hash into the final signing digest. Mirrors `hashTypedData` from the
-/// TypeScript SDK.
+/// `TypeScript` SDK.
 ///
 /// # Arguments
 ///
@@ -360,7 +360,7 @@ pub fn hash_typed_data(domain_sep: B256, struct_hash: B256) -> B256 {
 /// Convenience wrapper around [`hash_order_cancellations`] for the common
 /// single-order case.
 ///
-/// Mirrors `hashOrderCancellation` from the TypeScript SDK.
+/// Mirrors `hashOrderCancellation` from the `TypeScript` SDK.
 ///
 /// # Arguments
 ///
@@ -382,7 +382,7 @@ pub fn hash_order_cancellation(chain_id: u64, order_uid: &str) -> Result<B256, C
 ///
 /// Returns `keccak256("\x19\x01" || domainSep || cancellationsHash(orderUids))`.
 ///
-/// Mirrors `hashOrderCancellations` from the TypeScript SDK.
+/// Mirrors `hashOrderCancellations` from the `TypeScript` SDK.
 ///
 /// # Arguments
 ///
@@ -407,7 +407,7 @@ pub fn hash_order_cancellations(chain_id: u64, order_uids: &[&str]) -> Result<B2
 /// - `sell_token_balance` defaults to `Erc20`
 /// - `buy_token_balance`: `External` is normalized to `Erc20`
 ///
-/// Mirrors `normalizeOrder` from the TypeScript SDK.
+/// Mirrors `normalizeOrder` from the `TypeScript` SDK.
 ///
 /// # Arguments
 ///
@@ -458,7 +458,7 @@ pub fn normalize_order(order: &UnsignedOrder) -> UnsignedOrder {
 ///
 /// The order UID is `order_digest (32 bytes) || owner (20 bytes) || valid_to (4 bytes big-endian)`.
 ///
-/// Mirrors `packOrderUidParams` from the TypeScript SDK.
+/// Mirrors `packOrderUidParams` from the `TypeScript` SDK.
 ///
 /// # Arguments
 ///
@@ -489,7 +489,7 @@ pub fn pack_order_uid_params(order_digest: B256, owner: Address, valid_to: u32) 
 
 /// Parameters extracted from a 56-byte order UID.
 ///
-/// Corresponds to the TypeScript `OrderUidParams` type.
+/// Corresponds to the `TypeScript` `OrderUidParams` type.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OrderUidParams {
     /// The EIP-712 order struct hash (32 bytes).
@@ -502,7 +502,7 @@ pub struct OrderUidParams {
 
 /// Extract order UID parameters from a 56-byte hex-encoded string.
 ///
-/// Mirrors `extractOrderUidParams` from the TypeScript SDK.
+/// Mirrors `extractOrderUidParams` from the `TypeScript` SDK.
 ///
 /// # Arguments
 ///
