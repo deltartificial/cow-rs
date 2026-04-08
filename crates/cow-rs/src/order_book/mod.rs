@@ -26,6 +26,7 @@
 //! ```
 
 pub mod api;
+pub mod generated;
 pub mod quote_amounts;
 pub mod types;
 

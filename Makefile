@@ -185,6 +185,90 @@ pr: ## Run all checks (deny + lint + test + docs).
 	$(MAKE) test && \
 	$(MAKE) docs
 
+##@ Specs & Codegen
+
+# Upstream OpenAPI spec from cowprotocol/services
+ORDERBOOK_SPEC_URL ?= https://raw.githubusercontent.com/cowprotocol/services/main/crates/orderbook/openapi.yml
+
+# TheGraph decentralized gateway — requires GRAPH_API_KEY env var.
+# Get a free key at https://thegraph.com/studio/apikeys/
+GRAPH_API_KEY ?=
+SUBGRAPH_ID ?= cow-subgraph-mainnet
+SUBGRAPH_URL ?= $(if $(GRAPH_API_KEY),https://gateway-mainnet.network.thegraph.com/api/$(GRAPH_API_KEY)/subgraphs/id/$(SUBGRAPH_ID),)
+
+.PHONY: fetch-orderbook-spec
+fetch-orderbook-spec: ## Fetch latest orderbook OpenAPI spec from upstream.
+	@mkdir -p specs
+	curl -sSfL $(ORDERBOOK_SPEC_URL) -o specs/orderbook-api.yml
+	@echo "Updated specs/orderbook-api.yml"
+
+.PHONY: fetch-subgraph-schema
+fetch-subgraph-schema: ## Introspect CoW subgraph GraphQL schema (needs GRAPH_API_KEY).
+	@mkdir -p specs
+	@if [ -z "$(SUBGRAPH_URL)" ]; then \
+		echo "ERROR: Set GRAPH_API_KEY or SUBGRAPH_URL."; \
+		echo "  make fetch-subgraph-schema GRAPH_API_KEY=<your-key>"; \
+		echo "  Get a free key at https://thegraph.com/studio/apikeys/"; \
+		exit 1; \
+	fi
+	@echo "Introspecting $(SUBGRAPH_URL) ..."
+	@curl -sSfL -X POST "$(SUBGRAPH_URL)" \
+		-H 'Content-Type: application/json' \
+		-d '{"query":"{ __schema { queryType { name } types { kind name description fields(includeDeprecated: true) { name description type { kind name ofType { kind name ofType { kind name ofType { kind name } } } } } inputFields { name type { kind name ofType { kind name ofType { kind name } } } } enumValues(includeDeprecated: true) { name } } } }"}' \
+		> specs/subgraph-introspection.json
+	@echo "Updated specs/subgraph-introspection.json"
+	@echo "Now update specs/subgraph.graphql to match, then run: cargo test -- schema_validation"
+
+.PHONY: fetch-appdata-schema
+fetch-appdata-schema: ## Bundle upstream AppData JSON Schema from cowprotocol/app-data.
+	@mkdir -p specs /tmp/appdata-schemas
+	@echo "Fetching AppData sub-schemas from cowprotocol/app-data ..."
+	@for path in definitions.json v1.6.0.json referrer/v0.2.0.json utm/v0.2.0.json \
+		quote/v1.1.0.json orderClass/v0.3.0.json hooks/v0.2.0.json widget/v0.1.0.json \
+		partnerFee/v1.0.0.json replacedOrder/v0.1.0.json signer/v0.1.0.json \
+		bridging/v0.1.0.json flashloan/v0.1.0.json hook/v0.2.0.json; do \
+		dir=$$(dirname "$$path"); \
+		mkdir -p "/tmp/appdata-schemas/$$dir"; \
+		curl -sSfL "https://raw.githubusercontent.com/cowprotocol/app-data/main/src/schemas/$$path" \
+			-o "/tmp/appdata-schemas/$$path"; \
+	done
+	@python3 -c '\
+import json, os; \
+BASE="/tmp/appdata-schemas"; \
+def load(p): return json.load(open(p)); \
+def resolve(obj, d, depth=0): \
+    if depth>20: return obj; \
+    if isinstance(obj, dict): \
+        if "$$ref" in obj: \
+            ref=obj["$$ref"]; other={k:v for k,v in obj.items() if k!="$$ref"}; \
+            if ref.startswith("#/"): return obj; \
+            parts=ref.split("#",1); fp=os.path.normpath(os.path.join(d,parts[0])); \
+            if os.path.exists(fp): \
+                ext=load(fp); frag=parts[1] if len(parts)>1 else ""; \
+                if frag.strip("/"): \
+                    for k in frag.strip("/").split("/"): ext=ext.get(k,{}); \
+                r=resolve(ext,os.path.dirname(fp),depth+1); \
+                if other and isinstance(r,dict): r.update({k:resolve(v,d,depth+1) for k,v in other.items()}); \
+                return r; \
+            return obj; \
+        return {k:resolve(v,d,depth+1) for k,v in obj.items()}; \
+    elif isinstance(obj,list): return [resolve(i,d,depth+1) for i in obj]; \
+    return obj; \
+def clean(obj): \
+    if isinstance(obj,dict): obj.pop("$$id",None); return {k:clean(v) for k,v in obj.items()}; \
+    elif isinstance(obj,list): return [clean(i) for i in obj]; \
+    return obj; \
+s=load(os.path.join(BASE,"v1.6.0.json")); r=clean(resolve(s,BASE)); \
+r["$$schema"]="http://json-schema.org/draft-07/schema"; \
+json.dump(r,open("specs/app-data-schema.json","w"),indent=2); \
+print("Updated specs/app-data-schema.json")'
+
+.PHONY: fetch-specs
+fetch-specs: fetch-orderbook-spec ## Fetch all upstream specs (add fetch-subgraph-schema with GRAPH_API_KEY).
+
+.PHONY: codegen
+codegen: fetch-orderbook-spec build ## Fetch orderbook spec and rebuild (triggers build.rs).
+
 ##@ Utility
 
 .PHONY: clean

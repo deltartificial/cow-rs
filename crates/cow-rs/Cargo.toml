@@ -17,7 +17,7 @@ doctest = true
 
 [features]
 default = ["native"]
-native = ["dep:tokio", "reqwest/rustls-tls", "tokio/rt-multi-thread"]
+native = ["dep:tokio", "reqwest/rustls", "tokio/rt-multi-thread"]
 wasm = [
   "getrandom/js",
   "dep:wasm-bindgen",
@@ -33,6 +33,7 @@ chrono.workspace = true
 foldhash.workspace = true
 futures.workspace = true
 getrandom = { workspace = true, optional = true }
+progenitor-client.workspace = true
 reqwest.workspace = true
 rust_decimal.workspace = true
 serde.workspace = true
@@ -46,7 +47,17 @@ tracing.workspace = true
 wasm-bindgen = { workspace = true, optional = true }
 wasm-bindgen-futures = { workspace = true, optional = true }
 
+[build-dependencies]
+openapiv3 = { workspace = true }
+prettyplease = { workspace = true }
+progenitor-impl = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+syn = "2"
+
 [dev-dependencies]
+graphql-parser = { workspace = true }
+jsonschema = { workspace = true }
 proptest.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
 wiremock.workspace = true

@@ -42,6 +42,8 @@
 pub mod cid;
 pub mod hash;
 pub mod ipfs;
+#[cfg(test)]
+mod schema_validation;
 pub mod types;
 pub(super) mod validation;
 
