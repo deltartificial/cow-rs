@@ -26,6 +26,7 @@ fn make_api(server: &MockServer) -> OrderBookApi {
 
 // ── GET /api/v1/version ───────────────────────────────────────────────────────
 
+#[cfg_attr(miri, ignore)]
 #[tokio::test]
 async fn get_version_returns_version_string() {
     let server = MockServer::start().await;
@@ -41,6 +42,7 @@ async fn get_version_returns_version_string() {
 
 // ── GET /api/v1/token/{address}/native_price ───────────────────────────────────
 
+#[cfg_attr(miri, ignore)]
 #[tokio::test]
 async fn get_native_price_parses_float() {
     let server = MockServer::start().await;
@@ -58,6 +60,7 @@ async fn get_native_price_parses_float() {
 
 // ── POST /api/v1/orders ───────────────────────────────────────────────────────
 
+#[cfg_attr(miri, ignore)]
 #[tokio::test]
 async fn send_order_returns_uid() {
     let server = MockServer::start().await;
@@ -92,6 +95,7 @@ async fn send_order_returns_uid() {
 
 // ── GET /api/v1/orders/{uid} ──────────────────────────────────────────────────
 
+#[cfg_attr(miri, ignore)]
 #[tokio::test]
 async fn get_order_returns_order() {
     let server = MockServer::start().await;
@@ -108,6 +112,7 @@ async fn get_order_returns_order() {
 
 // ── GET /api/v1/auction ───────────────────────────────────────────────────────
 
+#[cfg_attr(miri, ignore)]
 #[tokio::test]
 async fn get_auction_parses_response() {
     let server = MockServer::start().await;
@@ -128,6 +133,7 @@ async fn get_auction_parses_response() {
 
 // ── GET /api/v1/users/{address}/total_surplus ────────────────────────────────
 
+#[cfg_attr(miri, ignore)]
 #[tokio::test]
 async fn get_total_surplus_parses_amount() {
     let server = MockServer::start().await;
@@ -145,6 +151,7 @@ async fn get_total_surplus_parses_amount() {
 
 // ── GET /api/v1/app_data/{hash} ───────────────────────────────────────────────
 
+#[cfg_attr(miri, ignore)]
 #[tokio::test]
 async fn get_app_data_returns_full_data() {
     let server = MockServer::start().await;
@@ -162,6 +169,7 @@ async fn get_app_data_returns_full_data() {
 
 // ── GET /api/v2/trades?owner= ─────────────────────────────────────────────────
 
+#[cfg_attr(miri, ignore)]
 #[tokio::test]
 async fn get_trades_for_account_returns_list() {
     let server = MockServer::start().await;
@@ -177,6 +185,7 @@ async fn get_trades_for_account_returns_list() {
 
 // ── GET /api/v1/orders/{uid}/status ──────────────────────────────────────────
 
+#[cfg_attr(miri, ignore)]
 #[tokio::test]
 async fn get_order_status_open() {
     let server = MockServer::start().await;
@@ -195,6 +204,7 @@ async fn get_order_status_open() {
 
 // ── 4xx errors are surfaced as CowError::Api ──────────────────────────────────
 
+#[cfg_attr(miri, ignore)]
 #[tokio::test]
 async fn get_order_404_returns_api_error() {
     let server = MockServer::start().await;
@@ -212,6 +222,7 @@ async fn get_order_404_returns_api_error() {
 
 // ── POST /api/v1/quote ────────────────────────────────────────────────────────
 
+#[cfg_attr(miri, ignore)]
 #[tokio::test]
 async fn get_quote_parses_response() {
     let server = MockServer::start().await;
@@ -233,6 +244,7 @@ async fn get_quote_parses_response() {
 
 // ── GET /api/v1/account/{address}/orders ─────────────────────────────────────
 
+#[cfg_attr(miri, ignore)]
 #[tokio::test]
 async fn get_orders_for_account_returns_list() {
     let server = MockServer::start().await;
@@ -248,6 +260,7 @@ async fn get_orders_for_account_returns_list() {
 
 // ── DELETE /api/v1/orders (cancel) ────────────────────────────────────────────
 
+#[cfg_attr(miri, ignore)]
 #[tokio::test]
 async fn cancel_orders_succeeds_on_200() {
     let server = MockServer::start().await;
