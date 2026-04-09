@@ -15,7 +15,7 @@
 //! | [`CowHook`] | Pre- or post-settlement interaction hook |
 //! | [`PartnerFee`] | Single or multi-entry partner fee policy |
 //! | [`Quote`] | Slippage tolerance embedded in the order |
-//! | [`Referrer`] | Partner referral tracking code |
+//! | [`Referrer`] | Partner referral tracking address |
 //! | [`Utm`] | UTM campaign tracking parameters |
 //! | [`Bridging`] | Cross-chain bridge metadata |
 //! | [`Flashloan`] | Flash loan execution metadata |
@@ -80,7 +80,7 @@ pub const LATEST_USER_CONSENTS_METADATA_VERSION: &str = "0.1.0";
 ///
 /// let doc = AppDataDoc::new("MyDApp")
 ///     .with_environment("production")
-///     .with_referrer(Referrer::new("partner-code"))
+///     .with_referrer(Referrer::new("0xb6BAd41ae76A11D10f7b0E664C5007b908bC77C9"))
 ///     .with_order_class(OrderClassKind::Limit);
 ///
 /// assert_eq!(doc.app_code.as_deref(), Some("MyDApp"));
@@ -160,14 +160,14 @@ impl AppDataDoc {
         self
     }
 
-    /// Attach a [`Referrer`] code for partner attribution.
+    /// Attach a [`Referrer`] address for partner attribution.
     ///
-    /// The referral code is embedded in the order's app-data so the protocol
-    /// can attribute volume to integration partners.
+    /// The referrer's Ethereum address is embedded in the order's app-data
+    /// so the protocol can attribute volume to integration partners.
     ///
     /// # Parameters
     ///
-    /// * `referrer` — the [`Referrer`] containing the partner code.
+    /// * `referrer` — the [`Referrer`] containing the partner address.
     ///
     /// # Returns
     ///
@@ -393,8 +393,9 @@ impl fmt::Display for AppDataDoc {
 /// ```
 /// use cow_rs::app_data::{Metadata, Quote, Referrer};
 ///
-/// let meta =
-///     Metadata::default().with_referrer(Referrer::new("ref-code")).with_quote(Quote::new(50));
+/// let meta = Metadata::default()
+///     .with_referrer(Referrer::new("0xb6BAd41ae76A11D10f7b0E664C5007b908bC77C9"))
+///     .with_quote(Quote::new(50));
 ///
 /// assert!(meta.has_referrer());
 /// assert!(meta.has_quote());
@@ -403,7 +404,7 @@ impl fmt::Display for AppDataDoc {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Metadata {
-    /// Referrer code for partner attribution.
+    /// Referrer address for partner attribution.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub referrer: Option<Referrer>,
     /// UTM tracking parameters.
@@ -445,11 +446,11 @@ pub struct Metadata {
 }
 
 impl Metadata {
-    /// Set the [`Referrer`] tracking code for partner attribution.
+    /// Set the [`Referrer`] address for partner attribution.
     ///
     /// # Parameters
     ///
-    /// * `referrer` — the [`Referrer`] containing the partner code.
+    /// * `referrer` — the [`Referrer`] containing the partner address.
     ///
     /// # Returns
     ///
@@ -726,24 +727,30 @@ impl fmt::Display for Metadata {
     }
 }
 
-/// Partner referral tracking code.
+/// Partner referral tracking address.
+///
+/// The upstream `CoW` Protocol app-data schema identifies referrers by
+/// Ethereum address (matching `^0x[a-fA-F0-9]{40}$`), not by free-form
+/// code. The address is embedded in the order's app-data JSON so the
+/// protocol can attribute volume to the partner wallet.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Referrer {
-    /// Opaque referral code string.
-    pub code: String,
+    /// Ethereum address of the referring partner (0x-prefixed, 40 hex chars).
+    pub address: String,
 }
 
 impl Referrer {
-    /// Construct a new [`Referrer`] with the given partner referral code.
+    /// Construct a new [`Referrer`] from the given partner Ethereum address.
     ///
-    /// The referral code is an opaque string assigned by the `CoW` Protocol
-    /// to integration partners. It is embedded in the order's app-data JSON
-    /// so the protocol can attribute volume.
+    /// The address is stored as-is; callers are responsible for passing a
+    /// well-formed `0x`-prefixed 40-character hex string. The upstream JSON
+    /// Schema at `specs/app-data-schema.json` rejects non-conforming values.
     ///
     /// # Parameters
     ///
-    /// * `code` — the partner referral code string.
+    /// * `address` — the partner's Ethereum address, e.g.
+    ///   `"0xb6BAd41ae76A11D10f7b0E664C5007b908bC77C9"`.
     ///
     /// # Returns
     ///
@@ -754,18 +761,18 @@ impl Referrer {
     /// ```
     /// use cow_rs::app_data::Referrer;
     ///
-    /// let r = Referrer::new("partner-42");
-    /// assert_eq!(r.code, "partner-42");
+    /// let r = Referrer::new("0xb6BAd41ae76A11D10f7b0E664C5007b908bC77C9");
+    /// assert_eq!(r.address, "0xb6BAd41ae76A11D10f7b0E664C5007b908bC77C9");
     /// ```
     #[must_use]
-    pub fn new(code: impl Into<String>) -> Self {
-        Self { code: code.into() }
+    pub fn new(address: impl Into<String>) -> Self {
+        Self { address: address.into() }
     }
 }
 
 impl fmt::Display for Referrer {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "referrer({})", self.code)
+        write!(f, "referrer({})", self.address)
     }
 }
 

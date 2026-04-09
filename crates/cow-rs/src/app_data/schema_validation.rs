@@ -1,4 +1,4 @@
-//! Validate Rust AppData types against the upstream JSON Schema.
+//! Validate Rust `AppData` types against the upstream JSON Schema.
 //!
 //! Builds fully-populated [`AppDataDoc`] instances, serializes them to JSON,
 //! and validates against the bundled JSON Schema at
@@ -26,15 +26,9 @@ mod tests {
     fn validate(doc: &AppDataDoc) -> Result<(), String> {
         let validator = load_schema();
         let json = serde_json::to_value(doc).expect("failed to serialize AppDataDoc");
-        let errors: Vec<String> = validator
-            .iter_errors(&json)
-            .map(|e| format!("{} at {}", e, e.instance_path))
-            .collect();
-        if errors.is_empty() {
-            Ok(())
-        } else {
-            Err(errors.join("\n"))
-        }
+        let errors: Vec<String> =
+            validator.iter_errors(&json).map(|e| format!("{} at {}", e, e.instance_path)).collect();
+        if errors.is_empty() { Ok(()) } else { Err(errors.join("\n")) }
     }
 
     #[test]
@@ -51,18 +45,17 @@ mod tests {
 
     #[test]
     fn doc_with_referrer_validates() {
-        // NOTE: Known drift — Rust SDK uses `code` field, upstream schema
-        // expects `address` (Ethereum address). The upstream schema changed
-        // the referrer format from a free-form code to an ETH address.
-        // TODO: Update Referrer type to use `address` field.
         let doc = AppDataDoc::new("TestApp")
-            .with_referrer(Referrer::new("partner-code"));
-        let result = validate(&doc);
-        // Expect validation failure due to known drift
-        assert!(
-            result.is_err(),
-            "referrer drift: Rust uses 'code' but schema expects 'address'"
-        );
+            .with_referrer(Referrer::new("0xb6BAd41ae76A11D10f7b0E664C5007b908bC77C9"));
+        validate(&doc).expect("doc with referrer address should validate");
+    }
+
+    #[test]
+    fn doc_with_malformed_referrer_fails_schema() {
+        // Upstream schema requires an Ethereum address matching
+        // `^0x[a-fA-F0-9]{40}$`. Free-form strings must be rejected.
+        let doc = AppDataDoc::new("TestApp").with_referrer(Referrer::new("not-an-address"));
+        assert!(validate(&doc).is_err(), "schema should reject malformed referrer addresses");
     }
 
     #[test]
@@ -92,7 +85,7 @@ mod tests {
             OrderClassKind::Liquidity,
             OrderClassKind::Twap,
         ] {
-            let doc = AppDataDoc::new("TestApp").with_order_class(kind.clone());
+            let doc = AppDataDoc::new("TestApp").with_order_class(kind);
             validate(&doc).unwrap_or_else(|e| {
                 panic!("doc with order class {kind:?} should validate: {e}");
             });
@@ -101,11 +94,8 @@ mod tests {
 
     #[test]
     fn doc_with_hooks_validates() {
-        let hook = CowHook::new(
-            "0x0000000000000000000000000000000000000001",
-            "0xdeadbeef",
-            "100000",
-        );
+        let hook =
+            CowHook::new("0x0000000000000000000000000000000000000001", "0xdeadbeef", "100000");
         let hooks = OrderInteractionHooks::new(vec![hook.clone()], vec![hook]);
         let doc = AppDataDoc::new("TestApp").with_hooks(hooks);
         validate(&doc).expect("doc with hooks should validate");
@@ -138,20 +128,17 @@ mod tests {
 
     #[test]
     fn doc_with_signer_validates() {
-        let doc = AppDataDoc::new("TestApp")
-            .with_signer("0x0000000000000000000000000000000000000001");
+        let doc =
+            AppDataDoc::new("TestApp").with_signer("0x0000000000000000000000000000000000000001");
         validate(&doc).expect("doc with signer should validate");
     }
 
     #[test]
     fn fully_populated_doc_validates() {
-        let hook = CowHook::new(
-            "0x0000000000000000000000000000000000000001",
-            "0xdeadbeef",
-            "100000",
-        );
+        let hook =
+            CowHook::new("0x0000000000000000000000000000000000000001", "0xdeadbeef", "100000");
         let metadata = Metadata::default()
-            .with_referrer(Referrer::new("ref-code"))
+            .with_referrer(Referrer::new("0xb6BAd41ae76A11D10f7b0E664C5007b908bC77C9"))
             .with_utm(Utm {
                 utm_source: Some("src".into()),
                 utm_medium: Some("med".into()),
@@ -160,10 +147,7 @@ mod tests {
                 utm_term: None,
             })
             .with_quote(Quote::new(100))
-            .with_hooks(OrderInteractionHooks::new(
-                vec![hook.clone()],
-                vec![hook],
-            ))
+            .with_hooks(OrderInteractionHooks::new(vec![hook.clone()], vec![hook]))
             .with_widget(Widget::new("MyWidget"))
             .with_partner_fee(PartnerFee::Single(PartnerFeeEntry::volume(
                 25,
@@ -177,11 +161,7 @@ mod tests {
 
         doc.metadata = metadata;
 
-        // Known drift: referrer uses `code` not `address`, so full doc
-        // fails schema validation. Remove referrer to test everything else.
-        doc.metadata.referrer = None;
-
-        validate(&doc).expect("fully populated doc (minus referrer) should validate");
+        validate(&doc).expect("fully populated doc should validate");
     }
 
     #[test]
@@ -207,10 +187,7 @@ mod tests {
                 "unknownMetadata": {}
             }
         });
-        assert!(
-            validator.validate(&json).is_err(),
-            "schema should reject unknown metadata fields"
-        );
+        assert!(validator.validate(&json).is_err(), "schema should reject unknown metadata fields");
     }
 
     #[test]
@@ -218,15 +195,9 @@ mod tests {
         let validator = load_schema();
 
         let no_version = json!({"metadata": {}});
-        assert!(
-            validator.validate(&no_version).is_err(),
-            "schema should require version"
-        );
+        assert!(validator.validate(&no_version).is_err(), "schema should require version");
 
         let no_metadata = json!({"version": "1.14.0"});
-        assert!(
-            validator.validate(&no_metadata).is_err(),
-            "schema should require metadata"
-        );
+        assert!(validator.validate(&no_metadata).is_err(), "schema should require metadata");
     }
 }

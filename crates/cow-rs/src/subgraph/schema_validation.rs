@@ -1,4 +1,4 @@
-//! Compile-time validation of subgraph Rust types against the GraphQL schema.
+//! Compile-time validation of subgraph Rust types against the `GraphQL` schema.
 //!
 //! Parses `specs/subgraph.graphql` and checks that every Rust response type
 //! has fields matching the schema. This catches drift when the upstream
@@ -9,11 +9,10 @@
 
 #[cfg(test)]
 mod tests {
-    use std::collections::{HashMap, HashSet};
+    use foldhash::{HashMap, HashMapExt, HashSet};
+    use graphql_parser::schema::{Definition, TypeDefinition, parse_schema};
 
-    use graphql_parser::schema::{parse_schema, Definition, TypeDefinition};
-
-    /// Parse the GraphQL schema and build a map of type name → set of field names.
+    /// Parse the `GraphQL` schema and build a map of type name → set of field names.
     fn schema_types() -> HashMap<String, HashSet<String>> {
         let sdl = include_str!("../../../../specs/subgraph.graphql");
         let doc = parse_schema::<String>(sdl)
@@ -22,15 +21,14 @@ mod tests {
         let mut types = HashMap::new();
         for def in &doc.definitions {
             if let Definition::TypeDefinition(TypeDefinition::Object(obj)) = def {
-                let fields: HashSet<String> =
-                    obj.fields.iter().map(|f| f.name.clone()).collect();
+                let fields: HashSet<String> = obj.fields.iter().map(|f| f.name.clone()).collect();
                 types.insert(obj.name.clone(), fields);
             }
         }
         types
     }
 
-    /// Assert that a GraphQL type exists and contains all the given fields.
+    /// Assert that a `GraphQL` type exists and contains all the given fields.
     fn assert_fields(
         types: &HashMap<String, HashSet<String>>,
         gql_type: &str,
@@ -178,11 +176,7 @@ mod tests {
     #[test]
     fn token_trading_event_fields_match_schema() {
         let types = schema_types();
-        assert_fields(
-            &types,
-            "TokenTradingEvent",
-            &["id", "token", "priceUsd", "timestamp"],
-        );
+        assert_fields(&types, "TokenTradingEvent", &["id", "token", "priceUsd", "timestamp"]);
     }
 
     #[test]
@@ -208,14 +202,7 @@ mod tests {
         assert_fields(
             &types,
             "Settlement",
-            &[
-                "id",
-                "txHash",
-                "firstTradeTimestamp",
-                "solver",
-                "txCost",
-                "txFeeInEth",
-            ],
+            &["id", "txHash", "firstTradeTimestamp", "solver", "txCost", "txFeeInEth"],
         );
     }
 
@@ -281,14 +268,7 @@ mod tests {
         assert_fields(
             &types,
             "Pair",
-            &[
-                "id",
-                "token0",
-                "token1",
-                "volumeToken0",
-                "volumeToken1",
-                "numberOfTrades",
-            ],
+            &["id", "token0", "token1", "volumeToken0", "volumeToken1", "numberOfTrades"],
         );
     }
 
@@ -337,17 +317,7 @@ mod tests {
     #[test]
     fn uniswap_token_fields_match_schema() {
         let types = schema_types();
-        assert_fields(
-            &types,
-            "UniswapToken",
-            &[
-                "id",
-                "address",
-                "name",
-                "symbol",
-                "decimals",
-            ],
-        );
+        assert_fields(&types, "UniswapToken", &["id", "address", "name", "symbol", "decimals"]);
     }
 
     #[test]
@@ -395,10 +365,7 @@ mod tests {
         ];
 
         for ty in &expected_types {
-            assert!(
-                types.contains_key(*ty),
-                "Expected GraphQL type `{ty}` not found in schema"
-            );
+            assert!(types.contains_key(*ty), "Expected GraphQL type `{ty}` not found in schema");
         }
 
         // Warn if schema has types we don't cover.
