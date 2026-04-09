@@ -26,11 +26,14 @@ use serde::{Deserialize, Serialize};
 
 /// Latest app-data schema version this crate targets.
 ///
-/// Set to the highest version whose bundled JSON Schema still models
-/// `referrer` as a partner Ethereum address — i.e. the highest version
-/// compatible with the current [`Referrer`] struct. See
-/// [`super::schema::LATEST_VERSION`] for the rationale.
-pub const LATEST_APP_DATA_VERSION: &str = "1.13.0";
+/// Matches [`super::schema::LATEST_VERSION`]. Documents created via
+/// [`AppDataDoc::new`] declare this version, which means their
+/// `metadata.referrer` (if set) must be a
+/// [`Referrer::Code`](Referrer::code) — the v1.14.0 shape. To target
+/// an older schema, build the doc explicitly and set its `version`
+/// field to e.g. `"1.13.0"` before calling
+/// [`super::schema::validate`].
+pub const LATEST_APP_DATA_VERSION: &str = "1.14.0";
 
 /// Latest version of the quote metadata schema.
 pub const LATEST_QUOTE_METADATA_VERSION: &str = "1.1.0";
@@ -85,7 +88,7 @@ pub const LATEST_USER_CONSENTS_METADATA_VERSION: &str = "0.1.0";
 ///
 /// let doc = AppDataDoc::new("MyDApp")
 ///     .with_environment("production")
-///     .with_referrer(Referrer::new("0xb6BAd41ae76A11D10f7b0E664C5007b908bC77C9"))
+///     .with_referrer(Referrer::code("COWRS-PARTNER"))
 ///     .with_order_class(OrderClassKind::Limit);
 ///
 /// assert_eq!(doc.app_code.as_deref(), Some("MyDApp"));
@@ -133,7 +136,7 @@ impl AppDataDoc {
     ///
     /// let doc = AppDataDoc::new("MyDApp");
     /// assert_eq!(doc.app_code.as_deref(), Some("MyDApp"));
-    /// assert_eq!(doc.version, "1.13.0");
+    /// assert_eq!(doc.version, "1.14.0");
     /// assert!(!doc.metadata.has_referrer());
     /// ```
     #[must_use]
@@ -399,7 +402,7 @@ impl fmt::Display for AppDataDoc {
 /// use cow_rs::app_data::{Metadata, Quote, Referrer};
 ///
 /// let meta = Metadata::default()
-///     .with_referrer(Referrer::new("0xb6BAd41ae76A11D10f7b0E664C5007b908bC77C9"))
+///     .with_referrer(Referrer::code("COWRS-PARTNER"))
 ///     .with_quote(Quote::new(50));
 ///
 /// assert!(meta.has_referrer());
@@ -732,52 +735,124 @@ impl fmt::Display for Metadata {
     }
 }
 
-/// Partner referral tracking address.
+/// Partner referral tracking information.
 ///
-/// The upstream `CoW` Protocol app-data schema identifies referrers by
-/// Ethereum address (matching `^0x[a-fA-F0-9]{40}$`), not by free-form
-/// code. The address is embedded in the order's app-data JSON so the
-/// protocol can attribute volume to the partner wallet.
+/// The upstream `CoW` Protocol app-data schema for `referrer` changed
+/// shape between v1.13.0 and v1.14.0:
+///
+/// | Schema version | Shape | Pattern |
+/// |---|---|---|
+/// | v0.1.0 – v1.13.0 | `{ "address": "0x…" }` (partner Ethereum address) | `^0x[a-fA-F0-9]{40}$` |
+/// | v1.14.0+ | `{ "code": "ABCDE" }` (affiliate code, uppercase) | `^[A-Z0-9_-]{5,20}$` |
+///
+/// Both forms are modelled as variants of this enum with
+/// `#[serde(untagged)]`, so a single [`Referrer`] value deserialises
+/// correctly from either shape and serialises back into the same shape.
+/// Runtime schema validation via [`super::schema::validate`] dispatches
+/// on the document's declared `version` and picks the matching bundled
+/// schema, so an `Address`-flavoured referrer must accompany a
+/// v1.13.0-or-earlier document and a `Code`-flavoured one a v1.14.0+
+/// document.
+///
+/// # Construction
+///
+/// Prefer the dedicated constructors [`Referrer::address`] and
+/// [`Referrer::code`]; [`Referrer::new`] is kept as a deprecated alias
+/// for the address form so existing v1.13.0-era code keeps compiling.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Referrer {
-    /// Ethereum address of the referring partner (0x-prefixed, 40 hex chars).
-    pub address: String,
+#[serde(untagged)]
+pub enum Referrer {
+    /// Legacy form used by schema versions up to and including v1.13.0.
+    Address {
+        /// Partner's Ethereum address (`0x`-prefixed, 40 hex chars).
+        address: String,
+    },
+    /// Current form used by schema v1.14.0 and later.
+    Code {
+        /// Affiliate / referral code. Case-insensitive but expected to
+        /// be stored uppercase; must match `^[A-Z0-9_-]{5,20}$`.
+        code: String,
+    },
 }
 
 impl Referrer {
-    /// Construct a new [`Referrer`] from the given partner Ethereum address.
+    /// Construct an address-flavoured referrer (schema v0.1.0 – v1.13.0).
     ///
-    /// The address is stored as-is; callers are responsible for passing a
-    /// well-formed `0x`-prefixed 40-character hex string. The upstream JSON
-    /// Schema at `specs/app-data-schema.json` rejects non-conforming values.
-    ///
-    /// # Parameters
-    ///
-    /// * `address` — the partner's Ethereum address, e.g.
-    ///   `"0xb6BAd41ae76A11D10f7b0E664C5007b908bC77C9"`.
-    ///
-    /// # Returns
-    ///
-    /// A new [`Referrer`] instance.
+    /// The address is stored verbatim; callers are responsible for
+    /// passing a well-formed `0x`-prefixed 40-character hex string.
+    /// Runtime schema validation under v1.13.0 rejects non-conforming
+    /// values.
     ///
     /// # Example
     ///
     /// ```
     /// use cow_rs::app_data::Referrer;
     ///
-    /// let r = Referrer::new("0xb6BAd41ae76A11D10f7b0E664C5007b908bC77C9");
-    /// assert_eq!(r.address, "0xb6BAd41ae76A11D10f7b0E664C5007b908bC77C9");
+    /// let r = Referrer::address("0xb6BAd41ae76A11D10f7b0E664C5007b908bC77C9");
+    /// assert_eq!(r.as_address(), Some("0xb6BAd41ae76A11D10f7b0E664C5007b908bC77C9"));
+    /// assert_eq!(r.as_code(), None);
     /// ```
     #[must_use]
+    pub fn address(address: impl Into<String>) -> Self {
+        Self::Address { address: address.into() }
+    }
+
+    /// Construct a code-flavoured referrer (schema v1.14.0+).
+    ///
+    /// The code is stored verbatim; callers are responsible for
+    /// matching the upstream regex `^[A-Z0-9_-]{5,20}$`. Runtime schema
+    /// validation under v1.14.0 rejects non-conforming values.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use cow_rs::app_data::Referrer;
+    ///
+    /// let r = Referrer::code("COWRS");
+    /// assert_eq!(r.as_code(), Some("COWRS"));
+    /// assert_eq!(r.as_address(), None);
+    /// ```
+    #[must_use]
+    pub fn code(code: impl Into<String>) -> Self {
+        Self::Code { code: code.into() }
+    }
+
+    /// Deprecated alias for [`Referrer::address`] — kept so existing
+    /// v1.13.0-era call sites keep compiling unchanged.
+    ///
+    /// New code should call [`Referrer::address`] or [`Referrer::code`]
+    /// explicitly to make the schema-version affinity obvious.
+    #[must_use]
+    #[deprecated(since = "1.1.0", note = "use Referrer::address or Referrer::code explicitly")]
     pub fn new(address: impl Into<String>) -> Self {
-        Self { address: address.into() }
+        Self::address(address)
+    }
+
+    /// Return the address string if this is an [`Self::Address`] variant.
+    #[must_use]
+    pub const fn as_address(&self) -> Option<&str> {
+        match self {
+            Self::Address { address } => Some(address.as_str()),
+            Self::Code { .. } => None,
+        }
+    }
+
+    /// Return the code string if this is a [`Self::Code`] variant.
+    #[must_use]
+    pub const fn as_code(&self) -> Option<&str> {
+        match self {
+            Self::Code { code } => Some(code.as_str()),
+            Self::Address { .. } => None,
+        }
     }
 }
 
 impl fmt::Display for Referrer {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "referrer({})", self.address)
+        match self {
+            Self::Address { address } => write!(f, "referrer(address={address})"),
+            Self::Code { code } => write!(f, "referrer(code={code})"),
+        }
     }
 }
 

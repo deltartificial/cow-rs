@@ -46,6 +46,7 @@ DEFAULT_VERSIONS = [
     "v1.6.0",
     "v1.10.0",
     "v1.13.0",
+    "v1.14.0",
 ]
 REPO_BASE_URL = "https://raw.githubusercontent.com/cowprotocol/app-data"
 

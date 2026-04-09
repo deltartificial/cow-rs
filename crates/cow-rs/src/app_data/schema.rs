@@ -60,6 +60,7 @@ const SUPPORTED_VERSIONS: &[(&str, &str)] = &[
     ("1.6.0", include_str!("../../../../specs/app-data/v1.6.0.json")),
     ("1.10.0", include_str!("../../../../specs/app-data/v1.10.0.json")),
     ("1.13.0", include_str!("../../../../specs/app-data/v1.13.0.json")),
+    ("1.14.0", include_str!("../../../../specs/app-data/v1.14.0.json")),
 ];
 
 /// The most recent version currently registered.
@@ -68,16 +69,18 @@ const SUPPORTED_VERSIONS: &[(&str, &str)] = &[
 /// examples in downstream modules. Must match the highest `version`
 /// returned by [`supported_versions`].
 ///
-/// **Why not v1.14.0?** Upstream `cowprotocol/app-data` v1.14.0 changed
-/// the `referrer` field from a partner Ethereum address (``address``)
-/// to an affiliate code string (``code``), while the Rust
-/// [`super::types::Referrer`] struct still models it as
-/// `{ address: String }` to match every version v1.0.0 through v1.13.0.
-/// Bumping this constant to `"1.14.0"` would therefore require either
-/// an enum-based `Referrer` (breaking change) or a silent schema
-/// mismatch — both out of scope for this module. Adding v1.14.0+
-/// support is tracked as a follow-up.
-pub const LATEST_VERSION: &str = "1.13.0";
+/// # Referrer shape across versions
+///
+/// Upstream `cowprotocol/app-data` v1.14.0 changed the `referrer` field
+/// from a partner Ethereum address (`{ "address": "0x…" }`) to an
+/// affiliate code (`{ "code": "ABCDE" }`). The Rust
+/// [`super::types::Referrer`] type models both shapes as an
+/// `#[serde(untagged)]` enum, so documents declaring either version
+/// validate correctly as long as their referrer value matches the
+/// right variant — use [`super::types::Referrer::address`] for
+/// v1.13.0-or-earlier documents and [`super::types::Referrer::code`]
+/// for v1.14.0+.
+pub const LATEST_VERSION: &str = "1.14.0";
 
 /// The bundled `CoW` Protocol `AppData` JSON Schema for the latest
 /// supported version ([`LATEST_VERSION`]).
@@ -86,7 +89,7 @@ pub const LATEST_VERSION: &str = "1.13.0";
 /// different validator (e.g. a JSON Schema debugger). Most consumers
 /// should use [`validate`], [`validate_json`], or their `_with` variants
 /// instead.
-pub const APP_DATA_SCHEMA: &str = include_str!("../../../../specs/app-data/v1.13.0.json");
+pub const APP_DATA_SCHEMA: &str = include_str!("../../../../specs/app-data/v1.14.0.json");
 
 // ── Error / violation types ──────────────────────────────────────────────────
 
@@ -381,11 +384,32 @@ mod tests {
     }
 
     #[test]
-    fn doc_with_referrer_validates() {
-        must_validate(
-            &AppDataDoc::new("TestApp")
-                .with_referrer(Referrer::new("0xb6BAd41ae76A11D10f7b0E664C5007b908bC77C9")),
-        );
+    fn doc_with_code_referrer_validates_under_latest() {
+        // LATEST_VERSION (v1.14.0) expects `referrer.code` matching
+        // `^[A-Z0-9_-]{5,20}$`.
+        must_validate(&AppDataDoc::new("TestApp").with_referrer(Referrer::code("COWRS-PARTNER")));
+    }
+
+    #[test]
+    fn doc_with_address_referrer_validates_under_v1_13_0() {
+        // The address form of `Referrer` only matches schemas v1.13.0 and
+        // earlier. Build a doc explicitly pinned to v1.13.0 and validate
+        // with an explicit version rather than relying on the default.
+        let mut doc = AppDataDoc::new("TestApp")
+            .with_referrer(Referrer::address("0xb6BAd41ae76A11D10f7b0E664C5007b908bC77C9"));
+        doc.version = "1.13.0".to_owned();
+        validate(&doc).expect("address-flavoured referrer validates under v1.13.0");
+    }
+
+    #[test]
+    fn address_referrer_fails_under_latest() {
+        // Under v1.14.0 the address form is rejected (`address` field
+        // not allowed, `code` missing) — documented drift between the
+        // two schema shapes.
+        let doc = AppDataDoc::new("TestApp")
+            .with_referrer(Referrer::address("0xb6BAd41ae76A11D10f7b0E664C5007b908bC77C9"));
+        let err = validate(&doc).expect_err("address referrer under v1.14.0 must fail");
+        assert!(matches!(err, SchemaError::Violations(_)));
     }
 
     #[test]
@@ -460,7 +484,7 @@ mod tests {
         let hook =
             CowHook::new("0x0000000000000000000000000000000000000001", "0xdeadbeef", "100000");
         let metadata = Metadata::default()
-            .with_referrer(Referrer::new("0xb6BAd41ae76A11D10f7b0E664C5007b908bC77C9"))
+            .with_referrer(Referrer::code("COWRS-PARTNER"))
             .with_utm(Utm {
                 utm_source: Some("src".into()),
                 utm_medium: Some("med".into()),
@@ -486,9 +510,11 @@ mod tests {
     // ── Negative cases ──────────────────────────────────────────────────────
 
     #[test]
-    fn doc_with_malformed_referrer_is_rejected() {
-        let doc = AppDataDoc::new("TestApp").with_referrer(Referrer::new("not-an-address"));
-        let err = validate(&doc).expect_err("malformed referrer must fail");
+    fn doc_with_malformed_code_referrer_is_rejected() {
+        // v1.14.0 code pattern is `^[A-Z0-9_-]{5,20}$` — lowercase fails
+        // and the path must localise to /metadata/referrer/code.
+        let doc = AppDataDoc::new("TestApp").with_referrer(Referrer::code("abc"));
+        let err = validate(&doc).expect_err("malformed code must fail");
         let SchemaError::Violations(errs) = err else {
             panic!("expected Violations, got {err:?}");
         };
