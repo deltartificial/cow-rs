@@ -5,12 +5,15 @@
 //! executed via [`run_query`](SubgraphApi::run_query) which handles the
 //! `GraphQL` request/response envelope.
 
+use std::sync::Arc;
+
 use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
 
 use crate::{
     config::chain::{Env, SupportedChainId},
     error::CowError,
+    order_book::{RateLimiter, RetryPolicy},
 };
 
 use super::{
@@ -65,6 +68,11 @@ const fn subgraph_url(chain: SupportedChainId, _env: Env) -> Option<&'static str
 pub struct SubgraphApi {
     client: reqwest::Client,
     base_url: String,
+    /// Shared token bucket, identical in shape to the one that backs
+    /// [`super::super::order_book::OrderBookApi`]. Default: 5 req/s.
+    rate_limiter: Arc<RateLimiter>,
+    /// Exponential-backoff retry policy for transient `GraphQL` failures.
+    retry_policy: RetryPolicy,
 }
 
 impl SubgraphApi {
@@ -105,7 +113,12 @@ impl SubgraphApi {
     pub fn new(chain: SupportedChainId, env: Env) -> Result<Self, CowError> {
         let base_url = subgraph_url(chain, env)
             .ok_or_else(|| CowError::UnknownAsset(format!("no subgraph for chain {chain}")))?;
-        Ok(Self { client: Self::build_client(), base_url: base_url.to_owned() })
+        Ok(Self {
+            client: Self::build_client(),
+            base_url: base_url.to_owned(),
+            rate_limiter: Arc::new(RateLimiter::default_orderbook()),
+            retry_policy: RetryPolicy::default_orderbook(),
+        })
     }
 
     /// Create a [`SubgraphApi`] pointing at an arbitrary `GraphQL` endpoint
@@ -128,7 +141,40 @@ impl SubgraphApi {
     /// ```
     #[must_use]
     pub fn new_with_url(url: impl Into<String>) -> Self {
-        Self { client: Self::build_client(), base_url: url.into() }
+        Self {
+            client: Self::build_client(),
+            base_url: url.into(),
+            rate_limiter: Arc::new(RateLimiter::default_orderbook()),
+            retry_policy: RetryPolicy::default_orderbook(),
+        }
+    }
+
+    /// Override the shared rate limiter used for every outbound request.
+    ///
+    /// Defaults to [`RateLimiter::default_orderbook`] (5 req/s). Pass a
+    /// shared `Arc` to make several `SubgraphApi` instances throttle
+    /// against the same budget — or to make a single budget shared
+    /// between a `SubgraphApi` and an
+    /// [`super::super::order_book::OrderBookApi`].
+    #[must_use]
+    pub fn with_rate_limiter(mut self, limiter: Arc<RateLimiter>) -> Self {
+        self.rate_limiter = limiter;
+        self
+    }
+
+    /// Override the retry policy used for every outbound request.
+    ///
+    /// Defaults to [`RetryPolicy::default_orderbook`] (10 attempts,
+    /// exponential backoff on 408/425/429/5xx). Use
+    /// [`RetryPolicy::no_retry`] to disable retries entirely.
+    #[must_use]
+    #[allow(
+        clippy::missing_const_for_fn,
+        reason = "RetryPolicy contains a Duration whose Drop is non-const"
+    )]
+    pub fn with_retry_policy(mut self, policy: RetryPolicy) -> Self {
+        self.retry_policy = policy;
+        self
     }
 
     /// Fetch protocol-wide aggregate statistics.
@@ -587,7 +633,33 @@ impl SubgraphApi {
             body["variables"] = vars;
         }
 
-        let resp = self.client.post(&self.base_url).json(&body).send().await?;
+        // Rate-limit + retry policy, mirroring `OrderBookApi::send_with_policy`.
+        // The closure captures `&body` and rebuilds a fresh `RequestBuilder`
+        // on every attempt because `reqwest::RequestBuilder` is not always
+        // `Clone`.
+        let max = self.retry_policy.max_attempts.max(1);
+        let mut attempt: u32 = 0;
+        let resp = loop {
+            self.rate_limiter.acquire().await;
+            let result = self.client.post(&self.base_url).json(&body).send().await;
+            let last_attempt = attempt + 1 >= max;
+            match result {
+                Ok(resp) => {
+                    let status = resp.status().as_u16();
+                    if !self.retry_policy.should_retry_status(status) || last_attempt {
+                        break resp;
+                    }
+                }
+                Err(e) => {
+                    if !self.retry_policy.should_retry_error(&e) || last_attempt {
+                        return Err(e.into());
+                    }
+                }
+            }
+            self.retry_policy.wait(self.retry_policy.delay_for_attempt(attempt)).await;
+            attempt += 1;
+        };
+
         let status = resp.status().as_u16();
         let text = resp.text().await?;
 
