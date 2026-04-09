@@ -243,8 +243,8 @@ pub fn validate_json_with(value: &Value, version: &str) -> Result<(), SchemaErro
 ///
 /// # Errors
 ///
-/// * [`SchemaError::UnsupportedVersion`] if `value["version"]` is missing, not a string, or not
-///   in the set returned by [`supported_versions`].
+/// * [`SchemaError::UnsupportedVersion`] if `value["version"]` is missing, not a string, or not in
+///   the set returned by [`supported_versions`].
 /// * [`SchemaError::Violations`] if the value does not match its declared schema.
 ///
 /// # Example

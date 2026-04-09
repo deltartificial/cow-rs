@@ -14,9 +14,12 @@
 )]
 //! Wiremock-based integration tests for [`OrderBookApi`] HTTP endpoints.
 
+use std::{sync::Arc, time::Duration};
+
 use cow_rs::{
     EcdsaSigningScheme, Env, OrderBookApi, OrderCancellations, OrderCreation, OrderKind,
-    OrderQuoteRequest, SigningScheme, SupportedChainId, TokenBalance, Trade, order_book::QuoteSide,
+    OrderQuoteRequest, RateLimiter, RetryPolicy, SigningScheme, SupportedChainId, TokenBalance,
+    Trade, order_book::QuoteSide,
 };
 use wiremock::{Mock, MockServer, ResponseTemplate, matchers};
 
@@ -337,4 +340,183 @@ fn make_quote_response_json() -> serde_json::Value {
         "id":         1,
         "verified":   false
     })
+}
+
+// ── Rate limiting and retry integration tests ────────────────────────────────
+
+/// Build a retry policy with short delays so tests finish in milliseconds
+/// rather than the default 100 ms × 2^N exponential curve.
+fn fast_retry(max_attempts: u32) -> RetryPolicy {
+    RetryPolicy {
+        max_attempts,
+        initial_delay: Duration::from_millis(1),
+        max_delay: Duration::from_millis(10),
+        retry_status_codes: cow_rs::order_book::DEFAULT_RETRY_STATUS_CODES,
+    }
+}
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn get_version_retries_on_500_then_succeeds() {
+    let server = MockServer::start().await;
+    // First two attempts return 500, third returns 200. Each mock is
+    // installed with its own expected-call range so we can assert every
+    // retry actually landed on the server.
+    Mock::given(matchers::method("GET"))
+        .and(matchers::path("/api/v1/version"))
+        .respond_with(ResponseTemplate::new(500))
+        .up_to_n_times(2)
+        .expect(2)
+        .mount(&server)
+        .await;
+    Mock::given(matchers::method("GET"))
+        .and(matchers::path("/api/v1/version"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!("1.2.3")))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    let api = OrderBookApi::new_with_url(SupportedChainId::Mainnet, Env::Prod, server.uri())
+        .with_retry_policy(fast_retry(5));
+    let version = api.get_version().await.expect("third attempt should succeed");
+    assert_eq!(version, "1.2.3");
+    // Drop asserts the expected-call counts.
+}
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn get_version_does_not_retry_on_400() {
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("GET"))
+        .and(matchers::path("/api/v1/version"))
+        .respond_with(ResponseTemplate::new(400).set_body_string("bad request"))
+        .expect(1) // exactly one call — no retry
+        .mount(&server)
+        .await;
+
+    let api = OrderBookApi::new_with_url(SupportedChainId::Mainnet, Env::Prod, server.uri())
+        .with_retry_policy(fast_retry(5));
+    let err = api.get_version().await.expect_err("400 must surface as an error");
+    assert!(
+        matches!(err, cow_rs::error::CowError::Api { status: 400, .. }),
+        "expected CowError::Api {{ status: 400 }}, got {err:?}"
+    );
+}
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn get_version_gives_up_after_max_attempts() {
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("GET"))
+        .and(matchers::path("/api/v1/version"))
+        .respond_with(ResponseTemplate::new(503))
+        .expect(3) // exactly `max_attempts` calls
+        .mount(&server)
+        .await;
+
+    let api = OrderBookApi::new_with_url(SupportedChainId::Mainnet, Env::Prod, server.uri())
+        .with_retry_policy(fast_retry(3));
+    let err = api.get_version().await.expect_err("exhausted retries must error");
+    assert!(
+        matches!(err, cow_rs::error::CowError::Api { status: 503, .. }),
+        "expected CowError::Api {{ status: 503 }}, got {err:?}"
+    );
+}
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn no_retry_policy_fires_exactly_once() {
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("GET"))
+        .and(matchers::path("/api/v1/version"))
+        .respond_with(ResponseTemplate::new(500))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    let api = OrderBookApi::new_with_url(SupportedChainId::Mainnet, Env::Prod, server.uri())
+        .with_retry_policy(RetryPolicy::no_retry());
+    let err = api.get_version().await.expect_err("500 with no retry policy errors");
+    assert!(matches!(err, cow_rs::error::CowError::Api { status: 500, .. }));
+}
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn send_order_retries_on_429_then_succeeds() {
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("POST"))
+        .and(matchers::path("/api/v1/orders"))
+        .respond_with(ResponseTemplate::new(429).set_body_string("rate limited"))
+        .up_to_n_times(1)
+        .expect(1)
+        .mount(&server)
+        .await;
+    Mock::given(matchers::method("POST"))
+        .and(matchers::path("/api/v1/orders"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(serde_json::json!(format!("0x{}", "ab".repeat(56)))),
+        )
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    let api = OrderBookApi::new_with_url(SupportedChainId::Mainnet, Env::Prod, server.uri())
+        .with_retry_policy(fast_retry(5));
+    let order = OrderCreation {
+        sell_token: "0x0000000000000000000000000000000000000001".parse().unwrap(),
+        buy_token: "0x0000000000000000000000000000000000000002".parse().unwrap(),
+        receiver: "0x0000000000000000000000000000000000000003".parse().unwrap(),
+        sell_amount: "1".to_owned(),
+        buy_amount: "1".to_owned(),
+        valid_to: 2_000_000_000,
+        app_data: "0x0000000000000000000000000000000000000000000000000000000000000000".to_owned(),
+        fee_amount: "0".to_owned(),
+        kind: OrderKind::Sell,
+        partially_fillable: false,
+        sell_token_balance: TokenBalance::Erc20,
+        buy_token_balance: TokenBalance::Erc20,
+        signing_scheme: SigningScheme::Eip712,
+        signature: "0x".to_owned(),
+        from: "0x0000000000000000000000000000000000000004".parse().unwrap(),
+        quote_id: None,
+    };
+    let uid = api.send_order(&order).await.expect("retry should land on the 200");
+    assert!(uid.starts_with("0x"));
+}
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn rate_limiter_serialises_concurrent_get_version() {
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("GET"))
+        .and(matchers::path("/api/v1/version"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!("1.2.3")))
+        .mount(&server)
+        .await;
+
+    // Capacity 1, rate ~50/s — only one request at a time, with ~20 ms
+    // between them. Four concurrent `get_version()` calls must spend at
+    // least 3 refills (~60 ms) waiting. `start_paused` is intentionally
+    // NOT used here because `reqwest`'s timeout uses real network I/O
+    // which does not mix with the paused tokio clock.
+    let api = OrderBookApi::new_with_url(SupportedChainId::Mainnet, Env::Prod, server.uri())
+        .with_rate_limiter(Arc::new(RateLimiter::new(50.0, 1.0)));
+
+    let start = std::time::Instant::now();
+    let results: [_; 4] = <[_; 4]>::from(tokio::join!(
+        api.get_version(),
+        api.get_version(),
+        api.get_version(),
+        api.get_version()
+    ));
+    let elapsed = start.elapsed();
+
+    for r in results {
+        assert_eq!(r.unwrap(), "1.2.3");
+    }
+    assert!(
+        elapsed >= Duration::from_millis(50),
+        "rate limiter should space 4 requests over >=50 ms, got {elapsed:?}"
+    );
 }

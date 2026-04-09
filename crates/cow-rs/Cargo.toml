@@ -63,7 +63,7 @@ syn = "2"
 [dev-dependencies]
 graphql-parser = { workspace = true }
 proptest.workspace = true
-tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "test-util"] }
 wiremock.workspace = true
 
 [lints]

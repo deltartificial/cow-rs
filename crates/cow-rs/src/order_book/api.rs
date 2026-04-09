@@ -7,13 +7,18 @@
 //! Also exports [`request`] for low-level generic HTTP requests and
 //! [`mock_get_order`] for testing.
 
+use std::sync::Arc;
+
 use crate::{
     config::{Env, SupportedChainId, api_base_url, order_explorer_link},
     error::CowError,
-    order_book::types::{
-        AppDataObject, Auction, CompetitionOrderStatus, GetOrdersRequest, GetTradesRequest, Order,
-        OrderCancellations, OrderCreation, OrderQuoteRequest, OrderQuoteResponse, OrderUid,
-        SolverCompetition, TotalSurplus, Trade,
+    order_book::{
+        rate_limit::{RateLimiter, RetryPolicy},
+        types::{
+            AppDataObject, Auction, CompetitionOrderStatus, GetOrdersRequest, GetTradesRequest,
+            Order, OrderCancellations, OrderCreation, OrderQuoteRequest, OrderQuoteResponse,
+            OrderUid, SolverCompetition, TotalSurplus, Trade,
+        },
     },
 };
 
@@ -46,6 +51,12 @@ pub struct OrderBookApi {
     base_url: String,
     chain: SupportedChainId,
     env: Env,
+    /// Shared token bucket enforcing the upstream 5-requests-per-second
+    /// limit. Wrapped in `Arc` so clones of [`OrderBookApi`] throttle
+    /// against the same budget.
+    rate_limiter: Arc<RateLimiter>,
+    /// Exponential-backoff policy applied to transient HTTP failures.
+    retry_policy: RetryPolicy,
 }
 
 impl OrderBookApi {
@@ -85,7 +96,14 @@ impl OrderBookApi {
     /// ```
     #[must_use]
     pub fn new(chain: SupportedChainId, env: Env) -> Self {
-        Self { client: Self::build_client(), base_url: api_base_url(chain, env).into(), chain, env }
+        Self {
+            client: Self::build_client(),
+            base_url: api_base_url(chain, env).into(),
+            chain,
+            env,
+            rate_limiter: Arc::new(RateLimiter::default_orderbook()),
+            retry_policy: RetryPolicy::default_orderbook(),
+        }
     }
 
     /// Create a new client with an explicit `base_url`, overriding the
@@ -113,7 +131,74 @@ impl OrderBookApi {
     /// ```
     #[must_use]
     pub fn new_with_url(chain: SupportedChainId, env: Env, base_url: impl Into<String>) -> Self {
-        Self { client: Self::build_client(), base_url: base_url.into(), chain, env }
+        Self {
+            client: Self::build_client(),
+            base_url: base_url.into(),
+            chain,
+            env,
+            rate_limiter: Arc::new(RateLimiter::default_orderbook()),
+            retry_policy: RetryPolicy::default_orderbook(),
+        }
+    }
+
+    /// Override the shared rate limiter used for every outbound request.
+    ///
+    /// Accepts any [`RateLimiter`] wrapped in [`Arc`]; pass the same
+    /// `Arc` to several [`OrderBookApi`] instances if you want them to
+    /// share a budget (e.g. one limiter per API key across multiple
+    /// logical clients).
+    ///
+    /// By default [`Self::new`] and [`Self::new_with_url`] install a
+    /// fresh [`RateLimiter::default_orderbook`] (5 req/s).
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use std::sync::Arc;
+    ///
+    /// use cow_rs::{Env, OrderBookApi, RateLimiter, SupportedChainId};
+    ///
+    /// // One bucket, two client instances share the same 5 rps budget.
+    /// let shared = Arc::new(RateLimiter::default_orderbook());
+    /// let prod =
+    ///     OrderBookApi::new(SupportedChainId::Mainnet, Env::Prod).with_rate_limiter(shared.clone());
+    /// let staging =
+    ///     OrderBookApi::new(SupportedChainId::Mainnet, Env::Staging).with_rate_limiter(shared);
+    /// ```
+    #[must_use]
+    pub fn with_rate_limiter(mut self, limiter: Arc<RateLimiter>) -> Self {
+        self.rate_limiter = limiter;
+        self
+    }
+
+    /// Override the retry policy used for every outbound request.
+    ///
+    /// By default [`Self::new`] and [`Self::new_with_url`] install the
+    /// upstream-compatible [`RetryPolicy::default_orderbook`] (10
+    /// attempts, exponential backoff, retry on the transient status
+    /// codes listed in
+    /// [`DEFAULT_RETRY_STATUS_CODES`](super::rate_limit::DEFAULT_RETRY_STATUS_CODES)).
+    ///
+    /// Use [`RetryPolicy::no_retry`] to disable retries entirely — for
+    /// example in integration tests that want to see raw 5xx responses.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use cow_rs::{Env, OrderBookApi, RetryPolicy, SupportedChainId};
+    ///
+    /// let api = OrderBookApi::new(SupportedChainId::Mainnet, Env::Prod)
+    ///     .with_retry_policy(RetryPolicy::no_retry());
+    /// ```
+    #[must_use]
+    #[allow(
+        clippy::missing_const_for_fn,
+        reason = "RetryPolicy contains a Duration whose Drop is non-const; \
+                  the lint fires spuriously on the reassignment"
+    )]
+    pub fn with_retry_policy(mut self, policy: RetryPolicy) -> Self {
+        self.retry_policy = policy;
+        self
     }
 
     /// `GET /api/v1/version` — return the orderbook service version string.
@@ -230,7 +315,7 @@ impl OrderBookApi {
     /// status, or [`CowError::Http`] on transport failure.
     pub async fn cancel_orders(&self, body: &OrderCancellations) -> Result<(), CowError> {
         let url = format!("{}/api/v1/orders", self.base_url);
-        let resp = self.client.delete(&url).json(body).send().await?;
+        let resp = self.send_with_policy(|client| client.delete(&url).json(body)).await?;
         if resp.status().is_success() { Ok(()) } else { Err(api_error(resp).await) }
     }
 
@@ -333,6 +418,8 @@ impl OrderBookApi {
             base_url: other_url.into(),
             chain: self.chain,
             env: other_env,
+            rate_limiter: Arc::clone(&self.rate_limiter),
+            retry_policy: self.retry_policy.clone(),
         };
         other.get_order(uid).await
     }
@@ -635,9 +722,12 @@ impl OrderBookApi {
     // ── Internal helpers ──────────────────────────────────────────────────────
 
     /// Send a GET request and deserialize the JSON response.
+    ///
+    /// Routed through [`Self::send_with_policy`] so every call respects
+    /// the configured [`RateLimiter`] and [`RetryPolicy`].
     async fn get<T: serde::de::DeserializeOwned>(&self, path: &str) -> Result<T, CowError> {
         let url = format!("{}{}", self.base_url, path);
-        let resp = self.client.get(&url).send().await?;
+        let resp = self.send_with_policy(|client| client.get(&url)).await?;
         if resp.status().is_success() {
             Ok(resp.json::<T>().await?)
         } else {
@@ -646,17 +736,65 @@ impl OrderBookApi {
     }
 
     /// Send a POST request with a JSON body and deserialize the response.
+    ///
+    /// Routed through [`Self::send_with_policy`] so every call respects
+    /// the configured [`RateLimiter`] and [`RetryPolicy`].
     async fn post<B, T>(&self, path: &str, body: &B) -> Result<T, CowError>
     where
         B: serde::Serialize,
         T: serde::de::DeserializeOwned,
     {
         let url = format!("{}{}", self.base_url, path);
-        let resp = self.client.post(&url).json(body).send().await?;
+        let resp = self.send_with_policy(|client| client.post(&url).json(body)).await?;
         if resp.status().is_success() {
             Ok(resp.json::<T>().await?)
         } else {
             Err(api_error(resp).await)
+        }
+    }
+
+    /// Core request executor: acquires a token from the rate limiter,
+    /// runs the request, and retries on transient failures according
+    /// to the configured [`RetryPolicy`].
+    ///
+    /// The caller supplies a closure that builds the `reqwest` request
+    /// from a borrowed client — this indirection lets us build a fresh
+    /// `RequestBuilder` on every attempt, which is necessary because
+    /// `reqwest::RequestBuilder` is not `Clone` for all body types.
+    ///
+    /// Returns the raw [`reqwest::Response`]; the caller is expected to
+    /// check `status()` and deserialise the body. A response whose
+    /// status is in [`RetryPolicy::retry_status_codes`] is re-sent after
+    /// an exponential backoff delay; any other status short-circuits
+    /// and is returned as-is for the caller to handle (e.g. convert to
+    /// a typed error).
+    async fn send_with_policy<F>(&self, mut build: F) -> Result<reqwest::Response, CowError>
+    where
+        F: for<'a> FnMut(&'a reqwest::Client) -> reqwest::RequestBuilder,
+    {
+        let max = self.retry_policy.max_attempts.max(1);
+        let mut attempt: u32 = 0;
+        loop {
+            self.rate_limiter.acquire().await;
+            let builder = build(&self.client);
+            let result = builder.send().await;
+            let last_attempt = attempt + 1 >= max;
+            match result {
+                Ok(resp) => {
+                    let status = resp.status().as_u16();
+                    if !self.retry_policy.should_retry_status(status) || last_attempt {
+                        return Ok(resp);
+                    }
+                }
+                Err(e) => {
+                    if !self.retry_policy.should_retry_error(&e) || last_attempt {
+                        return Err(e.into());
+                    }
+                }
+            }
+            let delay = self.retry_policy.delay_for_attempt(attempt);
+            self.retry_policy.wait(delay).await;
+            attempt += 1;
         }
     }
 }

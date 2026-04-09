@@ -28,6 +28,7 @@
 pub mod api;
 pub(crate) mod generated;
 pub mod quote_amounts;
+pub mod rate_limit;
 pub mod types;
 
 #[cfg(test)]
@@ -40,6 +41,7 @@ pub use quote_amounts::{
     get_protocol_fee_amount, get_quote_amounts_after_partner_fee, get_quote_amounts_after_slippage,
     get_quote_amounts_and_costs, transform_order,
 };
+pub use rate_limit::{DEFAULT_RETRY_STATUS_CODES, RateLimiter, RetryPolicy};
 pub use types::{
     AppDataObject, Auction, CompetitionAuction, CompetitionOrderStatus, CompetitionOrderStatusKind,
     EthflowData, GetOrdersRequest, GetTradesRequest, InteractionData, OnchainOrderData, Order,
