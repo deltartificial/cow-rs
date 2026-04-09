@@ -57,6 +57,12 @@ pub struct OrderBookApi {
     rate_limiter: Arc<RateLimiter>,
     /// Exponential-backoff policy applied to transient HTTP failures.
     retry_policy: RetryPolicy,
+    /// Extra headers attached to every outbound request, keyed by header
+    /// name. Populated via [`OrderBookApi::with_headers`] and mirrors the
+    /// `additionalHeaders` parameter of the upstream `TypeScript` SDK's
+    /// `request.ts`. Typical use: injecting `X-API-Key` for the Partner
+    /// API.
+    extra_headers: Vec<(String, String)>,
 }
 
 impl OrderBookApi {
@@ -103,6 +109,7 @@ impl OrderBookApi {
             env,
             rate_limiter: Arc::new(RateLimiter::default_orderbook()),
             retry_policy: RetryPolicy::default_orderbook(),
+            extra_headers: Vec::new(),
         }
     }
 
@@ -138,7 +145,56 @@ impl OrderBookApi {
             env,
             rate_limiter: Arc::new(RateLimiter::default_orderbook()),
             retry_policy: RetryPolicy::default_orderbook(),
+            extra_headers: Vec::new(),
         }
+    }
+
+    /// Attach a static header to every outbound request.
+    ///
+    /// Mirrors the `additionalHeaders` parameter of the upstream
+    /// `TypeScript` SDK's `request.ts`. The typical use case is
+    /// injecting an `X-API-Key` for the Partner API:
+    ///
+    /// ```
+    /// use cow_rs::{Env, OrderBookApi, SupportedChainId};
+    ///
+    /// let api = OrderBookApi::new(SupportedChainId::Mainnet, Env::Prod)
+    ///     .with_header("X-API-Key", "secret-partner-key");
+    /// ```
+    ///
+    /// Calling [`Self::with_header`] multiple times with different names
+    /// appends each one; calling it twice with the same name appends both
+    /// — `reqwest` will send duplicate headers. Use [`Self::with_headers`]
+    /// to install several at once.
+    #[must_use]
+    pub fn with_header(mut self, name: impl Into<String>, value: impl Into<String>) -> Self {
+        self.extra_headers.push((name.into(), value.into()));
+        self
+    }
+
+    /// Attach a batch of static headers to every outbound request.
+    ///
+    /// Appends to the existing set — prior [`Self::with_header`] /
+    /// [`Self::with_headers`] calls remain in effect.
+    ///
+    /// ```
+    /// use cow_rs::{Env, OrderBookApi, SupportedChainId};
+    ///
+    /// let api = OrderBookApi::new(SupportedChainId::Mainnet, Env::Prod).with_headers([
+    ///     ("X-API-Key", "secret-partner-key"),
+    ///     ("X-Client-Version", env!("CARGO_PKG_VERSION")),
+    /// ]);
+    /// ```
+    #[must_use]
+    pub fn with_headers<K, V>(mut self, headers: impl IntoIterator<Item = (K, V)>) -> Self
+    where
+        K: Into<String>,
+        V: Into<String>,
+    {
+        for (k, v) in headers {
+            self.extra_headers.push((k.into(), v.into()));
+        }
+        self
     }
 
     /// Override the shared rate limiter used for every outbound request.
@@ -420,6 +476,7 @@ impl OrderBookApi {
             env: other_env,
             rate_limiter: Arc::clone(&self.rate_limiter),
             retry_policy: self.retry_policy.clone(),
+            extra_headers: self.extra_headers.clone(),
         };
         other.get_order(uid).await
     }
@@ -776,7 +833,10 @@ impl OrderBookApi {
         let mut attempt: u32 = 0;
         loop {
             self.rate_limiter.acquire().await;
-            let builder = build(&self.client);
+            let mut builder = build(&self.client);
+            for (name, value) in &self.extra_headers {
+                builder = builder.header(name, value);
+            }
             let result = builder.send().await;
             let last_attempt = attempt + 1 >= max;
             match result {

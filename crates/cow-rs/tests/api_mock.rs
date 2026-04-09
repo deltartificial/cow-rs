@@ -487,6 +487,55 @@ async fn send_order_retries_on_429_then_succeeds() {
 
 #[cfg_attr(miri, ignore)]
 #[tokio::test]
+async fn partner_api_header_is_sent_on_every_request() {
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("GET"))
+        .and(matchers::path("/api/v1/version"))
+        .and(matchers::header("x-api-key", "secret-partner-key"))
+        .and(matchers::header("x-client-version", "cow-rs-test"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!("1.2.3")))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    let api = OrderBookApi::new_with_url(SupportedChainId::Mainnet, Env::Prod, server.uri())
+        .with_headers([("X-API-Key", "secret-partner-key"), ("X-Client-Version", "cow-rs-test")])
+        .with_retry_policy(RetryPolicy::no_retry());
+    let version = api.get_version().await.expect("expected success");
+    assert_eq!(version, "1.2.3");
+}
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn partner_api_headers_survive_retry() {
+    let server = MockServer::start().await;
+    // First attempt: 503 (no header match needed — wiremock will still
+    // match the path). Second attempt: 200 with header match required.
+    Mock::given(matchers::method("GET"))
+        .and(matchers::path("/api/v1/version"))
+        .and(matchers::header("x-api-key", "secret"))
+        .respond_with(ResponseTemplate::new(503))
+        .up_to_n_times(1)
+        .expect(1)
+        .mount(&server)
+        .await;
+    Mock::given(matchers::method("GET"))
+        .and(matchers::path("/api/v1/version"))
+        .and(matchers::header("x-api-key", "secret"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!("1.2.3")))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    let api = OrderBookApi::new_with_url(SupportedChainId::Mainnet, Env::Prod, server.uri())
+        .with_header("X-API-Key", "secret")
+        .with_retry_policy(fast_retry(5));
+    let v = api.get_version().await.expect("header must be re-sent on every attempt");
+    assert_eq!(v, "1.2.3");
+}
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
 async fn rate_limiter_serialises_concurrent_get_version() {
     let server = MockServer::start().await;
     Mock::given(matchers::method("GET"))
