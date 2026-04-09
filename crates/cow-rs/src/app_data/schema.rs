@@ -1,55 +1,97 @@
-//! Runtime JSON Schema validation for [`AppDataDoc`].
+//! Runtime JSON Schema validation for [`AppDataDoc`] with **per-version**
+//! dispatch.
 //!
-//! Validates an [`AppDataDoc`] against the bundled `CoW` Protocol `AppData`
-//! JSON Schema at `specs/app-data-schema.json` (draft-07, sourced from the
-//! upstream `cowprotocol/app-data` repository).
-//!
-//! # Why this exists
-//!
-//! The existing [`validate_app_data_doc`](super::ipfs::validate_app_data_doc)
-//! already enforces business-rule constraints (address format, `bps` caps,
-//! order-class enums, `appCode` length, …) via the helpers in the private
-//! `validation` helper module. Those checks do **not** verify that the
-//! document's **structural shape** — required fields, additional-property
-//! rules, `$ref` targets, `anyOf`/`oneOf` variants — matches the upstream
-//! spec.
-//!
-//! This module fills that gap with an [`jsonschema::Validator`] compiled
-//! once at first use via [`LazyLock`]. Consumers can:
-//!
-//! | Entry point | Use when … |
-//! |---|---|
-//! | [`validate`] | You have an [`AppDataDoc`] and want a structured list of violations |
-//! | [`validate_json`] | You have a raw `serde_json::Value` (e.g. freshly fetched from IPFS) |
-//! | [`super::ipfs::validate_app_data_doc`] | You want business rules **and** schema rules in one call |
-//!
-//! # Single-version limitation
-//!
-//! The bundled schema is a **single snapshot** — the upstream
+//! Validates an [`AppDataDoc`] against one of several bundled `CoW`
+//! Protocol `AppData` JSON Schemas sourced from the upstream
 //! [`cowprotocol/app-data`](https://github.com/cowprotocol/app-data)
-//! repository publishes 20+ versioned schemas (`v0.1.0.json` →
-//! `v1.6.0.json`) and the `TypeScript` SDK picks the right validator based on
-//! the incoming `doc.version`. Matching that behaviour would require
-//! vendoring each historical schema and dispatching at runtime — that work
-//! is tracked separately.
+//! repository. Each bundled schema lives in
+//! `specs/app-data/vX.Y.Z.json` (one file per supported version, with all
+//! `$ref`s pre-resolved by `scripts/bundle-appdata-schemas.py`) and is
+//! compiled into a dedicated [`jsonschema::Validator`] on first use.
+//!
+//! # Dispatch rules
+//!
+//! | Caller intent | Entry point |
+//! |---|---|
+//! | Validate a built [`AppDataDoc`] against *its own* declared version | [`validate`] |
+//! | Validate an arbitrary `serde_json::Value` (e.g. freshly fetched from IPFS) | [`validate_json`] |
+//! | Force validation against a specific version, ignoring `doc.version` | [`validate_with`] |
+//! | Validate an arbitrary JSON value against a specific version | [`validate_json_with`] |
+//! | Run business rules **and** schema rules in one call | [`super::ipfs::validate_app_data_doc`] |
+//!
+//! The version-dispatching entry points ([`validate`] and [`validate_json`])
+//! read the `version` field from the document, look up the matching
+//! validator in the private `SUPPORTED_VERSIONS` table, and return
+//! [`SchemaError::UnsupportedVersion`] if no registered validator covers
+//! it. This mirrors `validateAppDataDoc.ts` in the upstream `TypeScript` SDK,
+//! which picks a validator per `doc.version`. Use [`supported_versions`]
+//! to enumerate the set of registered versions at runtime.
+//!
+//! # Adding a new version
+//!
+//! 1. Run `make fetch-appdata-schema` (optionally with `APPDATA_COMMIT=<sha>`) to regenerate every
+//!    bundled schema from the pinned upstream commit.
+//! 2. If the new version is not yet in `scripts/bundle-appdata-schemas.py::DEFAULT_VERSIONS`,
+//!    extend that list first.
+//! 3. Add a new entry to the private `SUPPORTED_VERSIONS` table at the top of this module.
+//! 4. Bump [`LATEST_VERSION`] if the new version should become the fallback for documents whose
+//!    `version` predates the oldest registered snapshot.
+//! 5. `cargo test` — every bundled schema is smoke-tested on first access via
+//!    `every_registered_version_compiles` (under `#[cfg(test)]`).
 
 use std::sync::LazyLock;
 
+use foldhash::{HashMap, HashMapExt};
 use jsonschema::Validator;
 use serde_json::Value;
 
 use super::types::AppDataDoc;
 
-/// The bundled `CoW` Protocol `AppData` JSON Schema, resolved with every
-/// `$ref` inlined (see the `make fetch-appdata-schema` Makefile target).
-///
-/// Exposed mainly for downstream tooling that needs to hand the raw schema
-/// to a different validator (e.g. a JSON Schema debugger). Most consumers
-/// should use [`validate`] or [`validate_json`] instead.
-pub const APP_DATA_SCHEMA: &str = include_str!("../../../../specs/app-data-schema.json");
+// ── Bundled schemas ──────────────────────────────────────────────────────────
 
-/// A single structural violation reported by [`validate`] or
-/// [`validate_json`], anchored to a JSON path inside the document.
+/// Pair each registered version with its bundled JSON Schema source.
+///
+/// Keeping the `(version, schema_source)` pairs in one table lets the
+/// test suite smoke-compile every registered version in a single
+/// iteration without having to name the individual constants.
+const SUPPORTED_VERSIONS: &[(&str, &str)] = &[
+    ("1.0.0", include_str!("../../../../specs/app-data/v1.0.0.json")),
+    ("1.5.0", include_str!("../../../../specs/app-data/v1.5.0.json")),
+    ("1.6.0", include_str!("../../../../specs/app-data/v1.6.0.json")),
+    ("1.10.0", include_str!("../../../../specs/app-data/v1.10.0.json")),
+    ("1.13.0", include_str!("../../../../specs/app-data/v1.13.0.json")),
+];
+
+/// The most recent version currently registered.
+///
+/// Used as the fallback target of [`APP_DATA_SCHEMA`] and of the doc
+/// examples in downstream modules. Must match the highest `version`
+/// returned by [`supported_versions`].
+///
+/// **Why not v1.14.0?** Upstream `cowprotocol/app-data` v1.14.0 changed
+/// the `referrer` field from a partner Ethereum address (``address``)
+/// to an affiliate code string (``code``), while the Rust
+/// [`super::types::Referrer`] struct still models it as
+/// `{ address: String }` to match every version v1.0.0 through v1.13.0.
+/// Bumping this constant to `"1.14.0"` would therefore require either
+/// an enum-based `Referrer` (breaking change) or a silent schema
+/// mismatch — both out of scope for this module. Adding v1.14.0+
+/// support is tracked as a follow-up.
+pub const LATEST_VERSION: &str = "1.13.0";
+
+/// The bundled `CoW` Protocol `AppData` JSON Schema for the latest
+/// supported version ([`LATEST_VERSION`]).
+///
+/// Exposed for downstream tooling that needs to hand the raw schema to a
+/// different validator (e.g. a JSON Schema debugger). Most consumers
+/// should use [`validate`], [`validate_json`], or their `_with` variants
+/// instead.
+pub const APP_DATA_SCHEMA: &str = include_str!("../../../../specs/app-data/v1.13.0.json");
+
+// ── Error / violation types ──────────────────────────────────────────────────
+
+/// A single structural violation reported by the JSON Schema validator,
+/// anchored to a JSON path inside the instance document.
 ///
 /// The [`Display`](std::fmt::Display) impl renders as
 /// `"{message} at {path}"`, matching the format used by the existing
@@ -74,68 +116,191 @@ impl std::fmt::Display for SchemaViolation {
     }
 }
 
-/// Lazily-compiled, process-wide validator for the bundled schema.
+/// Error type for version-aware schema validation.
 ///
-/// Compilation happens on first use and is shared across all subsequent
-/// calls. Panics on first access if the bundled schema is not valid JSON
-/// or not a valid draft-07 schema — both of which can only happen from a
-/// broken `make fetch-appdata-schema` and should be caught in CI via the
-/// test suite of this module.
+/// Distinguishes "the document does not match its declared schema"
+/// ([`Self::Violations`]) from "the document's declared version is not
+/// registered in this build" ([`Self::UnsupportedVersion`]) so callers
+/// can treat them differently — an unsupported version is typically a
+/// deployment-time configuration issue, while violations point at a
+/// genuine data problem.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SchemaError {
+    /// The document's declared `version` is not backed by any bundled
+    /// schema in this build of `cow-rs`. Upgrade `cow-rs` or force a
+    /// specific version with [`validate_with`].
+    UnsupportedVersion {
+        /// The version string the document declared.
+        requested: String,
+        /// The list of versions this build knows about, in registration
+        /// order (same as [`supported_versions`]).
+        supported: Vec<String>,
+    },
+    /// The document failed structural validation against its matching
+    /// schema. Contains every violation found, in document order.
+    Violations(Vec<SchemaViolation>),
+}
+
+impl std::fmt::Display for SchemaError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::UnsupportedVersion { requested, supported } => {
+                write!(
+                    f,
+                    "AppData version `{requested}` is not supported by this build \
+                     (known versions: {})",
+                    supported.join(", ")
+                )
+            }
+            Self::Violations(errs) => {
+                write!(f, "AppData schema validation failed with {} error(s)", errs.len())?;
+                for e in errs {
+                    write!(f, "\n  - {e}")?;
+                }
+                Ok(())
+            }
+        }
+    }
+}
+
+impl std::error::Error for SchemaError {}
+
+// ── Validator cache ──────────────────────────────────────────────────────────
+
+/// Lazily-compiled map of `version → Validator`.
+///
+/// Every registered schema is compiled on first access to *any*
+/// validator (all at once — this is cheap enough and amortises the
+/// lookup cost). Failure to parse or compile any bundled schema panics
+/// loudly at startup so broken build artifacts cannot ship silently.
 #[allow(
     clippy::expect_used,
-    reason = "bundled compile-time schema; a parse/compile failure indicates \
+    clippy::panic,
+    reason = "bundled compile-time schemas; a parse/compile failure indicates \
               a broken build artifact and must panic loudly at startup"
 )]
-static VALIDATOR: LazyLock<Validator> = LazyLock::new(|| {
-    let schema: Value = serde_json::from_str(APP_DATA_SCHEMA)
-        .expect("bundled AppData JSON Schema must be valid JSON");
-    Validator::new(&schema).expect("bundled AppData JSON Schema must compile")
+static VALIDATORS: LazyLock<HashMap<&'static str, Validator>> = LazyLock::new(|| {
+    let mut map = HashMap::with_capacity(SUPPORTED_VERSIONS.len());
+    for (version, source) in SUPPORTED_VERSIONS {
+        let schema: Value = serde_json::from_str(source)
+            .unwrap_or_else(|e| panic!("bundled AppData schema v{version} is not valid JSON: {e}"));
+        let validator = Validator::new(&schema)
+            .unwrap_or_else(|e| panic!("bundled AppData schema v{version} does not compile: {e}"));
+        map.insert(*version, validator);
+    }
+    map
 });
 
-/// Validate a pre-serialised JSON value against the bundled schema.
+/// Return the list of schema versions known to this build, in registration
+/// order.
+#[must_use]
+pub fn supported_versions() -> Vec<&'static str> {
+    SUPPORTED_VERSIONS.iter().map(|(v, _)| *v).collect()
+}
+
+/// Look up the validator for a specific `version`, compiling the whole
+/// cache on first use.
 ///
-/// Returns all violations found in document order — an empty `Vec` means
-/// the value is structurally valid. Use this when you have a raw
-/// `serde_json::Value` (for example, freshly fetched from IPFS before it
-/// has been deserialised into an [`AppDataDoc`]).
+/// Returns `None` if the version is not registered.
+fn validator_for(version: &str) -> Option<&'static Validator> {
+    VALIDATORS.get(version)
+}
+
+// ── Public entry points ──────────────────────────────────────────────────────
+
+/// Validate a pre-serialised JSON value against a specific schema version.
+///
+/// Returns every violation found in document order. Use this when you
+/// want to pin the validation to a known version regardless of what the
+/// instance declares — for example, when you are sure a stored document
+/// was captured under a specific version even if its `version` field
+/// says otherwise.
+///
+/// # Errors
+///
+/// Returns [`SchemaError::UnsupportedVersion`] if `version` is not in
+/// the set returned by [`supported_versions`].
+pub fn validate_json_with(value: &Value, version: &str) -> Result<(), SchemaError> {
+    let Some(validator) = validator_for(version) else {
+        return Err(SchemaError::UnsupportedVersion {
+            requested: version.to_owned(),
+            supported: supported_versions().into_iter().map(str::to_owned).collect(),
+        });
+    };
+    let errors: Vec<SchemaViolation> = validator
+        .iter_errors(value)
+        .map(|e| SchemaViolation { path: e.instance_path.to_string(), message: e.to_string() })
+        .collect();
+    if errors.is_empty() { Ok(()) } else { Err(SchemaError::Violations(errors)) }
+}
+
+/// Validate a pre-serialised JSON value, auto-selecting the schema
+/// version from the value's top-level `version` field.
+///
+/// Use this when you have a raw `serde_json::Value` (for example,
+/// freshly fetched from IPFS) that has not been deserialised into an
+/// [`AppDataDoc`] yet.
+///
+/// # Errors
+///
+/// * [`SchemaError::UnsupportedVersion`] if `value["version"]` is missing, not a string, or not
+///   in the set returned by [`supported_versions`].
+/// * [`SchemaError::Violations`] if the value does not match its declared schema.
 ///
 /// # Example
 ///
 /// ```
-/// use cow_rs::app_data::{validate_schema_json};
+/// use cow_rs::app_data::validate_schema_json;
 /// use serde_json::json;
 ///
-/// let good = json!({ "version": "1.6.0", "metadata": {} });
-/// assert!(validate_schema_json(&good).is_empty());
-///
-/// let bad = json!({ "version": "1.6.0" }); // missing required `metadata`
-/// assert!(!validate_schema_json(&bad).is_empty());
+/// let good = json!({ "version": "1.13.0", "metadata": {} });
+/// validate_schema_json(&good).expect("should validate");
 /// ```
-#[must_use]
-pub fn validate_json(value: &Value) -> Vec<SchemaViolation> {
-    VALIDATOR
-        .iter_errors(value)
-        .map(|e| SchemaViolation { path: e.instance_path.to_string(), message: e.to_string() })
-        .collect()
+pub fn validate_json(value: &Value) -> Result<(), SchemaError> {
+    let version = value
+        .get("version")
+        .and_then(Value::as_str)
+        .map_or_else(|| LATEST_VERSION.to_owned(), str::to_owned);
+    validate_json_with(value, &version)
 }
 
-/// Validate a typed [`AppDataDoc`] against the bundled schema.
+/// Validate a typed [`AppDataDoc`] against a specific schema version.
 ///
-/// Returns `Ok(())` when the document is structurally valid, or
-/// `Err(violations)` with every rule that failed. Use this when you have
-/// built a doc through the [`AppDataDoc`] builders and want a quick
-/// schema gate before submitting it to the orderbook.
+/// Ignores [`AppDataDoc::version`] — useful when you want to lock the
+/// check to a known version regardless of what the builder set.
 ///
 /// # Errors
 ///
-/// Returns a non-empty `Vec<SchemaViolation>` when the serialised document
-/// does not match the bundled JSON Schema.
+/// Same error set as [`validate_json_with`].
 ///
 /// # Panics
 ///
 /// Panics only if [`AppDataDoc`] fails to serialise to JSON, which would
-/// indicate a bug in its `Serialize` impl. Downstream callers can treat
-/// this as "cannot happen in practice".
+/// indicate a bug in its `Serialize` impl.
+#[allow(
+    clippy::expect_used,
+    reason = "AppDataDoc serialisation is total; failure would be a bug in serde"
+)]
+pub fn validate_with(doc: &AppDataDoc, version: &str) -> Result<(), SchemaError> {
+    let value = serde_json::to_value(doc).expect("AppDataDoc serialises without failure");
+    validate_json_with(&value, version)
+}
+
+/// Validate a typed [`AppDataDoc`] against the schema matching its own
+/// declared [`version`](AppDataDoc::version).
+///
+/// This is the most common entry point: pass a doc built via the
+/// builders, receive `Ok(())` on success or an
+/// [`SchemaError::UnsupportedVersion`] / [`SchemaError::Violations`]
+/// otherwise.
+///
+/// # Errors
+///
+/// Same error set as [`validate_json`].
+///
+/// # Panics
+///
+/// Panics only if [`AppDataDoc`] fails to serialise to JSON.
 ///
 /// # Example
 ///
@@ -149,10 +314,9 @@ pub fn validate_json(value: &Value) -> Vec<SchemaViolation> {
     clippy::expect_used,
     reason = "AppDataDoc serialisation is total; failure would be a bug in serde"
 )]
-pub fn validate(doc: &AppDataDoc) -> Result<(), Vec<SchemaViolation>> {
+pub fn validate(doc: &AppDataDoc) -> Result<(), SchemaError> {
     let value = serde_json::to_value(doc).expect("AppDataDoc serialises without failure");
-    let errors = validate_json(&value);
-    if errors.is_empty() { Ok(()) } else { Err(errors) }
+    validate_json(&value)
 }
 
 // ── Tests ────────────────────────────────────────────────────────────────────
@@ -168,14 +332,43 @@ mod tests {
     };
 
     fn must_validate(doc: &AppDataDoc) {
-        if let Err(errs) = validate(doc) {
-            panic!(
-                "doc should validate but produced {} error(s):\n  {}",
-                errs.len(),
-                errs.iter().map(|e| e.to_string()).collect::<Vec<_>>().join("\n  ")
+        if let Err(e) = validate(doc) {
+            panic!("doc should validate but failed: {e}");
+        }
+    }
+
+    // ── Smoke test: every bundled version must compile ──────────────────────
+
+    #[test]
+    fn every_registered_version_compiles() {
+        for version in supported_versions() {
+            assert!(
+                validator_for(version).is_some(),
+                "registered version {version} failed to compile into a validator"
             );
         }
     }
+
+    #[test]
+    fn latest_version_is_registered() {
+        assert!(
+            supported_versions().contains(&LATEST_VERSION),
+            "LATEST_VERSION ({LATEST_VERSION}) must appear in SUPPORTED_VERSIONS"
+        );
+    }
+
+    #[test]
+    fn default_appdatadoc_uses_a_registered_version() {
+        let doc = AppDataDoc::new("test");
+        assert!(
+            supported_versions().contains(&doc.version.as_str()),
+            "AppDataDoc::new sets version `{}` but no bundled schema covers it; \
+             update `LATEST_APP_DATA_VERSION` or register a new schema",
+            doc.version
+        );
+    }
+
+    // ── Positive cases ──────────────────────────────────────────────────────
 
     #[test]
     fn minimal_doc_validates() {
@@ -192,16 +385,6 @@ mod tests {
         must_validate(
             &AppDataDoc::new("TestApp")
                 .with_referrer(Referrer::new("0xb6BAd41ae76A11D10f7b0E664C5007b908bC77C9")),
-        );
-    }
-
-    #[test]
-    fn doc_with_malformed_referrer_is_rejected() {
-        let doc = AppDataDoc::new("TestApp").with_referrer(Referrer::new("not-an-address"));
-        let errors = validate(&doc).expect_err("malformed referrer must fail");
-        assert!(
-            errors.iter().any(|e| e.path.contains("referrer")),
-            "expected at least one violation on /metadata/referrer, got: {errors:?}"
         );
     }
 
@@ -300,43 +483,96 @@ mod tests {
         must_validate(&doc);
     }
 
+    // ── Negative cases ──────────────────────────────────────────────────────
+
+    #[test]
+    fn doc_with_malformed_referrer_is_rejected() {
+        let doc = AppDataDoc::new("TestApp").with_referrer(Referrer::new("not-an-address"));
+        let err = validate(&doc).expect_err("malformed referrer must fail");
+        let SchemaError::Violations(errs) = err else {
+            panic!("expected Violations, got {err:?}");
+        };
+        assert!(
+            errs.iter().any(|e| e.path.contains("referrer")),
+            "expected a violation on /metadata/referrer, got: {errs:?}"
+        );
+    }
+
     #[test]
     fn schema_rejects_unknown_top_level_fields() {
         let bad = json!({
-            "version": "1.6.0",
+            "version": LATEST_VERSION,
             "metadata": {},
             "unknownField": "should fail",
         });
-        assert!(!validate_json(&bad).is_empty());
+        assert!(validate_json(&bad).is_err());
     }
 
     #[test]
     fn schema_rejects_unknown_metadata_fields() {
         let bad = json!({
-            "version": "1.6.0",
+            "version": LATEST_VERSION,
             "metadata": { "unknownMetadata": {} },
         });
-        assert!(!validate_json(&bad).is_empty());
+        assert!(validate_json(&bad).is_err());
     }
 
     #[test]
     fn schema_requires_version_and_metadata() {
+        // No version — falls back to LATEST_VERSION for dispatch but the
+        // schema itself still requires a `version` field, so validation
+        // fails with a violation rather than UnsupportedVersion.
         let no_version = json!({ "metadata": {} });
-        assert!(!validate_json(&no_version).is_empty());
+        assert!(validate_json(&no_version).is_err());
 
-        let no_metadata = json!({ "version": "1.6.0" });
-        assert!(!validate_json(&no_metadata).is_empty());
+        // Present version, missing metadata — same logic, violation only.
+        let no_metadata = json!({ "version": LATEST_VERSION });
+        assert!(validate_json(&no_metadata).is_err());
+    }
+
+    // ── Version dispatch ────────────────────────────────────────────────────
+
+    #[test]
+    fn unknown_version_is_reported_as_unsupported() {
+        let bad = json!({ "version": "99.0.0", "metadata": {} });
+        let err = validate_json(&bad).expect_err("unknown version must fail");
+        let SchemaError::UnsupportedVersion { requested, supported } = err else {
+            panic!("expected UnsupportedVersion, got {err:?}");
+        };
+        assert_eq!(requested, "99.0.0");
+        assert!(!supported.is_empty(), "supported list should not be empty");
+        assert!(
+            supported.iter().any(|s| s == LATEST_VERSION),
+            "LATEST_VERSION must appear in the supported list"
+        );
     }
 
     #[test]
-    fn validator_is_shared_across_calls() {
-        // Exercise the LazyLock cache on two consecutive calls — if the
-        // validator were re-built each time this would still work but be
-        // very slow. We just assert both calls return the same thing.
+    fn validate_with_ignores_doc_version() {
+        // Build a doc that defaults to LATEST_VERSION but force-validate
+        // it against an older registered schema. v1.0.0 has a simpler
+        // partner-fee shape so we keep the doc minimal to avoid spurious
+        // cross-version incompatibilities.
+        let doc = AppDataDoc::new("CrossVersion");
+        validate_with(&doc, "1.0.0").expect("minimal doc validates under v1.0.0");
+        validate_with(&doc, LATEST_VERSION).expect("minimal doc validates under latest");
+    }
+
+    #[test]
+    fn validate_with_errors_on_unknown_version() {
+        let doc = AppDataDoc::new("TestApp");
+        let err = validate_with(&doc, "42.42.42").expect_err("unknown version must fail");
+        assert!(matches!(err, SchemaError::UnsupportedVersion { .. }));
+    }
+
+    // ── Misc ────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn validator_cache_is_shared_across_calls() {
         let doc = AppDataDoc::new("cache-test");
-        let a = validate(&doc);
-        let b = validate(&doc);
-        assert_eq!(a.is_ok(), b.is_ok());
+        let a = validate(&doc).is_ok();
+        let b = validate(&doc).is_ok();
+        assert!(a && b, "cached validator must yield stable results");
     }
 
     #[test]
@@ -349,5 +585,14 @@ mod tests {
 
         let v = SchemaViolation { path: String::new(), message: "root-level error".to_owned() };
         assert_eq!(v.to_string(), "root-level error");
+    }
+
+    #[test]
+    fn supported_versions_contains_every_registered_entry() {
+        let versions = supported_versions();
+        assert_eq!(versions.len(), SUPPORTED_VERSIONS.len());
+        for (reg, _) in SUPPORTED_VERSIONS {
+            assert!(versions.contains(reg), "missing {reg}");
+        }
     }
 }

@@ -77,8 +77,10 @@ pub use ipfs::{
 };
 #[cfg(feature = "schema-validation")]
 pub use schema::{
-    APP_DATA_SCHEMA, SchemaViolation, validate as validate_schema,
-    validate_json as validate_schema_json,
+    APP_DATA_SCHEMA, LATEST_VERSION as LATEST_APP_DATA_SCHEMA_VERSION, SchemaError,
+    SchemaViolation, supported_versions as supported_app_data_schema_versions,
+    validate as validate_schema, validate_json as validate_schema_json,
+    validate_json_with as validate_schema_json_with, validate_with as validate_schema_with,
 };
 pub use types::{
     AppDataDoc, CowHook, LATEST_APP_DATA_VERSION, LATEST_HOOKS_METADATA_VERSION,

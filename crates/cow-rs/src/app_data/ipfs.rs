@@ -467,11 +467,29 @@ pub fn validate_app_data_doc(doc: &AppDataDoc) -> ValidationResult {
     validate_constraints(doc, &mut typed_errors);
 
     // ── Structural JSON Schema check ───────────────────────────────────────
+    //
+    // Dispatches on `doc.version`: [`super::schema::validate`] selects the
+    // bundled schema matching the document's declared version and returns
+    // either a list of violations or an `UnsupportedVersion` error. Both
+    // outcomes flow into the combined `ValidationResult`.
     #[cfg(feature = "schema-validation")]
-    if let Err(violations) = super::schema::validate(doc) {
-        for v in violations {
-            typed_errors
-                .push(ValidationError::SchemaViolation { path: v.path, message: v.message });
+    match super::schema::validate(doc) {
+        Ok(()) => {}
+        Err(super::schema::SchemaError::Violations(violations)) => {
+            for v in violations {
+                typed_errors
+                    .push(ValidationError::SchemaViolation { path: v.path, message: v.message });
+            }
+        }
+        Err(super::schema::SchemaError::UnsupportedVersion { requested, supported }) => {
+            typed_errors.push(ValidationError::SchemaViolation {
+                path: "/version".to_owned(),
+                message: format!(
+                    "AppData version `{requested}` is not backed by a bundled schema in \
+                     this build (supported: {})",
+                    supported.join(", ")
+                ),
+            });
         }
     }
 

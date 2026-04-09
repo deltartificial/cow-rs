@@ -25,7 +25,12 @@ use std::fmt;
 use serde::{Deserialize, Serialize};
 
 /// Latest app-data schema version this crate targets.
-pub const LATEST_APP_DATA_VERSION: &str = "1.14.0";
+///
+/// Set to the highest version whose bundled JSON Schema still models
+/// `referrer` as a partner Ethereum address — i.e. the highest version
+/// compatible with the current [`Referrer`] struct. See
+/// [`super::schema::LATEST_VERSION`] for the rationale.
+pub const LATEST_APP_DATA_VERSION: &str = "1.13.0";
 
 /// Latest version of the quote metadata schema.
 pub const LATEST_QUOTE_METADATA_VERSION: &str = "1.1.0";
@@ -128,7 +133,7 @@ impl AppDataDoc {
     ///
     /// let doc = AppDataDoc::new("MyDApp");
     /// assert_eq!(doc.app_code.as_deref(), Some("MyDApp"));
-    /// assert_eq!(doc.version, "1.14.0");
+    /// assert_eq!(doc.version, "1.13.0");
     /// assert!(!doc.metadata.has_referrer());
     /// ```
     #[must_use]

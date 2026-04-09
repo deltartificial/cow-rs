@@ -200,7 +200,7 @@
               ],
               "title": "Version",
               "type": "string",
-              "default": "0.1.0"
+              "default": "0.2.0"
             },
             "pre": {
               "title": "Pre-Hooks",
@@ -248,12 +248,12 @@
                     "description": "The gas limit (in gas units) for the hook"
                   },
                   "dappId": {
-                    "pattern": "^[a-fA-F0-9]{64}$",
                     "title": "Id of the dApp which has built the hook",
                     "examples": [
                       "75716a3cb48fdbb43ebdff58ce6c541f6a2c269be690513131355800367f2da2"
                     ],
                     "type": "string",
+                    "minLength": 1,
                     "description": "CoW Swap has an interface that allows dApps to build hooks for orders. This field is used to identify the dApp that has built the hook."
                   }
                 }
@@ -305,12 +305,12 @@
                     "description": "The gas limit (in gas units) for the hook"
                   },
                   "dappId": {
-                    "pattern": "^[a-fA-F0-9]{64}$",
                     "title": "Id of the dApp which has built the hook",
                     "examples": [
                       "75716a3cb48fdbb43ebdff58ce6c541f6a2c269be690513131355800367f2da2"
                     ],
                     "type": "string",
+                    "minLength": 1,
                     "description": "CoW Swap has an interface that allows dApps to build hooks for orders. This field is used to identify the dApp that has built the hook."
                   }
                 }
@@ -366,14 +366,15 @@
                       "volumeBps": {
                         "title": "Volume Basis Point (BPS)",
                         "description": "The fee in basis points (BPS) to be paid to the partner based on volume. Capped at protocol level to 100 BPS (1%)",
-                        "examples": [
-                          0,
-                          10,
-                          50
-                        ],
                         "type": "integer",
                         "maximum": 100,
-                        "minimum": 1
+                        "minimum": 1,
+                        "default": 100,
+                        "examples": [
+                          10,
+                          50,
+                          100
+                        ]
                       },
                       "recipient": {
                         "pattern": "^0x[a-fA-F0-9]{40}$",
@@ -397,11 +398,6 @@
                       "surplusBps": {
                         "title": "Surplus Basis Point (BPS)",
                         "description": "The fee in basis points (BPS) to be paid to the partner based on surplus",
-                        "examples": [
-                          0,
-                          10,
-                          50
-                        ],
                         "type": "integer",
                         "maximum": 9999,
                         "minimum": 1
@@ -409,15 +405,15 @@
                       "maxVolumeBps": {
                         "title": "Max Volume Basis Point (BPS)",
                         "description": "The maximum volume in basis points (BPS) to be paid to the partner. Capped at protocol level to 100 BPS (1%). You can chose to go lower but not higher",
-                        "examples": [
-                          0,
-                          10,
-                          50
-                        ],
                         "type": "integer",
                         "maximum": 100,
                         "minimum": 1,
-                        "default": 100
+                        "default": 100,
+                        "examples": [
+                          10,
+                          50,
+                          100
+                        ]
                       },
                       "recipient": {
                         "pattern": "^0x[a-fA-F0-9]{40}$",
@@ -441,11 +437,6 @@
                       "priceImprovementBps": {
                         "title": "Price Improvement Basis Point (BPS)",
                         "description": "The fee in basis points (BPS) to be paid to the partner based on price improvement",
-                        "examples": [
-                          0,
-                          10,
-                          50
-                        ],
                         "type": "integer",
                         "maximum": 9999,
                         "minimum": 1
@@ -453,15 +444,15 @@
                       "maxVolumeBps": {
                         "title": "Max Volume Basis Point (BPS)",
                         "description": "The maximum volume in basis points (BPS) to be paid to the partner. Capped at protocol level to 100 BPS (1%). You can chose to go lower but not higher",
-                        "examples": [
-                          0,
-                          10,
-                          50
-                        ],
                         "type": "integer",
                         "maximum": 100,
                         "minimum": 1,
-                        "default": 100
+                        "default": 100,
+                        "examples": [
+                          10,
+                          50,
+                          100
+                        ]
                       },
                       "recipient": {
                         "pattern": "^0x[a-fA-F0-9]{40}$",
@@ -490,14 +481,15 @@
                     "volumeBps": {
                       "title": "Volume Basis Point (BPS)",
                       "description": "The fee in basis points (BPS) to be paid to the partner based on volume. Capped at protocol level to 100 BPS (1%)",
-                      "examples": [
-                        0,
-                        10,
-                        50
-                      ],
                       "type": "integer",
                       "maximum": 100,
-                      "minimum": 1
+                      "minimum": 1,
+                      "default": 100,
+                      "examples": [
+                        10,
+                        50,
+                        100
+                      ]
                     },
                     "recipient": {
                       "pattern": "^0x[a-fA-F0-9]{40}$",
@@ -521,11 +513,6 @@
                     "surplusBps": {
                       "title": "Surplus Basis Point (BPS)",
                       "description": "The fee in basis points (BPS) to be paid to the partner based on surplus",
-                      "examples": [
-                        0,
-                        10,
-                        50
-                      ],
                       "type": "integer",
                       "maximum": 9999,
                       "minimum": 1
@@ -533,15 +520,15 @@
                     "maxVolumeBps": {
                       "title": "Max Volume Basis Point (BPS)",
                       "description": "The maximum volume in basis points (BPS) to be paid to the partner. Capped at protocol level to 100 BPS (1%). You can chose to go lower but not higher",
-                      "examples": [
-                        0,
-                        10,
-                        50
-                      ],
                       "type": "integer",
                       "maximum": 100,
                       "minimum": 1,
-                      "default": 100
+                      "default": 100,
+                      "examples": [
+                        10,
+                        50,
+                        100
+                      ]
                     },
                     "recipient": {
                       "pattern": "^0x[a-fA-F0-9]{40}$",
@@ -565,11 +552,6 @@
                     "priceImprovementBps": {
                       "title": "Price Improvement Basis Point (BPS)",
                       "description": "The fee in basis points (BPS) to be paid to the partner based on price improvement",
-                      "examples": [
-                        0,
-                        10,
-                        50
-                      ],
                       "type": "integer",
                       "maximum": 9999,
                       "minimum": 1
@@ -577,15 +559,15 @@
                     "maxVolumeBps": {
                       "title": "Max Volume Basis Point (BPS)",
                       "description": "The maximum volume in basis points (BPS) to be paid to the partner. Capped at protocol level to 100 BPS (1%). You can chose to go lower but not higher",
-                      "examples": [
-                        0,
-                        10,
-                        50
-                      ],
                       "type": "integer",
                       "maximum": 100,
                       "minimum": 1,
-                      "default": 100
+                      "default": 100,
+                      "examples": [
+                        10,
+                        50,
+                        100
+                      ]
                     },
                     "recipient": {
                       "pattern": "^0x[a-fA-F0-9]{40}$",
@@ -601,7 +583,145 @@
                 }
               ]
             }
-          ]
+          ],
+          "definitions": {
+            "partnerFeeObject": {
+              "type": "object",
+              "oneOf": [
+                {
+                  "required": [
+                    "volumeBps",
+                    "recipient"
+                  ],
+                  "properties": {
+                    "volumeBps": {
+                      "title": "Volume Basis Point (BPS)",
+                      "description": "The fee in basis points (BPS) to be paid to the partner based on volume. Capped at protocol level to 100 BPS (1%)",
+                      "type": "integer",
+                      "maximum": 100,
+                      "minimum": 1,
+                      "default": 100,
+                      "examples": [
+                        10,
+                        50,
+                        100
+                      ]
+                    },
+                    "recipient": {
+                      "pattern": "^0x[a-fA-F0-9]{40}$",
+                      "title": "Partner account",
+                      "examples": [
+                        "0xb6BAd41ae76A11D10f7b0E664C5007b908bC77C9"
+                      ],
+                      "type": "string",
+                      "description": "The Ethereum address of the partner to receive the fee."
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                {
+                  "required": [
+                    "surplusBps",
+                    "maxVolumeBps",
+                    "recipient"
+                  ],
+                  "properties": {
+                    "surplusBps": {
+                      "title": "Surplus Basis Point (BPS)",
+                      "description": "The fee in basis points (BPS) to be paid to the partner based on surplus",
+                      "type": "integer",
+                      "maximum": 9999,
+                      "minimum": 1
+                    },
+                    "maxVolumeBps": {
+                      "title": "Max Volume Basis Point (BPS)",
+                      "description": "The maximum volume in basis points (BPS) to be paid to the partner. Capped at protocol level to 100 BPS (1%). You can chose to go lower but not higher",
+                      "type": "integer",
+                      "maximum": 100,
+                      "minimum": 1,
+                      "default": 100,
+                      "examples": [
+                        10,
+                        50,
+                        100
+                      ]
+                    },
+                    "recipient": {
+                      "pattern": "^0x[a-fA-F0-9]{40}$",
+                      "title": "Partner account",
+                      "examples": [
+                        "0xb6BAd41ae76A11D10f7b0E664C5007b908bC77C9"
+                      ],
+                      "type": "string",
+                      "description": "The Ethereum address of the partner to receive the fee."
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                {
+                  "required": [
+                    "priceImprovementBps",
+                    "maxVolumeBps",
+                    "recipient"
+                  ],
+                  "properties": {
+                    "priceImprovementBps": {
+                      "title": "Price Improvement Basis Point (BPS)",
+                      "description": "The fee in basis points (BPS) to be paid to the partner based on price improvement",
+                      "type": "integer",
+                      "maximum": 9999,
+                      "minimum": 1
+                    },
+                    "maxVolumeBps": {
+                      "title": "Max Volume Basis Point (BPS)",
+                      "description": "The maximum volume in basis points (BPS) to be paid to the partner. Capped at protocol level to 100 BPS (1%). You can chose to go lower but not higher",
+                      "type": "integer",
+                      "maximum": 100,
+                      "minimum": 1,
+                      "default": 100,
+                      "examples": [
+                        10,
+                        50,
+                        100
+                      ]
+                    },
+                    "recipient": {
+                      "pattern": "^0x[a-fA-F0-9]{40}$",
+                      "title": "Partner account",
+                      "examples": [
+                        "0xb6BAd41ae76A11D10f7b0E664C5007b908bC77C9"
+                      ],
+                      "type": "string",
+                      "description": "The Ethereum address of the partner to receive the fee."
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "maxVolumeBps": {
+              "title": "Max Volume Basis Point (BPS)",
+              "description": "The maximum volume in basis points (BPS) to be paid to the partner. Capped at protocol level to 100 BPS (1%). You can chose to go lower but not higher",
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 100,
+              "examples": [
+                10,
+                50,
+                100
+              ]
+            },
+            "recipient": {
+              "pattern": "^0x[a-fA-F0-9]{40}$",
+              "title": "Partner account",
+              "examples": [
+                "0xb6BAd41ae76A11D10f7b0E664C5007b908bC77C9"
+              ],
+              "type": "string",
+              "description": "The Ethereum address of the partner to receive the fee."
+            }
+          }
         },
         "replacedOrder": {
           "$schema": "http://json-schema.org/draft-07/schema",
@@ -657,59 +777,6 @@
               ]
             }
           }
-        },
-        "flashloan": {
-          "$schema": "http://json-schema.org/draft-07/schema",
-          "title": "Flashloan",
-          "description": "Information about flashloan parameters for the order",
-          "type": "object",
-          "required": [
-            "lender",
-            "borrower",
-            "token",
-            "amount"
-          ],
-          "properties": {
-            "lender": {
-              "pattern": "^0x[a-fA-F0-9]{40}$",
-              "title": "Lender address",
-              "examples": [
-                "0xb6BAd41ae76A11D10f7b0E664C5007b908bC77C9"
-              ],
-              "type": "string",
-              "description": "The Ethereum address of the flashloan lender"
-            },
-            "borrower": {
-              "pattern": "^0x[a-fA-F0-9]{40}$",
-              "title": "Borrower address",
-              "examples": [
-                "0xb6BAd41ae76A11D10f7b0E664C5007b908bC77C9"
-              ],
-              "type": "string",
-              "description": "The Ethereum address of the flashloan borrower"
-            },
-            "token": {
-              "pattern": "^0x[a-fA-F0-9]{40}$",
-              "title": "Token address",
-              "examples": [
-                "0xb6BAd41ae76A11D10f7b0E664C5007b908bC77C9"
-              ],
-              "type": "string",
-              "description": "The Ethereum address of the token being borrowed"
-            },
-            "amount": {
-              "pattern": "^[1-9]\\d*$",
-              "title": "Loan amount",
-              "examples": [
-                "90741097240912730913",
-                "75891372",
-                "1"
-              ],
-              "type": "string",
-              "description": "The amount of tokens to be flash loaned (in token units, as uint256)"
-            }
-          },
-          "additionalProperties": false
         }
       }
     }
