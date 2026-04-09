@@ -1,3 +1,13 @@
+# Vendored snapshot of the cowprotocol/services orderbook OpenAPI spec.
+# This file is consumed by build.rs via progenitor to generate the
+# compile-time mirror in `src/order_book/generated.rs`.
+#
+# To regenerate from a specific upstream commit (reproducible builds):
+#     make fetch-orderbook-spec ORDERBOOK_COMMIT=<sha>
+# Default (`ORDERBOOK_COMMIT=main`) tracks the tip of cowprotocol/services.
+#
+# The provenance of the current snapshot is not recorded inline —
+# run `make fetch-orderbook-spec` with an explicit commit to anchor it.
 openapi: 3.0.3
 info:
   version: 0.0.1
