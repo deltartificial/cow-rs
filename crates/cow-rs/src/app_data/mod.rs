@@ -12,7 +12,8 @@
 //! | [`hash`] | Deterministic JSON serialisation and `keccak256` hashing |
 //! | [`cid`] | Bidirectional `appDataHex` ↔ IPFS `CIDv1` conversion |
 //! | [`ipfs`] | IPFS fetch/upload helpers and the [`MetadataApi`] facade |
-//! | `validation` | Constraint validation against the app-data schema |
+//! | [`schema`] | Runtime JSON Schema validation against the bundled upstream spec |
+//! | `validation` | Business-rule constraint checks (`appCode` length, `bps` caps, …) |
 //!
 //! # Quick start
 //!
@@ -42,8 +43,8 @@
 pub mod cid;
 pub mod hash;
 pub mod ipfs;
-#[cfg(test)]
-mod schema_validation;
+#[cfg(feature = "schema-validation")]
+pub mod schema;
 pub mod types;
 pub(super) mod validation;
 
@@ -73,6 +74,11 @@ pub use ipfs::{
 pub use ipfs::{
     fetch_doc_from_app_data_hex_legacy, get_app_data_info_legacy,
     upload_metadata_doc_to_ipfs_legacy,
+};
+#[cfg(feature = "schema-validation")]
+pub use schema::{
+    APP_DATA_SCHEMA, SchemaViolation, validate as validate_schema,
+    validate_json as validate_schema_json,
 };
 pub use types::{
     AppDataDoc, CowHook, LATEST_APP_DATA_VERSION, LATEST_HOOKS_METADATA_VERSION,

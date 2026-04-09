@@ -268,11 +268,19 @@ fn validate_partner_fee_bps_too_high_fails() {
 
 #[test]
 fn validate_partner_fee_bps_at_cap_passes() {
-    // Exactly 10_000 bps (= 100 %) is the boundary — should still pass.
-    let fee = PartnerFee::single(PartnerFeeEntry::volume(10_000, "0xdeadbeef"));
+    // `validate_app_data_doc` enforces TWO independent caps on partner-fee
+    // bps: the hand-written constraint check (≤ 10 000 = 100 %) and the
+    // upstream JSON Schema (≤ 100 = 1 %, the actual on-chain protocol
+    // limit). The stricter cap wins, so this test exercises the schema
+    // boundary at exactly 100 bps. A valid 20-byte recipient address is
+    // also required by the schema (`^0x[a-fA-F0-9]{40}$`).
+    let fee = PartnerFee::single(PartnerFeeEntry::volume(
+        100,
+        "0xb6BAd41ae76A11D10f7b0E664C5007b908bC77C9",
+    ));
     let doc = AppDataDoc::new("TestApp").with_partner_fee(fee);
     let result = validate_app_data_doc(&doc);
-    assert!(result.is_valid(), "10 000 bps should be accepted");
+    assert!(result.is_valid(), "100 bps should be accepted by both business and schema rules");
 }
 
 #[test]

@@ -416,13 +416,24 @@ pub fn get_app_data_info_from_str(json: &str) -> Result<AppDataInfo, CowError> {
     Ok(AppDataInfo { cid, app_data_content: json.to_owned(), app_data_hex })
 }
 
-/// Validate an [`AppDataDoc`] against all `CoW` Protocol app-data schema
-/// rules.
+/// Validate an [`AppDataDoc`] against all `CoW` Protocol app-data rules.
 ///
-/// Checks both structural constraints (version format) and field-level rules:
+/// Runs up to three independent checks and merges their results into a
+/// single [`ValidationResult`]:
 ///
-/// Returns a [`ValidationResult`] that lists every violation found.  An empty
-/// [`ValidationResult::typed_errors`] list means the document is fully valid.
+/// 1. **Version check** — `version` must be non-empty and parse as semver `x.y.z`.
+/// 2. **Business-rule constraints** — `appCode` length, hook address format, `partnerFee`
+///    basis-point caps, and similar field-level rules enforced by the private `validation` helper
+///    module.
+/// 3. **JSON Schema validation** — *(only when the `schema-validation` feature is enabled; on by
+///    default for native targets, off by default on wasm)* the serialised document is checked
+///    against the bundled upstream schema via the `schema` module, catching structural drift that
+///    the hand-written business rules do not cover (missing required fields, unknown properties,
+///    regex violations, `anyOf` variants, …).
+///
+/// Returns a [`ValidationResult`] that lists every violation found. An
+/// empty [`ValidationResult::typed_errors`] list means the document is
+/// fully valid.
 ///
 /// # Example
 ///
@@ -436,30 +447,36 @@ pub fn get_app_data_info_from_str(json: &str) -> Result<AppDataInfo, CowError> {
 /// ```
 #[must_use]
 pub fn validate_app_data_doc(doc: &AppDataDoc) -> ValidationResult {
-    let mut string_errors: Vec<String> = Vec::new();
     let mut typed_errors: Vec<ValidationError> = Vec::new();
 
     // ── Version check ──────────────────────────────────────────────────────
     if doc.version.is_empty() {
-        let msg = "version must not be empty".to_owned();
-        string_errors.push(msg.clone());
-        typed_errors.push(ValidationError::InvalidVersion(msg));
+        typed_errors.push(ValidationError::InvalidVersion("version must not be empty".to_owned()));
     } else {
         // Expect semver format: \d+\.\d+\.\d+
         let parts: Vec<&str> = doc.version.split('.').collect();
         if parts.len() != 3 || parts.iter().any(|p| p.parse::<u32>().is_err()) {
-            let msg = format!("version '{}' is not valid semver", doc.version);
-            string_errors.push(msg.clone());
-            typed_errors.push(ValidationError::InvalidVersion(msg));
+            typed_errors.push(ValidationError::InvalidVersion(format!(
+                "version '{}' is not valid semver",
+                doc.version
+            )));
         }
     }
 
-    // ── Constraint checks (appCode, hooks, partnerFee, orderClass, …) ──────
+    // ── Business-rule checks (appCode, hooks, partnerFee, orderClass, …) ──
     validate_constraints(doc, &mut typed_errors);
-    // Sync string_errors from any newly added typed errors.
-    for e in typed_errors.iter().skip(string_errors.len()) {
-        string_errors.push(e.to_string());
+
+    // ── Structural JSON Schema check ───────────────────────────────────────
+    #[cfg(feature = "schema-validation")]
+    if let Err(violations) = super::schema::validate(doc) {
+        for v in violations {
+            typed_errors
+                .push(ValidationError::SchemaViolation { path: v.path, message: v.message });
+        }
     }
+
+    // Render string representations once, in sync with the typed list.
+    let string_errors: Vec<String> = typed_errors.iter().map(|e| e.to_string()).collect();
 
     let success = typed_errors.is_empty();
     ValidationResult { success, errors: string_errors, typed_errors }

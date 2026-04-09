@@ -64,6 +64,15 @@ pub enum ValidationError {
     UnknownOrderClass(String),
     /// A `replacedOrder` UID is not 56 bytes (i.e. not `"0x"` + 112 hex chars).
     InvalidReplacedOrderUid(String),
+    /// A structural violation reported by the bundled JSON Schema validator
+    /// in [`super::schema`] — e.g. a missing required field, an unknown
+    /// property, or a value that does not match a regex / enum constraint.
+    SchemaViolation {
+        /// JSON pointer into the instance that triggered the violation.
+        path: String,
+        /// Human-readable description of the violation.
+        message: String,
+    },
 }
 
 impl std::fmt::Display for ValidationError {
@@ -83,6 +92,13 @@ impl std::fmt::Display for ValidationError {
             Self::UnknownOrderClass(s) => write!(f, "unknown orderClass '{s}'"),
             Self::InvalidReplacedOrderUid(s) => {
                 write!(f, "invalid replacedOrder uid '{s}': expected 0x + 112 hex chars")
+            }
+            Self::SchemaViolation { path, message } => {
+                if path.is_empty() {
+                    write!(f, "schema: {message}")
+                } else {
+                    write!(f, "schema: {message} at {path}")
+                }
             }
         }
     }
