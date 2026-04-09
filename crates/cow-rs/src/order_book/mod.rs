@@ -26,9 +26,12 @@
 //! ```
 
 pub mod api;
-pub mod generated;
+pub(crate) mod generated;
 pub mod quote_amounts;
 pub mod types;
+
+#[cfg(test)]
+mod wire_compat;
 
 pub use api::{OrderBookApi, mock_get_order, request};
 pub use quote_amounts::{
