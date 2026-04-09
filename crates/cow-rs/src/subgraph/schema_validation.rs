@@ -1,380 +1,262 @@
-//! Compile-time validation of subgraph Rust types against the `GraphQL` schema.
+//! Compile-time drift detection between crate queries and the subgraph SDL.
 //!
-//! Parses `specs/subgraph.graphql` and checks that every Rust response type
-//! has fields matching the schema. This catches drift when the upstream
-//! subgraph schema changes.
+//! Parses every `GraphQL` query the crate sends to the subgraph (registered
+//! in [`super::queries::CRATE_QUERIES`] and [`super::queries::PUBLIC_QUERIES`])
+//! into an AST via `graphql_parser`, and walks each query's selection sets
+//! against the entity types declared in `specs/subgraph.graphql`.
 //!
-//! Update the schema with `make fetch-subgraph-schema`, then run
-//! `cargo test` — any field mismatch will fail loudly.
+//! A query that references a field which does not exist on the matching
+//! entity — because the upstream subgraph schema evolved, because someone
+//! mistyped a field name, or because an entity was renamed — turns the
+//! drift-detection test red with a precise `[query_name] field X does not
+//! exist on entity Y` diagnostic.
+//!
+//! # Why this replaces the old hand-rolled assertions
+//!
+//! The previous version of this module asserted that a list of **hand-coded
+//! field names** existed in the SDL. Those lists were maintained manually
+//! and bore no relation to the queries actually sent by the crate, so they
+//! could drift silently against both the subgraph and the hand-written
+//! types. The new test walks real query ASTs and therefore detects drift
+//! against the code path that actually matters — the bytes going on the
+//! wire.
 
 #[cfg(test)]
 mod tests {
-    use foldhash::{HashMap, HashMapExt, HashSet};
-    use graphql_parser::schema::{Definition, TypeDefinition, parse_schema};
+    use foldhash::{HashMap, HashMapExt};
+    use graphql_parser::{
+        query::{
+            self, Definition as QueryDefinition, OperationDefinition, Selection, SelectionSet,
+        },
+        schema::{self, Definition as SchemaDefinition, Type, TypeDefinition},
+    };
 
-    /// Parse the `GraphQL` schema and build a map of type name → set of field names.
-    fn schema_types() -> HashMap<String, HashSet<String>> {
+    use crate::subgraph::queries::{CRATE_QUERIES, PUBLIC_QUERIES};
+
+    // ── Schema model ────────────────────────────────────────────────────────
+
+    /// Classification of a field's declared type after stripping `!` /
+    /// `[...]` wrappers.
+    #[derive(Debug, Clone)]
+    enum FieldType {
+        /// A built-in or custom scalar that has no sub-selections.
+        Scalar,
+        /// A reference to another entity type which may carry its own
+        /// selection set.
+        Entity(String),
+    }
+
+    /// Unwrap a `GraphQL` type expression down to its inner named type and
+    /// classify it as either scalar or entity.
+    fn classify(ty: &Type<'_, String>) -> FieldType {
+        match ty {
+            Type::NamedType(name) => {
+                if is_scalar(name) {
+                    FieldType::Scalar
+                } else {
+                    FieldType::Entity(name.clone())
+                }
+            }
+            Type::ListType(inner) | Type::NonNullType(inner) => classify(inner),
+        }
+    }
+
+    /// Scalars recognised by the vendored SDL. Anything else is assumed to
+    /// be an entity reference.
+    fn is_scalar(name: &str) -> bool {
+        matches!(
+            name,
+            "String" | "Int" | "Float" | "Boolean" | "ID" | "Bytes" | "BigInt" | "BigDecimal"
+        )
+    }
+
+    /// Map of entity name → (field name → classified field type).
+    type SchemaModel = HashMap<String, HashMap<String, FieldType>>;
+
+    /// Parse `specs/subgraph.graphql` into a schema model.
+    fn build_schema_model() -> SchemaModel {
         let sdl = include_str!("../../../../specs/subgraph.graphql");
-        let doc = parse_schema::<String>(sdl)
+        let doc = schema::parse_schema::<String>(sdl)
             .unwrap_or_else(|e| panic!("failed to parse subgraph.graphql: {e}"));
 
-        let mut types = HashMap::new();
+        let mut model = HashMap::new();
         for def in &doc.definitions {
-            if let Definition::TypeDefinition(TypeDefinition::Object(obj)) = def {
-                let fields: HashSet<String> = obj.fields.iter().map(|f| f.name.clone()).collect();
-                types.insert(obj.name.clone(), fields);
+            if let SchemaDefinition::TypeDefinition(TypeDefinition::Object(obj)) = def {
+                let mut fields = HashMap::new();
+                for f in &obj.fields {
+                    fields.insert(f.name.clone(), classify(&f.field_type));
+                }
+                model.insert(obj.name.clone(), fields);
             }
         }
-        types
+        model
     }
 
-    /// Assert that a `GraphQL` type exists and contains all the given fields.
-    fn assert_fields(
-        types: &HashMap<String, HashSet<String>>,
-        gql_type: &str,
-        expected_fields: &[&str],
+    // ── Linter ──────────────────────────────────────────────────────────────
+
+    /// Lint a single query string against the schema model, anchoring the
+    /// query's top-level selection set to `root_entity`.
+    ///
+    /// Returns a list of human-readable error strings; an empty list means
+    /// the query is wire-compatible with the SDL.
+    fn lint_query(query_str: &str, root_entity: &str, model: &SchemaModel) -> Vec<String> {
+        let doc = match query::parse_query::<String>(query_str) {
+            Ok(d) => d,
+            Err(e) => return vec![format!("parse error: {e}")],
+        };
+
+        let mut errors = Vec::new();
+        for def in &doc.definitions {
+            let QueryDefinition::Operation(op) = def else {
+                errors.push("fragment definitions are not supported by the drift linter".into());
+                continue;
+            };
+            let selection_set = match op {
+                OperationDefinition::Query(q) => &q.selection_set,
+                OperationDefinition::SelectionSet(ss) => ss,
+                OperationDefinition::Mutation(m) => &m.selection_set,
+                OperationDefinition::Subscription(s) => &s.selection_set,
+            };
+            walk_top_level(selection_set, root_entity, model, &mut errors);
+        }
+        errors
+    }
+
+    /// The top level of every query is a list of Query-root entry points
+    /// (`totals`, `dailyTotals`, `bundle(id:"1")`, …). The vendored SDL
+    /// does not carry a `Query` type — subgraphs synthesise one — so we
+    /// skip validating the entry-point names themselves and immediately
+    /// recurse into their sub-selections, which we anchor to
+    /// `root_entity` (supplied by the caller).
+    fn walk_top_level(
+        ss: &SelectionSet<'_, String>,
+        root: &str,
+        model: &SchemaModel,
+        errors: &mut Vec<String>,
     ) {
-        let fields = types
-            .get(gql_type)
-            .unwrap_or_else(|| panic!("GraphQL type `{gql_type}` not found in schema"));
-        for &field in expected_fields {
+        for sel in &ss.items {
+            if let Selection::Field(f) = sel {
+                walk_selection_set(&f.selection_set, root, model, errors);
+            }
+        }
+    }
+
+    /// Recursively validate a selection set against an entity type.
+    fn walk_selection_set(
+        ss: &SelectionSet<'_, String>,
+        entity: &str,
+        model: &SchemaModel,
+        errors: &mut Vec<String>,
+    ) {
+        let Some(fields) = model.get(entity) else {
+            errors.push(format!("unknown entity `{entity}` in schema model"));
+            return;
+        };
+        for sel in &ss.items {
+            match sel {
+                Selection::Field(f) => {
+                    let Some(field_type) = fields.get(&f.name) else {
+                        errors.push(format!(
+                            "field `{}` does not exist on entity `{entity}`",
+                            f.name
+                        ));
+                        continue;
+                    };
+                    if !f.selection_set.items.is_empty() {
+                        match field_type {
+                            FieldType::Entity(sub_entity) => {
+                                walk_selection_set(&f.selection_set, sub_entity, model, errors);
+                            }
+                            FieldType::Scalar => {
+                                errors.push(format!(
+                                    "field `{}` on entity `{entity}` is a scalar but the query \
+                                     selects sub-fields",
+                                    f.name
+                                ));
+                            }
+                        }
+                    }
+                }
+                Selection::FragmentSpread(_) | Selection::InlineFragment(_) => {
+                    errors.push(format!(
+                        "fragments are not supported by the drift linter (in entity `{entity}`)"
+                    ));
+                }
+            }
+        }
+    }
+
+    // ── Tests ───────────────────────────────────────────────────────────────
+
+    #[test]
+    fn schema_parses_cleanly() {
+        let model = build_schema_model();
+        assert!(!model.is_empty(), "SDL produced empty schema model");
+    }
+
+    #[test]
+    fn every_expected_entity_is_present() {
+        let model = build_schema_model();
+        // Every root entity referenced by the crate's query list must
+        // resolve to an actual entity in the SDL. Missing entries indicate
+        // either a stale SDL or a misregistered query.
+        for (name, _, root_entity) in CRATE_QUERIES.iter().chain(PUBLIC_QUERIES) {
             assert!(
-                fields.contains(field),
-                "GraphQL type `{gql_type}` is missing field `{field}` — \
-                 schema has: {fields:?}"
+                model.contains_key(*root_entity),
+                "query `{name}` claims root entity `{root_entity}`, which is absent from \
+                 specs/subgraph.graphql"
             );
         }
     }
 
-    // ── Type-by-type validation ──────────────────────────────────────────────
-
     #[test]
-    fn totals_fields_match_schema() {
-        let types = schema_types();
-        // The Rust `Totals` type queries from the `Total` GraphQL entity.
-        assert_fields(
-            &types,
-            "Total",
-            &[
-                "tokens",
-                "orders",
-                "traders",
-                "settlements",
-                "volumeUsd",
-                "volumeEth",
-                "feesUsd",
-                "feesEth",
-            ],
-        );
-    }
+    fn every_crate_query_matches_schema() {
+        let model = build_schema_model();
+        let mut all_errors: Vec<String> = Vec::new();
 
-    #[test]
-    fn daily_total_fields_match_schema() {
-        let types = schema_types();
-        assert_fields(
-            &types,
-            "DailyTotal",
-            &[
-                "timestamp",
-                "orders",
-                "traders",
-                "tokens",
-                "settlements",
-                "volumeEth",
-                "volumeUsd",
-                "feesEth",
-                "feesUsd",
-            ],
-        );
-    }
-
-    #[test]
-    fn hourly_total_fields_match_schema() {
-        let types = schema_types();
-        assert_fields(
-            &types,
-            "HourlyTotal",
-            &[
-                "timestamp",
-                "orders",
-                "traders",
-                "tokens",
-                "settlements",
-                "volumeEth",
-                "volumeUsd",
-                "feesEth",
-                "feesUsd",
-            ],
-        );
-    }
-
-    #[test]
-    fn token_fields_match_schema() {
-        let types = schema_types();
-        assert_fields(
-            &types,
-            "Token",
-            &[
-                "id",
-                "address",
-                "firstTradeTimestamp",
-                "name",
-                "symbol",
-                "decimals",
-                "totalVolume",
-                "priceEth",
-                "priceUsd",
-                "numberOfTrades",
-            ],
-        );
-    }
-
-    #[test]
-    fn token_daily_total_fields_match_schema() {
-        let types = schema_types();
-        assert_fields(
-            &types,
-            "TokenDailyTotal",
-            &[
-                "id",
-                "token",
-                "timestamp",
-                "totalVolume",
-                "totalVolumeUsd",
-                "totalTrades",
-                "openPrice",
-                "closePrice",
-                "higherPrice",
-                "lowerPrice",
-                "averagePrice",
-            ],
-        );
-    }
-
-    #[test]
-    fn token_hourly_total_fields_match_schema() {
-        let types = schema_types();
-        assert_fields(
-            &types,
-            "TokenHourlyTotal",
-            &[
-                "id",
-                "token",
-                "timestamp",
-                "totalVolume",
-                "totalVolumeUsd",
-                "totalTrades",
-                "openPrice",
-                "closePrice",
-                "higherPrice",
-                "lowerPrice",
-                "averagePrice",
-            ],
-        );
-    }
-
-    #[test]
-    fn token_trading_event_fields_match_schema() {
-        let types = schema_types();
-        assert_fields(&types, "TokenTradingEvent", &["id", "token", "priceUsd", "timestamp"]);
-    }
-
-    #[test]
-    fn user_fields_match_schema() {
-        let types = schema_types();
-        assert_fields(
-            &types,
-            "User",
-            &[
-                "id",
-                "address",
-                "firstTradeTimestamp",
-                "numberOfTrades",
-                "solvedAmountEth",
-                "solvedAmountUsd",
-            ],
-        );
-    }
-
-    #[test]
-    fn settlement_fields_match_schema() {
-        let types = schema_types();
-        assert_fields(
-            &types,
-            "Settlement",
-            &["id", "txHash", "firstTradeTimestamp", "solver", "txCost", "txFeeInEth"],
-        );
-    }
-
-    #[test]
-    fn trade_fields_match_schema() {
-        let types = schema_types();
-        assert_fields(
-            &types,
-            "Trade",
-            &[
-                "id",
-                "timestamp",
-                "gasPrice",
-                "feeAmount",
-                "txHash",
-                "settlement",
-                "buyAmount",
-                "sellAmount",
-                "sellAmountBeforeFees",
-                "buyToken",
-                "sellToken",
-                "owner",
-                "order",
-            ],
-        );
-    }
-
-    #[test]
-    fn order_fields_match_schema() {
-        let types = schema_types();
-        assert_fields(
-            &types,
-            "Order",
-            &[
-                "id",
-                "owner",
-                "sellToken",
-                "buyToken",
-                "sellAmount",
-                "buyAmount",
-                "validTo",
-                "appData",
-                "feeAmount",
-                "kind",
-                "partiallyFillable",
-                "status",
-                "executedSellAmount",
-                "executedSellAmountBeforeFees",
-                "executedBuyAmount",
-                "executedFeeAmount",
-                "timestamp",
-                "txHash",
-                "isSignerSafe",
-                "signingScheme",
-                "uid",
-            ],
-        );
-    }
-
-    #[test]
-    fn pair_fields_match_schema() {
-        let types = schema_types();
-        assert_fields(
-            &types,
-            "Pair",
-            &["id", "token0", "token1", "volumeToken0", "volumeToken1", "numberOfTrades"],
-        );
-    }
-
-    #[test]
-    fn pair_daily_fields_match_schema() {
-        let types = schema_types();
-        assert_fields(
-            &types,
-            "PairDaily",
-            &[
-                "id",
-                "token0",
-                "token1",
-                "timestamp",
-                "volumeToken0",
-                "volumeToken1",
-                "numberOfTrades",
-            ],
-        );
-    }
-
-    #[test]
-    fn pair_hourly_fields_match_schema() {
-        let types = schema_types();
-        assert_fields(
-            &types,
-            "PairHourly",
-            &[
-                "id",
-                "token0",
-                "token1",
-                "timestamp",
-                "volumeToken0",
-                "volumeToken1",
-                "numberOfTrades",
-            ],
-        );
-    }
-
-    #[test]
-    fn bundle_fields_match_schema() {
-        let types = schema_types();
-        assert_fields(&types, "Bundle", &["id", "ethPriceUSD"]);
-    }
-
-    #[test]
-    fn uniswap_token_fields_match_schema() {
-        let types = schema_types();
-        assert_fields(&types, "UniswapToken", &["id", "address", "name", "symbol", "decimals"]);
-    }
-
-    #[test]
-    fn uniswap_pool_fields_match_schema() {
-        let types = schema_types();
-        assert_fields(
-            &types,
-            "UniswapPool",
-            &[
-                "id",
-                "liquidity",
-                "token0",
-                "token0Price",
-                "token1",
-                "token1Price",
-                "totalValueLockedToken0",
-                "totalValueLockedToken1",
-            ],
-        );
-    }
-
-    // ── Schema completeness check ────────────────────────────────────────────
-
-    #[test]
-    fn all_schema_types_have_validation_tests() {
-        let types = schema_types();
-        let expected_types = [
-            "Total",
-            "DailyTotal",
-            "HourlyTotal",
-            "Token",
-            "TokenDailyTotal",
-            "TokenHourlyTotal",
-            "TokenTradingEvent",
-            "User",
-            "Settlement",
-            "Trade",
-            "Order",
-            "Pair",
-            "PairDaily",
-            "PairHourly",
-            "Bundle",
-            "UniswapToken",
-            "UniswapPool",
-        ];
-
-        for ty in &expected_types {
-            assert!(types.contains_key(*ty), "Expected GraphQL type `{ty}` not found in schema");
+        for (name, query, root) in CRATE_QUERIES.iter().chain(PUBLIC_QUERIES) {
+            let errors = lint_query(query, root, &model);
+            for err in errors {
+                all_errors.push(format!("[{name}] {err}"));
+            }
         }
 
-        // Warn if schema has types we don't cover.
-        for schema_type in types.keys() {
-            assert!(
-                expected_types.contains(&schema_type.as_str()),
-                "GraphQL type `{schema_type}` exists in schema but has no \
-                 validation test — add one or update the expected list"
-            );
-        }
+        assert!(
+            all_errors.is_empty(),
+            "subgraph query drift detected ({} issues):\n  - {}",
+            all_errors.len(),
+            all_errors.join("\n  - ")
+        );
+    }
+
+    #[test]
+    fn linter_catches_missing_field() {
+        let model = build_schema_model();
+        let bad = "query { totals { tokens definitely_not_a_field } }";
+        let errors = lint_query(bad, "Total", &model);
+        assert!(
+            errors.iter().any(|e| e.contains("definitely_not_a_field")),
+            "linter must flag unknown fields; got: {errors:?}"
+        );
+    }
+
+    #[test]
+    fn linter_catches_scalar_with_subselection() {
+        let model = build_schema_model();
+        // `tokens` is `BigInt` (scalar) on the Total entity, so selecting
+        // sub-fields on it must be flagged.
+        let bad = "query { totals { tokens { nope } } }";
+        let errors = lint_query(bad, "Total", &model);
+        assert!(
+            errors.iter().any(|e| e.contains("scalar")),
+            "linter must flag sub-selections on scalar fields; got: {errors:?}"
+        );
+    }
+
+    #[test]
+    fn linter_accepts_minimal_valid_query() {
+        let model = build_schema_model();
+        let good = "query { totals { tokens orders traders } }";
+        assert!(lint_query(good, "Total", &model).is_empty());
     }
 }
