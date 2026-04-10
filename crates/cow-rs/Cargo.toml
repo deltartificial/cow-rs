@@ -10,7 +10,7 @@ homepage.workspace = true
 description = "Rust SDK for the CoW Protocol"
 
 [package.metadata.cargo-udeps.ignore]
-normal = ["serde-wasm-bindgen", "syn"]
+normal = ["alloy-consensus", "serde-wasm-bindgen", "syn"]
 
 [lib]
 doctest = true
@@ -30,6 +30,8 @@ wasm = [
 schema-validation = ["dep:jsonschema"]
 
 [dependencies]
+# Pin minimum alloy-consensus version for -Z minimal-versions compatibility
+alloy-consensus.workspace = true
 alloy-primitives.workspace = true
 alloy-signer.workspace = true
 alloy-signer-local.workspace = true

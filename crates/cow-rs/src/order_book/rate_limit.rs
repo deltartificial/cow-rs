@@ -11,12 +11,12 @@
 //!
 //! # Target-specific behaviour
 //!
-//! `tokio::time::sleep` is only available on native targets because the
-//! `wasm` feature of the crate disables `tokio/rt*`. On
-//! `target_arch = "wasm32"` builds the sleep calls become no-ops — the
-//! rate limiter never blocks, retries happen back-to-back without a
-//! delay — and any concrete timing behaviour is out of scope until a
-//! wasm-compatible timer (e.g. `wasm_timer`, `gloo-timers`) is wired in.
+//! `tokio::time::sleep` is only available when the `native` feature is
+//! enabled (which pulls in the `tokio` runtime). When `native` is
+//! disabled (e.g. on wasm or bare-features builds) the sleep calls
+//! become no-ops — the rate limiter never blocks, retries happen
+//! back-to-back without a delay — and any concrete timing behaviour is
+//! out of scope until a compatible timer backend is wired in.
 //!
 //! # Construction
 //!
@@ -28,7 +28,7 @@
 
 use std::{sync::Arc, time::Duration};
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(feature = "native")]
 #[allow(
     clippy::disallowed_types,
     reason = "std::sync::Mutex is intentional here: the critical section is \
@@ -37,7 +37,7 @@ use std::{sync::Arc, time::Duration};
               continue with corrupted bucket state"
 )]
 use std::sync::Mutex;
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(feature = "native")]
 use tokio::time::Instant;
 
 // ── Rate limiter ─────────────────────────────────────────────────────────────
@@ -62,7 +62,7 @@ use tokio::time::Instant;
 /// ```
 #[derive(Debug, Clone)]
 pub struct RateLimiter {
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(feature = "native")]
     #[allow(
         clippy::disallowed_types,
         reason = "std::sync::Mutex is chosen deliberately — see the import comment"
@@ -74,7 +74,7 @@ pub struct RateLimiter {
     capacity: f64,
 }
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(feature = "native")]
 #[derive(Debug)]
 struct BucketState {
     tokens: f64,
@@ -102,7 +102,7 @@ impl RateLimiter {
             capacity.is_finite() && capacity > 0.0,
             "RateLimiter capacity must be a finite positive number (got {capacity})"
         );
-        #[cfg(not(target_arch = "wasm32"))]
+        #[cfg(feature = "native")]
         #[allow(
             clippy::disallowed_types,
             reason = "std::sync::Mutex is chosen deliberately — see the import comment"
@@ -117,7 +117,7 @@ impl RateLimiter {
                 capacity,
             }
         }
-        #[cfg(target_arch = "wasm32")]
+        #[cfg(not(feature = "native"))]
         {
             Self { rate, capacity }
         }
@@ -144,16 +144,16 @@ impl RateLimiter {
 
     /// Wait until at least one token is available and consume it.
     ///
-    /// On native targets this sleeps with [`tokio::time::sleep`] for the
-    /// time required to refill a single token. On wasm targets this
-    /// returns immediately because no async timer backend is wired in —
-    /// the bucket state is not consulted on wasm.
+    /// When the `native` feature is enabled this sleeps with
+    /// [`tokio::time::sleep`] for the time required to refill a single
+    /// token. Without `native` this returns immediately because no async
+    /// timer backend is wired in — the bucket state is not consulted.
     #[allow(
         clippy::unused_async,
         reason = "wasm path is intentionally synchronous so the API stays unchanged"
     )]
     pub async fn acquire(&self) {
-        #[cfg(not(target_arch = "wasm32"))]
+        #[cfg(feature = "native")]
         {
             loop {
                 let wait = {
@@ -279,9 +279,9 @@ impl RetryPolicy {
     /// Sleep for `delay` on native targets; no-op on wasm.
     #[allow(clippy::unused_async, reason = "wasm path is intentionally synchronous")]
     pub(crate) async fn wait(&self, delay: Duration) {
-        #[cfg(not(target_arch = "wasm32"))]
+        #[cfg(feature = "native")]
         tokio::time::sleep(delay).await;
-        #[cfg(target_arch = "wasm32")]
+        #[cfg(not(feature = "native"))]
         let _ = delay;
     }
 }
@@ -292,19 +292,19 @@ impl Default for RetryPolicy {
     }
 }
 
-// Silence an unused-import warning on wasm where `Arc` is not referenced.
-#[cfg(target_arch = "wasm32")]
+// Silence an unused-import warning when `native` is disabled and `Arc` is not referenced.
+#[cfg(not(feature = "native"))]
 const _: () = {
     let _: Option<Arc<()>> = None;
 };
 
 // ── Tests ────────────────────────────────────────────────────────────────────
 
-#[cfg(all(test, not(target_arch = "wasm32")))]
+#[cfg(all(test, feature = "native"))]
 #[allow(
     clippy::tests_outside_test_module,
     clippy::let_underscore_must_use,
-    reason = "the compound `cfg(all(test, not(wasm)))` gate confuses the \
+    reason = "the compound `cfg(all(test, feature = \"native\"))` gate confuses the \
               test-module lint, and `let _ =` is the idiomatic form for \
               `#[should_panic]` expression discards"
 )]
