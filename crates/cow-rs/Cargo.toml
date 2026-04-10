@@ -10,7 +10,16 @@ homepage.workspace = true
 description = "Rust SDK for the CoW Protocol"
 
 [package.metadata.cargo-udeps.ignore]
-normal = ["alloy-consensus", "idna", "num-bigint", "serde-wasm-bindgen", "syn"]
+normal = [
+  "ahash",
+  "alloy-consensus",
+  "alloy-rpc-types-eth",
+  "idna",
+  "num-bigint",
+  "ref-cast",
+  "serde-wasm-bindgen",
+  "syn",
+]
 
 [lib]
 doctest = true
@@ -30,9 +39,10 @@ wasm = [
 schema-validation = ["dep:jsonschema"]
 
 [dependencies]
-# Pin minimum alloy-consensus version for -Z minimal-versions compatibility
+ahash.workspace = true
 alloy-consensus.workspace = true
 alloy-primitives.workspace = true
+alloy-rpc-types-eth.workspace = true
 alloy-signer.workspace = true
 alloy-signer-local.workspace = true
 chrono.workspace = true
@@ -44,6 +54,7 @@ idna.workspace = true
 jsonschema = { workspace = true, optional = true }
 num-bigint.workspace = true
 progenitor-client.workspace = true
+ref-cast.workspace = true
 reqwest.workspace = true
 rust_decimal.workspace = true
 serde.workspace = true
