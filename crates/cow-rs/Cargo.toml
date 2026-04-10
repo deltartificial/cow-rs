@@ -33,16 +33,16 @@ schema-validation = ["dep:jsonschema"]
 # Pin minimum alloy-consensus version for -Z minimal-versions compatibility
 alloy-consensus.workspace = true
 alloy-primitives.workspace = true
-# Pin idna ≥1.1 for -Z minimal-versions (prevents ICU v1/v2 incompatibility)
-idna.workspace = true
-num-bigint.workspace = true
 alloy-signer.workspace = true
 alloy-signer-local.workspace = true
 chrono.workspace = true
 foldhash.workspace = true
 futures.workspace = true
 getrandom = { workspace = true, optional = true }
+# Pin idna ≥1.1 for -Z minimal-versions (prevents ICU v1/v2 incompatibility)
+idna.workspace = true
 jsonschema = { workspace = true, optional = true }
+num-bigint.workspace = true
 progenitor-client.workspace = true
 reqwest.workspace = true
 rust_decimal.workspace = true
