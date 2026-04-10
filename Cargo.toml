@@ -189,8 +189,10 @@ unnecessary_lazy_evaluations = "allow"
 
 [workspace.dependencies]
 # External
+ahash = { version = "0.8.7", default-features = false }
 alloy-consensus = { version = "1.5", default-features = false }
 alloy-primitives = { version = "1", features = ["serde"] }
+alloy-rpc-types-eth = { version = "1.5", default-features = false }
 alloy-signer = "1"
 alloy-signer-local = "1"
 chrono = { version = "0.4", features = ["serde"] }
@@ -208,6 +210,7 @@ prettyplease = "0.2"
 progenitor-client = "0.13"
 progenitor-impl = "0.13"
 proptest = "1"
+ref-cast = { version = "1.0.22", default-features = false }
 reqwest = { version = "0.13", default-features = false, features = ["json"] }
 rust_decimal = { version = "1", features = ["maths", "serde"] }
 serde = { version = "1.0.171", features = ["derive"] }
