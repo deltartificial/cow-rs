@@ -20,7 +20,8 @@ multiple-versions = "deny"
 wildcards = "deny"
 highlight = "all"
 deny = [{ name = "openssl" }]
-skip = []
+# hashbrown 0.16 (regress → typify → progenitor build-dep) vs 0.17 (indexmap → alloy)
+skip = [{ crate = "hashbrown@0.16", reason = "progenitor build-dep pins regress which needs hashbrown 0.16" }]
 # Whole-subtree skips: dev-dependencies that pin older transitive versions
 # which we cannot upgrade without dropping the crate itself.
 skip-tree = [
