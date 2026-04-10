@@ -189,6 +189,7 @@ unnecessary_lazy_evaluations = "allow"
 
 [workspace.dependencies]
 # External
+alloy-consensus = { version = "1.5", default-features = false }
 alloy-primitives = { version = "1", features = ["serde"] }
 alloy-signer = "1"
 alloy-signer-local = "1"
