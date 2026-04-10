@@ -191,6 +191,11 @@ unnecessary_lazy_evaluations = "allow"
 # External
 alloy-consensus = { version = "1.5", default-features = false }
 alloy-primitives = { version = "1", features = ["serde"] }
+# idna ≥1.1 for -Z minimal-versions: 1.0.x uses `icu_* >= 1` which resolves to
+# v1.x ICU crates that are incompatible with the zerovec/yoke versions resolved.
+idna = { version = "1.1", default-features = false }
+# num-bigint ≥0.4.4 for Rust 1.93+ div_ceil API compatibility
+num-bigint = { version = "0.4.4", default-features = false }
 alloy-signer = "1"
 alloy-signer-local = "1"
 chrono = { version = "0.4", features = ["serde"] }
