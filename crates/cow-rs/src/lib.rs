@@ -155,13 +155,14 @@ pub use onchain::{OnchainReader, permit::OnchainTokenInfo};
 // `implementation_address` and `owner_address` are methods on `OnchainReader`.
 pub use order_book::{
     AppDataObject, Auction, CompetitionAuction, CompetitionOrderStatus, CompetitionOrderStatusKind,
-    EthflowData, GetOrdersRequest, GetTradesRequest, InteractionData, OnchainOrderData, Order,
-    OrderBookApi, OrderCancellations, OrderClass, OrderCreation, OrderInteractions,
-    OrderQuoteRequest, OrderQuoteResponse, OrderStatus, OrderUid, PartnerFeeResult,
-    ProtocolFeeAmountParams, QuoteAmounts, QuoteAmountsAndCostsParams, QuoteAmountsAndCostsResult,
-    QuoteCosts, QuoteData, QuoteFeeComponent, QuoteNetworkFee, QuoteOrderParams, QuoteSide,
-    SolverCompetition, SolverExecution, SolverSettlement, TotalSurplus, Trade,
-    get_protocol_fee_amount, get_quote_amounts_after_partner_fee, get_quote_amounts_after_slippage,
+    DEFAULT_RETRY_STATUS_CODES, EthflowData, GetOrdersRequest, GetTradesRequest, InteractionData,
+    OnchainOrderData, Order, OrderBookApi, OrderCancellations, OrderClass, OrderCreation,
+    OrderInteractions, OrderQuoteRequest, OrderQuoteResponse, OrderStatus, OrderUid,
+    PartnerFeeResult, ProtocolFeeAmountParams, QuoteAmounts, QuoteAmountsAndCostsParams,
+    QuoteAmountsAndCostsResult, QuoteCosts, QuoteData, QuoteFeeComponent, QuoteNetworkFee,
+    QuoteOrderParams, QuoteSide, RateLimiter, RetryPolicy, SolverCompetition, SolverExecution,
+    SolverSettlement, TotalSurplus, Trade, get_protocol_fee_amount,
+    get_quote_amounts_after_partner_fee, get_quote_amounts_after_slippage,
     get_quote_amounts_and_costs, is_eth_flow_order, transform_order,
 };
 pub use order_signing::{

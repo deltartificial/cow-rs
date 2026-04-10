@@ -26,6 +26,8 @@
 
 pub mod api;
 pub mod queries;
+#[cfg(test)]
+mod schema_validation;
 pub mod types;
 
 pub use api::SubgraphApi;

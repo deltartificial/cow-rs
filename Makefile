@@ -185,6 +185,60 @@ pr: ## Run all checks (deny + lint + test + docs).
 	$(MAKE) test && \
 	$(MAKE) docs
 
+##@ Specs & Codegen
+
+# Upstream cowprotocol/services commit that the vendored orderbook OpenAPI
+# spec is anchored to. `main` (default) fetches the latest tip; override
+# with a specific SHA for reproducible bundles, e.g.
+#     make fetch-orderbook-spec ORDERBOOK_COMMIT=dfb50cb4a103e8f949f5a7145beb6be63ef41c85
+ORDERBOOK_COMMIT ?= main
+ORDERBOOK_SPEC_URL ?= https://raw.githubusercontent.com/cowprotocol/services/$(ORDERBOOK_COMMIT)/crates/orderbook/openapi.yml
+
+# TheGraph decentralized gateway — requires GRAPH_API_KEY env var.
+# Get a free key at https://thegraph.com/studio/apikeys/
+GRAPH_API_KEY ?=
+SUBGRAPH_ID ?= cow-subgraph-mainnet
+SUBGRAPH_URL ?= $(if $(GRAPH_API_KEY),https://gateway-mainnet.network.thegraph.com/api/$(GRAPH_API_KEY)/subgraphs/id/$(SUBGRAPH_ID),)
+
+.PHONY: fetch-orderbook-spec
+fetch-orderbook-spec: ## Fetch orderbook OpenAPI spec from upstream (pinned by ORDERBOOK_COMMIT).
+	@mkdir -p specs
+	@echo "# vendored from cowprotocol/services@$(ORDERBOOK_COMMIT)" > specs/orderbook-api.yml
+	@echo "# regenerate with: make fetch-orderbook-spec ORDERBOOK_COMMIT=<sha>" >> specs/orderbook-api.yml
+	curl -sSfL $(ORDERBOOK_SPEC_URL) >> specs/orderbook-api.yml
+	@echo "Updated specs/orderbook-api.yml (commit: $(ORDERBOOK_COMMIT))"
+
+.PHONY: fetch-subgraph-schema
+fetch-subgraph-schema: ## Introspect CoW subgraph GraphQL schema (needs GRAPH_API_KEY).
+	@mkdir -p specs
+	@if [ -z "$(SUBGRAPH_URL)" ]; then \
+		echo "ERROR: Set GRAPH_API_KEY or SUBGRAPH_URL."; \
+		echo "  make fetch-subgraph-schema GRAPH_API_KEY=<your-key>"; \
+		echo "  Get a free key at https://thegraph.com/studio/apikeys/"; \
+		exit 1; \
+	fi
+	@echo "Introspecting $(SUBGRAPH_URL) ..."
+	@curl -sSfL -X POST "$(SUBGRAPH_URL)" \
+		-H 'Content-Type: application/json' \
+		-d '{"query":"{ __schema { queryType { name } types { kind name description fields(includeDeprecated: true) { name description type { kind name ofType { kind name ofType { kind name ofType { kind name } } } } } inputFields { name type { kind name ofType { kind name ofType { kind name } } } } enumValues(includeDeprecated: true) { name } } } }"}' \
+		> specs/subgraph-introspection.json
+	@echo "Updated specs/subgraph-introspection.json"
+	@echo "Now update specs/subgraph.graphql to match, then run: cargo test -- schema_validation"
+
+# Upstream cowprotocol/app-data commit to pin bundles to. `main` for the
+# latest; override with a specific SHA for reproducible builds.
+APPDATA_COMMIT ?= main
+
+.PHONY: fetch-appdata-schema
+fetch-appdata-schema: ## Bundle upstream AppData JSON Schemas (all registered versions).
+	@python3 scripts/bundle-appdata-schemas.py --commit $(APPDATA_COMMIT)
+
+.PHONY: fetch-specs
+fetch-specs: fetch-orderbook-spec ## Fetch all upstream specs (add fetch-subgraph-schema with GRAPH_API_KEY).
+
+.PHONY: codegen
+codegen: fetch-orderbook-spec build ## Fetch orderbook spec and rebuild (triggers build.rs).
+
 ##@ Utility
 
 .PHONY: clean

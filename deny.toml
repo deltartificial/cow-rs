@@ -20,23 +20,18 @@ multiple-versions = "deny"
 wildcards = "deny"
 highlight = "all"
 deny = [{ name = "openssl" }]
-skip = [
-  # ring pulls in older windows-sys 0.52 via windows-targets 0.52; socket2 uses 0.60
-  { crate = "windows-sys@0.52.0" },
-  { crate = "windows-sys@0.60.2" },
-  { crate = "windows-targets@0.52.6" },
-  { crate = "windows_aarch64_gnullvm@0.52.6" },
-  { crate = "windows_aarch64_msvc@0.52.6" },
-  { crate = "windows_i686_gnu@0.52.6" },
-  { crate = "windows_i686_gnullvm@0.52.6" },
-  { crate = "windows_i686_msvc@0.52.6" },
-  { crate = "windows_x86_64_gnu@0.52.6" },
-  { crate = "windows_x86_64_gnullvm@0.52.6" },
-  { crate = "windows_x86_64_msvc@0.52.6" },
-  # syn 1.x kept as direct dep for -Z minimal-versions; syn 2.x used by derive macros
-  { crate = "syn@1.0.109" },
+skip = []
+# Whole-subtree skips: dev-dependencies that pin older transitive versions
+# which we cannot upgrade without dropping the crate itself.
+skip-tree = [
+  # graphql-parser 0.4 pulls thiserror 1.x (used only for GraphQL schema
+  # validation tests; no maintained fork uses thiserror 2.x yet).
+  { crate = "graphql-parser@0.4.1" },
+  # proptest → rusty-fork → tempfile → rustix → windows-sys 0.61 / targets 0.53.
+  { crate = "proptest@1.10.0" },
+  # rustls-platform-verifier → jni → windows-sys 0.45 / windows-targets 0.42.
+  { crate = "rustls-platform-verifier@0.6.2" },
 ]
-skip-tree = []
 
 # ============================================================================
 # LICENSES

@@ -5,17 +5,24 @@
 //! executed via [`run_query`](SubgraphApi::run_query) which handles the
 //! `GraphQL` request/response envelope.
 
+use std::sync::Arc;
+
 use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
 
 use crate::{
     config::chain::{Env, SupportedChainId},
     error::CowError,
+    order_book::{RateLimiter, RetryPolicy},
 };
 
-use super::types::{
-    Bundle, DailyTotal, DailyVolume, HourlyTotal, HourlyVolume, Order, Pair, PairDaily, PairHourly,
-    Settlement, Token, TokenDailyTotal, TokenHourlyTotal, TokenTradingEvent, Totals, Trade, User,
+use super::{
+    queries,
+    types::{
+        Bundle, DailyTotal, DailyVolume, HourlyTotal, HourlyVolume, Order, Pair, PairDaily,
+        PairHourly, Settlement, Token, TokenDailyTotal, TokenHourlyTotal, TokenTradingEvent,
+        Totals, Trade, User,
+    },
 };
 
 /// Return the subgraph base URL for `chain`, or `None` if unsupported.
@@ -61,6 +68,11 @@ const fn subgraph_url(chain: SupportedChainId, _env: Env) -> Option<&'static str
 pub struct SubgraphApi {
     client: reqwest::Client,
     base_url: String,
+    /// Shared token bucket, identical in shape to the one that backs
+    /// [`super::super::order_book::OrderBookApi`]. Default: 5 req/s.
+    rate_limiter: Arc<RateLimiter>,
+    /// Exponential-backoff retry policy for transient `GraphQL` failures.
+    retry_policy: RetryPolicy,
 }
 
 impl SubgraphApi {
@@ -101,7 +113,12 @@ impl SubgraphApi {
     pub fn new(chain: SupportedChainId, env: Env) -> Result<Self, CowError> {
         let base_url = subgraph_url(chain, env)
             .ok_or_else(|| CowError::UnknownAsset(format!("no subgraph for chain {chain}")))?;
-        Ok(Self { client: Self::build_client(), base_url: base_url.to_owned() })
+        Ok(Self {
+            client: Self::build_client(),
+            base_url: base_url.to_owned(),
+            rate_limiter: Arc::new(RateLimiter::default_orderbook()),
+            retry_policy: RetryPolicy::default_orderbook(),
+        })
     }
 
     /// Create a [`SubgraphApi`] pointing at an arbitrary `GraphQL` endpoint
@@ -124,7 +141,40 @@ impl SubgraphApi {
     /// ```
     #[must_use]
     pub fn new_with_url(url: impl Into<String>) -> Self {
-        Self { client: Self::build_client(), base_url: url.into() }
+        Self {
+            client: Self::build_client(),
+            base_url: url.into(),
+            rate_limiter: Arc::new(RateLimiter::default_orderbook()),
+            retry_policy: RetryPolicy::default_orderbook(),
+        }
+    }
+
+    /// Override the shared rate limiter used for every outbound request.
+    ///
+    /// Defaults to [`RateLimiter::default_orderbook`] (5 req/s). Pass a
+    /// shared `Arc` to make several `SubgraphApi` instances throttle
+    /// against the same budget — or to make a single budget shared
+    /// between a `SubgraphApi` and an
+    /// [`super::super::order_book::OrderBookApi`].
+    #[must_use]
+    pub fn with_rate_limiter(mut self, limiter: Arc<RateLimiter>) -> Self {
+        self.rate_limiter = limiter;
+        self
+    }
+
+    /// Override the retry policy used for every outbound request.
+    ///
+    /// Defaults to [`RetryPolicy::default_orderbook`] (10 attempts,
+    /// exponential backoff on 408/425/429/5xx). Use
+    /// [`RetryPolicy::no_retry`] to disable retries entirely.
+    #[must_use]
+    #[allow(
+        clippy::missing_const_for_fn,
+        reason = "RetryPolicy contains a Duration whose Drop is non-const"
+    )]
+    pub fn with_retry_policy(mut self, policy: RetryPolicy) -> Self {
+        self.retry_policy = policy;
+        self
     }
 
     /// Fetch protocol-wide aggregate statistics.
@@ -151,9 +201,7 @@ impl SubgraphApi {
     ///
     /// Returns [`CowError::Http`] or [`CowError::Api`] on failure.
     pub async fn get_totals(&self) -> Result<Vec<Totals>, CowError> {
-        const Q: &str =
-            "{ totals { tokens orders traders settlements volumeUsd volumeEth feesUsd feesEth } }";
-        let data = self.run_query(Q, None).await?;
+        let data = self.run_query(queries::GET_TOTALS, None).await?;
         parse_field(&data, "totals")
     }
 
@@ -185,8 +233,8 @@ impl SubgraphApi {
     ///
     /// Returns [`CowError::Http`] or [`CowError::Api`] on failure.
     pub async fn get_last_days_volume(&self, days: u32) -> Result<Vec<DailyVolume>, CowError> {
-        const Q: &str = "query($days:Int!){ dailyTotals(first:$days,orderBy:timestamp,orderDirection:desc){ timestamp volumeUsd } }";
-        let data = self.run_query(Q, Some(json!({ "days": days }))).await?;
+        let data =
+            self.run_query(queries::GET_LAST_DAYS_VOLUME, Some(json!({ "days": days }))).await?;
         parse_field(&data, "dailyTotals")
     }
 
@@ -205,8 +253,8 @@ impl SubgraphApi {
     ///
     /// Returns [`CowError::Http`] or [`CowError::Api`] on failure.
     pub async fn get_last_hours_volume(&self, hours: u32) -> Result<Vec<HourlyVolume>, CowError> {
-        const Q: &str = "query($hours:Int!){ hourlyTotals(first:$hours,orderBy:timestamp,orderDirection:desc){ timestamp volumeUsd } }";
-        let data = self.run_query(Q, Some(json!({ "hours": hours }))).await?;
+        let data =
+            self.run_query(queries::GET_LAST_HOURS_VOLUME, Some(json!({ "hours": hours }))).await?;
         parse_field(&data, "hourlyTotals")
     }
 
@@ -227,8 +275,7 @@ impl SubgraphApi {
     ///
     /// Returns [`CowError::Http`] or [`CowError::Api`] on failure.
     pub async fn get_daily_totals(&self, days: u32) -> Result<Vec<DailyTotal>, CowError> {
-        const Q: &str = "query($n:Int!){ dailyTotals(first:$n,orderBy:timestamp,orderDirection:desc){ timestamp orders traders tokens settlements volumeEth volumeUsd feesEth feesUsd } }";
-        let data = self.run_query(Q, Some(json!({ "n": days }))).await?;
+        let data = self.run_query(queries::GET_DAILY_TOTALS, Some(json!({ "n": days }))).await?;
         parse_field(&data, "dailyTotals")
     }
 
@@ -246,8 +293,7 @@ impl SubgraphApi {
     ///
     /// Returns [`CowError::Http`] or [`CowError::Api`] on failure.
     pub async fn get_hourly_totals(&self, hours: u32) -> Result<Vec<HourlyTotal>, CowError> {
-        const Q: &str = "query($n:Int!){ hourlyTotals(first:$n,orderBy:timestamp,orderDirection:desc){ timestamp orders traders tokens settlements volumeEth volumeUsd feesEth feesUsd } }";
-        let data = self.run_query(Q, Some(json!({ "n": hours }))).await?;
+        let data = self.run_query(queries::GET_HOURLY_TOTALS, Some(json!({ "n": hours }))).await?;
         parse_field(&data, "hourlyTotals")
     }
 
@@ -270,8 +316,9 @@ impl SubgraphApi {
         owner: &str,
         limit: u32,
     ) -> Result<Vec<Order>, CowError> {
-        const Q: &str = "query($owner:String!,$n:Int!){ orders(first:$n,where:{owner:$owner},orderBy:timestamp,orderDirection:desc){ id owner{id address} sellToken{id address name symbol decimals} buyToken{id address name symbol decimals} sellAmount buyAmount validTo appData feeAmount kind partiallyFillable status executedSellAmount executedSellAmountBeforeFees executedBuyAmount executedFeeAmount timestamp txHash isSignerSafe signingScheme uid } }";
-        let data = self.run_query(Q, Some(json!({ "owner": owner, "n": limit }))).await?;
+        let data = self
+            .run_query(queries::GET_ORDERS_FOR_OWNER, Some(json!({ "owner": owner, "n": limit })))
+            .await?;
         parse_field(&data, "orders")
     }
 
@@ -285,8 +332,7 @@ impl SubgraphApi {
     ///
     /// Returns [`CowError::Http`] or [`CowError::Api`] on failure.
     pub async fn get_eth_price(&self) -> Result<Bundle, CowError> {
-        const Q: &str = "{ bundle(id:\"1\") { id ethPriceUSD } }";
-        let data = self.run_query(Q, None).await?;
+        let data = self.run_query(queries::GET_ETH_PRICE, None).await?;
         parse_field(&data, "bundle")
     }
 
@@ -304,8 +350,7 @@ impl SubgraphApi {
     ///
     /// Returns [`CowError::Http`] or [`CowError::Api`] on failure.
     pub async fn get_trades(&self, limit: u32) -> Result<Vec<Trade>, CowError> {
-        const Q: &str = "query($n:Int!){ trades(first:$n,orderBy:timestamp,orderDirection:desc){ id timestamp gasPrice feeAmount txHash settlement buyAmount sellAmount sellAmountBeforeFees buyToken{id address name symbol decimals} sellToken{id address name symbol decimals} owner{id address} order } }";
-        let data = self.run_query(Q, Some(json!({ "n": limit }))).await?;
+        let data = self.run_query(queries::GET_TRADES, Some(json!({ "n": limit }))).await?;
         parse_field(&data, "trades")
     }
 
@@ -323,8 +368,7 @@ impl SubgraphApi {
     ///
     /// Returns [`CowError::Http`] or [`CowError::Api`] on failure.
     pub async fn get_settlements(&self, limit: u32) -> Result<Vec<Settlement>, CowError> {
-        const Q: &str = "query($n:Int!){ settlements(first:$n,orderBy:firstTradeTimestamp,orderDirection:desc){ id txHash firstTradeTimestamp solver txCost txFeeInEth } }";
-        let data = self.run_query(Q, Some(json!({ "n": limit }))).await?;
+        let data = self.run_query(queries::GET_SETTLEMENTS, Some(json!({ "n": limit }))).await?;
         parse_field(&data, "settlements")
     }
 
@@ -342,8 +386,7 @@ impl SubgraphApi {
     ///
     /// Returns [`CowError::Http`], [`CowError::Api`], or [`CowError::Parse`] on failure.
     pub async fn get_user(&self, address: &str) -> Result<User, CowError> {
-        const Q: &str = "query($id:String!){ user(id:$id){ id address firstTradeTimestamp numberOfTrades solvedAmountEth solvedAmountUsd } }";
-        let data = self.run_query(Q, Some(json!({ "id": address }))).await?;
+        let data = self.run_query(queries::GET_USER, Some(json!({ "id": address }))).await?;
         parse_field(&data, "user")
     }
 
@@ -362,8 +405,7 @@ impl SubgraphApi {
     ///
     /// Returns [`CowError::Http`] or [`CowError::Api`] on failure.
     pub async fn get_tokens(&self, limit: u32) -> Result<Vec<Token>, CowError> {
-        const Q: &str = "query($n:Int!){ tokens(first:$n,orderBy:numberOfTrades,orderDirection:desc){ id address firstTradeTimestamp name symbol decimals totalVolume priceEth priceUsd numberOfTrades } }";
-        let data = self.run_query(Q, Some(json!({ "n": limit }))).await?;
+        let data = self.run_query(queries::GET_TOKENS, Some(json!({ "n": limit }))).await?;
         parse_field(&data, "tokens")
     }
 
@@ -381,8 +423,7 @@ impl SubgraphApi {
     ///
     /// Returns [`CowError::Http`], [`CowError::Api`], or [`CowError::Parse`] on failure.
     pub async fn get_token(&self, address: &str) -> Result<Token, CowError> {
-        const Q: &str = "query($id:String!){ token(id:$id){ id address firstTradeTimestamp name symbol decimals totalVolume priceEth priceUsd numberOfTrades } }";
-        let data = self.run_query(Q, Some(json!({ "id": address }))).await?;
+        let data = self.run_query(queries::GET_TOKEN, Some(json!({ "id": address }))).await?;
         parse_field(&data, "token")
     }
 
@@ -405,8 +446,12 @@ impl SubgraphApi {
         token_address: &str,
         days: u32,
     ) -> Result<Vec<TokenDailyTotal>, CowError> {
-        const Q: &str = "query($token:String!,$n:Int!){ tokenDailyTotals(first:$n,where:{token:$token},orderBy:timestamp,orderDirection:desc){ id token{id address name symbol decimals} timestamp totalVolume totalVolumeUsd totalTrades openPrice closePrice higherPrice lowerPrice averagePrice } }";
-        let data = self.run_query(Q, Some(json!({ "token": token_address, "n": days }))).await?;
+        let data = self
+            .run_query(
+                queries::GET_TOKEN_DAILY_TOTALS,
+                Some(json!({ "token": token_address, "n": days })),
+            )
+            .await?;
         parse_field(&data, "tokenDailyTotals")
     }
 
@@ -429,8 +474,12 @@ impl SubgraphApi {
         token_address: &str,
         hours: u32,
     ) -> Result<Vec<TokenHourlyTotal>, CowError> {
-        const Q: &str = "query($token:String!,$n:Int!){ tokenHourlyTotals(first:$n,where:{token:$token},orderBy:timestamp,orderDirection:desc){ id token{id address name symbol decimals} timestamp totalVolume totalVolumeUsd totalTrades openPrice closePrice higherPrice lowerPrice averagePrice } }";
-        let data = self.run_query(Q, Some(json!({ "token": token_address, "n": hours }))).await?;
+        let data = self
+            .run_query(
+                queries::GET_TOKEN_HOURLY_TOTALS,
+                Some(json!({ "token": token_address, "n": hours })),
+            )
+            .await?;
         parse_field(&data, "tokenHourlyTotals")
     }
 
@@ -453,8 +502,12 @@ impl SubgraphApi {
         token_address: &str,
         limit: u32,
     ) -> Result<Vec<TokenTradingEvent>, CowError> {
-        const Q: &str = "query($token:String!,$n:Int!){ tokenTradingEvents(first:$n,where:{token:$token},orderBy:timestamp,orderDirection:desc){ id token{id address name symbol decimals} priceUsd timestamp } }";
-        let data = self.run_query(Q, Some(json!({ "token": token_address, "n": limit }))).await?;
+        let data = self
+            .run_query(
+                queries::GET_TOKEN_TRADING_EVENTS,
+                Some(json!({ "token": token_address, "n": limit })),
+            )
+            .await?;
         parse_field(&data, "tokenTradingEvents")
     }
 
@@ -473,8 +526,7 @@ impl SubgraphApi {
     ///
     /// Returns [`CowError::Http`] or [`CowError::Api`] on failure.
     pub async fn get_pairs(&self, limit: u32) -> Result<Vec<Pair>, CowError> {
-        const Q: &str = "query($n:Int!){ pairs(first:$n,orderBy:numberOfTrades,orderDirection:desc){ id token0{id address name symbol decimals} token1{id address name symbol decimals} volumeToken0 volumeToken1 numberOfTrades } }";
-        let data = self.run_query(Q, Some(json!({ "n": limit }))).await?;
+        let data = self.run_query(queries::GET_PAIRS, Some(json!({ "n": limit }))).await?;
         parse_field(&data, "pairs")
     }
 
@@ -492,8 +544,7 @@ impl SubgraphApi {
     ///
     /// Returns [`CowError::Http`], [`CowError::Api`], or [`CowError::Parse`] on failure.
     pub async fn get_pair(&self, id: &str) -> Result<Pair, CowError> {
-        const Q: &str = "query($id:String!){ pair(id:$id){ id token0{id address name symbol decimals} token1{id address name symbol decimals} volumeToken0 volumeToken1 numberOfTrades } }";
-        let data = self.run_query(Q, Some(json!({ "id": id }))).await?;
+        let data = self.run_query(queries::GET_PAIR, Some(json!({ "id": id }))).await?;
         parse_field(&data, "pair")
     }
 
@@ -516,8 +567,9 @@ impl SubgraphApi {
         pair_id: &str,
         days: u32,
     ) -> Result<Vec<PairDaily>, CowError> {
-        const Q: &str = "query($pair:String!,$n:Int!){ pairDailies(first:$n,where:{id_starts_with:$pair},orderBy:timestamp,orderDirection:desc){ id token0{id address name symbol decimals} token1{id address name symbol decimals} timestamp volumeToken0 volumeToken1 numberOfTrades } }";
-        let data = self.run_query(Q, Some(json!({ "pair": pair_id, "n": days }))).await?;
+        let data = self
+            .run_query(queries::GET_PAIR_DAILY_TOTALS, Some(json!({ "pair": pair_id, "n": days })))
+            .await?;
         parse_field(&data, "pairDailies")
     }
 
@@ -540,8 +592,12 @@ impl SubgraphApi {
         pair_id: &str,
         hours: u32,
     ) -> Result<Vec<PairHourly>, CowError> {
-        const Q: &str = "query($pair:String!,$n:Int!){ pairHourlies(first:$n,where:{id_starts_with:$pair},orderBy:timestamp,orderDirection:desc){ id token0{id address name symbol decimals} token1{id address name symbol decimals} timestamp volumeToken0 volumeToken1 numberOfTrades } }";
-        let data = self.run_query(Q, Some(json!({ "pair": pair_id, "n": hours }))).await?;
+        let data = self
+            .run_query(
+                queries::GET_PAIR_HOURLY_TOTALS,
+                Some(json!({ "pair": pair_id, "n": hours })),
+            )
+            .await?;
         parse_field(&data, "pairHourlies")
     }
 
@@ -577,7 +633,33 @@ impl SubgraphApi {
             body["variables"] = vars;
         }
 
-        let resp = self.client.post(&self.base_url).json(&body).send().await?;
+        // Rate-limit + retry policy, mirroring `OrderBookApi::send_with_policy`.
+        // The closure captures `&body` and rebuilds a fresh `RequestBuilder`
+        // on every attempt because `reqwest::RequestBuilder` is not always
+        // `Clone`.
+        let max = self.retry_policy.max_attempts.max(1);
+        let mut attempt: u32 = 0;
+        let resp = loop {
+            self.rate_limiter.acquire().await;
+            let result = self.client.post(&self.base_url).json(&body).send().await;
+            let last_attempt = attempt + 1 >= max;
+            match result {
+                Ok(resp) => {
+                    let status = resp.status().as_u16();
+                    if !self.retry_policy.should_retry_status(status) || last_attempt {
+                        break resp;
+                    }
+                }
+                Err(e) => {
+                    if !self.retry_policy.should_retry_error(&e) || last_attempt {
+                        return Err(e.into());
+                    }
+                }
+            }
+            self.retry_policy.wait(self.retry_policy.delay_for_attempt(attempt)).await;
+            attempt += 1;
+        };
+
         let status = resp.status().as_u16();
         let text = resp.text().await?;
 

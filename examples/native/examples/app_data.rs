@@ -51,7 +51,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Populate metadata — these fields are all optional.
     doc.metadata = Metadata {
-        referrer: Some(Referrer::new("cow-rs-referral")),
+        referrer: Some(Referrer::code("COWRS-REFERRAL")),
         utm: Some(Utm {
             utm_source: Some("cow-rs-example".to_owned()),
             utm_medium: Some("sdk".to_owned()),

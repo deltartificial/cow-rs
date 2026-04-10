@@ -16,14 +16,18 @@ normal = ["serde-wasm-bindgen", "syn"]
 doctest = true
 
 [features]
-default = ["native"]
-native = ["dep:tokio", "reqwest/rustls-tls", "tokio/rt-multi-thread"]
+default = ["native", "schema-validation"]
+native = ["dep:tokio", "reqwest/rustls", "tokio/rt-multi-thread"]
 wasm = [
   "getrandom/js",
   "dep:wasm-bindgen",
   "dep:wasm-bindgen-futures",
   "dep:serde-wasm-bindgen",
 ]
+# Enables runtime JSON Schema validation for AppData documents via `jsonschema`.
+# Disabled on wasm by default because jsonschema pulls getrandom 0.3 which
+# requires a `wasm_js` cfg flag; wasm consumers can still opt in explicitly.
+schema-validation = ["dep:jsonschema"]
 
 [dependencies]
 alloy-primitives.workspace = true
@@ -33,6 +37,8 @@ chrono.workspace = true
 foldhash.workspace = true
 futures.workspace = true
 getrandom = { workspace = true, optional = true }
+jsonschema = { workspace = true, optional = true }
+progenitor-client.workspace = true
 reqwest.workspace = true
 rust_decimal.workspace = true
 serde.workspace = true
@@ -46,9 +52,18 @@ tracing.workspace = true
 wasm-bindgen = { workspace = true, optional = true }
 wasm-bindgen-futures = { workspace = true, optional = true }
 
+[build-dependencies]
+openapiv3 = { workspace = true }
+prettyplease = { workspace = true }
+progenitor-impl = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+syn = "2"
+
 [dev-dependencies]
+graphql-parser = { workspace = true }
 proptest.workspace = true
-tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "test-util"] }
 wiremock.workspace = true
 
 [lints]

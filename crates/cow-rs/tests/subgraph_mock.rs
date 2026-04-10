@@ -18,11 +18,15 @@
 //! returns a canned `{"data": {...}}` response.  The test then calls the
 //! corresponding [`SubgraphApi`] method and asserts the parsed result.
 
-use cow_rs::{Bundle, SubgraphApi, SubgraphOrder, SubgraphToken, SubgraphTrade};
+use cow_rs::{Bundle, RetryPolicy, SubgraphApi, SubgraphOrder, SubgraphToken, SubgraphTrade};
 use wiremock::{Mock, MockServer, ResponseTemplate, matchers};
 
 fn make_api(server: &MockServer) -> SubgraphApi {
-    SubgraphApi::new_with_url(server.uri())
+    // Disable retries for every mock test in this file — wiremock mocks
+    // return a single canned response, and the production default of 10
+    // attempts × exponential backoff turns any negative-path test into
+    // a multi-minute wait.
+    SubgraphApi::new_with_url(server.uri()).with_retry_policy(RetryPolicy::no_retry())
 }
 
 // ── Helper JSON builders ──────────────────────────────────────────────────────
