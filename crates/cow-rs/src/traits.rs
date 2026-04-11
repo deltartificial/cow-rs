@@ -741,4 +741,269 @@ mod tests {
         assert!(ipfs.read_uri.is_none());
         assert!(ipfs.pinata_api_key.is_none());
     }
+
+    // ── Error-returning mock impls ────────────────────────────────────────
+
+    /// A mock orderbook client that always returns errors.
+    struct ErrorOrderbook;
+
+    #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
+    #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
+    impl OrderbookClient for ErrorOrderbook {
+        async fn get_quote(
+            &self,
+            _request: &OrderQuoteRequest,
+        ) -> Result<OrderQuoteResponse, CowError> {
+            Err(CowError::Api { status: 500, body: "mock error".into() })
+        }
+
+        async fn send_order(&self, _creation: &OrderCreation) -> Result<String, CowError> {
+            Err(CowError::Api { status: 500, body: "mock error".into() })
+        }
+
+        async fn get_order(&self, _order_uid: &str) -> Result<Order, CowError> {
+            Err(CowError::Api { status: 404, body: "not found".into() })
+        }
+
+        async fn get_trades(&self, _order_uid: &str) -> Result<Vec<Trade>, CowError> {
+            Err(CowError::Api { status: 500, body: "mock error".into() })
+        }
+
+        async fn cancel_orders(&self, _cancellation: &OrderCancellations) -> Result<(), CowError> {
+            Err(CowError::Api { status: 403, body: "forbidden".into() })
+        }
+    }
+
+    #[tokio::test]
+    async fn error_orderbook_get_quote() {
+        let mock = ErrorOrderbook;
+        let req: OrderQuoteRequest = serde_json::from_value(serde_json::json!({
+            "sellToken": "0xfff9976782d46cc05630d1f6ebab18b2324d6b14",
+            "buyToken": "0x1c7d4b196cb0c7b01d743fbc6116a902379c7238",
+            "from": "0x0000000000000000000000000000000000000000",
+            "appData": "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "partiallyFillable": false,
+            "sellTokenBalance": "erc20",
+            "buyTokenBalance": "erc20",
+            "priceQuality": "optimal",
+            "signingScheme": "eip712",
+            "kind": "sell",
+            "sellAmountBeforeFee": "1000000000000000"
+        }))
+        .unwrap();
+        let result = mock.get_quote(&req).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn error_orderbook_send_order() {
+        let mock = ErrorOrderbook;
+        let creation: OrderCreation = serde_json::from_value(serde_json::json!({
+            "sellToken": "0xfff9976782d46cc05630d1f6ebab18b2324d6b14",
+            "buyToken": "0x1c7d4b196cb0c7b01d743fbc6116a902379c7238",
+            "receiver": "0x0000000000000000000000000000000000000000",
+            "sellAmount": "1000000000000000",
+            "buyAmount": "500000",
+            "validTo": 1700000000,
+            "appData": "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "feeAmount": "0",
+            "kind": "sell",
+            "partiallyFillable": false,
+            "sellTokenBalance": "erc20",
+            "buyTokenBalance": "erc20",
+            "signingScheme": "eip712",
+            "signature": "0x",
+            "from": "0x0000000000000000000000000000000000000000"
+        }))
+        .unwrap();
+        let result = mock.send_order(&creation).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn error_orderbook_get_order() {
+        let mock = ErrorOrderbook;
+        let result = mock.get_order("0xmockuid").await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn error_orderbook_get_trades() {
+        let mock = ErrorOrderbook;
+        let result = mock.get_trades("0xmockuid").await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn error_orderbook_cancel_orders() {
+        let mock = ErrorOrderbook;
+        let cancellation = OrderCancellations {
+            order_uids: vec!["0xmockuid".to_owned()],
+            signature: "0x".to_owned(),
+            signing_scheme: crate::types::EcdsaSigningScheme::Eip712,
+        };
+        let result = mock.cancel_orders(&cancellation).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn trait_object_error_orderbook() {
+        let mock: std::sync::Arc<dyn OrderbookClient> = std::sync::Arc::new(ErrorOrderbook);
+        let result = mock.get_order("0xmockuid").await;
+        assert!(result.is_err());
+    }
+
+    // ── Error-returning mock signer ───────────────────────────────────────
+
+    struct ErrorSigner;
+
+    #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
+    #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
+    impl CowSigner for ErrorSigner {
+        fn address(&self) -> Address {
+            Address::ZERO
+        }
+
+        async fn sign_typed_data(
+            &self,
+            _domain_separator: B256,
+            _struct_hash: B256,
+        ) -> Result<Vec<u8>, CowError> {
+            Err(CowError::Signing("mock signer error".into()))
+        }
+
+        async fn sign_message(&self, _message: &[u8]) -> Result<Vec<u8>, CowError> {
+            Err(CowError::Signing("mock signer error".into()))
+        }
+    }
+
+    #[tokio::test]
+    async fn error_signer_sign_typed_data() {
+        let signer = ErrorSigner;
+        let result = signer.sign_typed_data(B256::ZERO, B256::ZERO).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn error_signer_sign_message() {
+        let signer = ErrorSigner;
+        let result = signer.sign_message(b"test").await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn trait_object_error_signer() {
+        let mock: std::sync::Arc<dyn CowSigner> = std::sync::Arc::new(ErrorSigner);
+        let result = mock.sign_typed_data(B256::ZERO, B256::ZERO).await;
+        assert!(result.is_err());
+    }
+
+    // ── Error-returning mock RPC provider ─────────────────────────────────
+
+    struct ErrorRpcProvider;
+
+    #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
+    #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
+    impl RpcProvider for ErrorRpcProvider {
+        async fn eth_call(&self, _to: Address, _data: &[u8]) -> Result<Vec<u8>, CowError> {
+            Err(CowError::Rpc { code: -32000, message: "mock rpc error".into() })
+        }
+
+        async fn eth_get_storage_at(
+            &self,
+            _address: Address,
+            _slot: B256,
+        ) -> Result<B256, CowError> {
+            Err(CowError::Rpc { code: -32000, message: "mock rpc error".into() })
+        }
+    }
+
+    #[tokio::test]
+    async fn error_rpc_provider_eth_call() {
+        let provider = ErrorRpcProvider;
+        let result = provider.eth_call(Address::ZERO, &[0u8; 4]).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn error_rpc_provider_eth_get_storage_at() {
+        let provider = ErrorRpcProvider;
+        let result = provider.eth_get_storage_at(Address::ZERO, B256::ZERO).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn trait_object_error_rpc_provider() {
+        let mock: std::sync::Arc<dyn RpcProvider> = std::sync::Arc::new(ErrorRpcProvider);
+        let result = mock.eth_call(Address::ZERO, &[]).await;
+        assert!(result.is_err());
+    }
+
+    // ── Error-returning mock IPFS client ──────────────────────────────────
+
+    struct ErrorIpfsClient;
+
+    #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
+    #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
+    impl IpfsClient for ErrorIpfsClient {
+        async fn fetch(&self, _cid: &str) -> Result<String, CowError> {
+            Err(CowError::AppData("mock ipfs fetch error".into()))
+        }
+
+        async fn upload(&self, _content: &str) -> Result<String, CowError> {
+            Err(CowError::AppData("mock ipfs upload error".into()))
+        }
+    }
+
+    #[tokio::test]
+    async fn error_ipfs_client_fetch() {
+        let mock = ErrorIpfsClient;
+        let result = mock.fetch("bafybeisomecid").await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn error_ipfs_client_upload() {
+        let mock = ErrorIpfsClient;
+        let result = mock.upload(r#"{"test": true}"#).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn trait_object_error_ipfs_client() {
+        let mock: std::sync::Arc<dyn IpfsClient> = std::sync::Arc::new(ErrorIpfsClient);
+        let result = mock.fetch("bafybeisomecid").await;
+        assert!(result.is_err());
+    }
+
+    // ── PrivateKeySigner sign_typed_data with non-zero inputs ─────────────
+
+    #[tokio::test]
+    async fn private_key_signer_sign_typed_data_non_zero() {
+        let signer = alloy_signer_local::PrivateKeySigner::random();
+        let ds = B256::from([0xABu8; 32]);
+        let sh = B256::from([0xCDu8; 32]);
+        let result = CowSigner::sign_typed_data(&signer, ds, sh).await;
+        assert!(result.is_ok());
+        let sig = result.unwrap();
+        assert_eq!(sig.len(), 65);
+        // Different inputs should produce different signatures
+        let result2 = CowSigner::sign_typed_data(&signer, B256::ZERO, B256::ZERO).await;
+        assert!(result2.is_ok());
+        assert_ne!(sig, result2.unwrap());
+    }
+
+    // ── Ipfs struct with custom read_uri ──────────────────────────────────
+
+    #[test]
+    fn ipfs_struct_custom_read_uri() {
+        let ipfs = crate::app_data::Ipfs {
+            read_uri: Some("https://custom.gateway.io/ipfs".to_owned()),
+            write_uri: Some("https://custom.write.io".to_owned()),
+            pinata_api_key: Some("key".to_owned()),
+            pinata_api_secret: Some("secret".to_owned()),
+        };
+        assert_eq!(ipfs.read_uri.as_deref(), Some("https://custom.gateway.io/ipfs"));
+        assert_eq!(ipfs.write_uri.as_deref(), Some("https://custom.write.io"));
+    }
 }
