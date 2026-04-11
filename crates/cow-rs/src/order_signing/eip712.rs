@@ -169,6 +169,34 @@ pub fn domain_separator(chain_id: u64) -> B256 {
     keccak256(buf)
 }
 
+/// Compute the EIP-712 domain separator from a custom [`OrderDomain`].
+///
+/// Unlike [`domain_separator`], which always uses the canonical protocol
+/// name, version, and settlement contract address, this function reads
+/// every field from the provided `domain`. Use this when you need a
+/// domain separator for a fork or alternative deployment.
+///
+/// # Arguments
+///
+/// * `domain` - The [`OrderDomain`] whose fields define the separator.
+///
+/// # Returns
+///
+/// The 32-byte EIP-712 domain separator hash.
+#[must_use]
+pub fn domain_separator_from(domain: &OrderDomain) -> B256 {
+    let name_hash = keccak256(domain.name.as_bytes());
+    let version_hash = keccak256(domain.version.as_bytes());
+
+    let mut buf = [0u8; 5 * 32];
+    buf[0..32].copy_from_slice(domain_type_hash().as_slice());
+    buf[32..64].copy_from_slice(name_hash.as_slice());
+    buf[64..96].copy_from_slice(version_hash.as_slice());
+    buf[96..128].copy_from_slice(&abi_u256(U256::from(domain.chain_id)));
+    buf[128..160].copy_from_slice(&abi_address(domain.verifying_contract));
+    keccak256(buf)
+}
+
 /// Compute the EIP-712 struct hash for `order`.
 ///
 /// # Arguments
@@ -746,6 +774,77 @@ mod tests {
         assert_eq!(typed.domain.chain_id, 1);
         assert_eq!(typed.domain.name, "Gnosis Protocol v2");
         assert_eq!(typed.order.sell_token, order.sell_token);
+    }
+
+    // ── hashify ──────────────────────────────────────────────────────────
+
+    // ── OrderDomain builders + domain_separator_from ──────────────────
+
+    #[test]
+    fn order_domain_default_separator_matches_domain_separator() {
+        use crate::order_signing::types::OrderDomain;
+        let domain = OrderDomain::for_chain(1);
+        assert_eq!(domain_separator_from(&domain), domain_separator(1));
+    }
+
+    #[test]
+    fn order_domain_with_chain_id() {
+        use crate::order_signing::types::OrderDomain;
+        let domain = OrderDomain::for_chain(1).with_chain_id(5);
+        assert_eq!(domain.chain_id, 5);
+        assert_eq!(domain_separator_from(&domain), domain_separator(5));
+    }
+
+    #[test]
+    fn order_domain_with_name_changes_separator() {
+        use crate::order_signing::types::OrderDomain;
+        let standard = OrderDomain::for_chain(1);
+        let custom = OrderDomain::for_chain(1).with_name("Custom Protocol");
+        assert_ne!(domain_separator_from(&standard), domain_separator_from(&custom));
+    }
+
+    #[test]
+    fn order_domain_with_version_changes_separator() {
+        use crate::order_signing::types::OrderDomain;
+        let standard = OrderDomain::for_chain(1);
+        let custom = OrderDomain::for_chain(1).with_version("v3");
+        assert_ne!(domain_separator_from(&standard), domain_separator_from(&custom));
+    }
+
+    #[test]
+    fn order_domain_with_verifying_contract_changes_separator() {
+        use crate::order_signing::types::OrderDomain;
+        let standard = OrderDomain::for_chain(1);
+        let custom = OrderDomain::for_chain(1).with_verifying_contract(Address::repeat_byte(0xff));
+        assert_ne!(domain_separator_from(&standard), domain_separator_from(&custom));
+    }
+
+    #[test]
+    fn order_domain_builder_chaining() {
+        use crate::order_signing::types::OrderDomain;
+        let domain = OrderDomain::for_chain(1)
+            .with_name("Test")
+            .with_version("v1")
+            .with_chain_id(42)
+            .with_verifying_contract(Address::repeat_byte(0xab));
+        assert_eq!(domain.name, "Test");
+        assert_eq!(domain.version, "v1");
+        assert_eq!(domain.chain_id, 42);
+        assert_eq!(domain.verifying_contract, Address::repeat_byte(0xab));
+        // The separator should be non-zero and deterministic.
+        let sep = domain_separator_from(&domain);
+        assert_ne!(sep, B256::ZERO);
+        assert_eq!(sep, domain_separator_from(&domain));
+    }
+
+    #[test]
+    fn order_domain_domain_separator_method_uses_custom_fields() {
+        use crate::order_signing::types::OrderDomain;
+        let custom = OrderDomain::for_chain(1).with_name("Fork");
+        // The method on OrderDomain should delegate to domain_separator_from,
+        // so it must respect the custom name.
+        assert_ne!(custom.domain_separator(), domain_separator(1));
+        assert_eq!(custom.domain_separator(), domain_separator_from(&custom));
     }
 
     // ── hashify ──────────────────────────────────────────────────────────

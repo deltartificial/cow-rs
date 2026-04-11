@@ -142,6 +142,37 @@ pub trait RpcProvider: Send + Sync {
     async fn eth_get_storage_at(&self, address: Address, slot: B256) -> Result<B256, CowError>;
 }
 
+/// Abstraction over IPFS fetch and upload operations.
+///
+/// [`Ipfs`](crate::app_data::Ipfs) implements this trait by delegating to
+/// the existing free functions in [`crate::app_data`]. Tests can inject a
+/// mock that returns canned CID/content pairs without any network I/O.
+#[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
+pub trait IpfsClient: Send + Sync {
+    /// Fetch a JSON document from IPFS by its CID.
+    ///
+    /// # Arguments
+    ///
+    /// * `cid` - The `CIDv1` base16 string identifying the document.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`CowError`] if the fetch or deserialisation fails.
+    async fn fetch(&self, cid: &str) -> Result<String, CowError>;
+
+    /// Upload a JSON string to IPFS and return the resulting CID.
+    ///
+    /// # Arguments
+    ///
+    /// * `content` - The JSON content to pin.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`CowError`] if the upload fails (e.g. missing credentials).
+    async fn upload(&self, content: &str) -> Result<String, CowError>;
+}
+
 // ── Blanket impl: OrderbookClient for OrderBookApi ──────────────────────────
 
 #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
@@ -218,6 +249,63 @@ impl RpcProvider for crate::onchain::OnchainReader {
     async fn eth_get_storage_at(&self, address: Address, slot: B256) -> Result<B256, CowError> {
         let slot_hex = format!("{slot:#x}");
         crate::onchain::OnchainReader::eth_get_storage_at(self, address, &slot_hex).await
+    }
+}
+
+// ── Blanket impl: IpfsClient for Ipfs ──────────────────────────────────────
+
+#[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
+impl IpfsClient for crate::app_data::Ipfs {
+    async fn fetch(&self, cid: &str) -> Result<String, CowError> {
+        let base = self.read_uri.as_deref().unwrap_or(crate::app_data::DEFAULT_IPFS_READ_URI);
+        let url = format!("{base}/{cid}");
+        let text = reqwest::get(&url).await?.text().await?;
+        Ok(text)
+    }
+
+    async fn upload(&self, content: &str) -> Result<String, CowError> {
+        let api_key = self.pinata_api_key.as_deref().ok_or_else(|| {
+            CowError::AppData("pinata_api_key is required for IPFS upload".into())
+        })?;
+        let api_secret = self.pinata_api_secret.as_deref().ok_or_else(|| {
+            CowError::AppData("pinata_api_secret is required for IPFS upload".into())
+        })?;
+
+        let write_uri =
+            self.write_uri.as_deref().unwrap_or(crate::app_data::DEFAULT_IPFS_WRITE_URI);
+        let url = format!("{write_uri}/pinning/pinJSONToIPFS");
+
+        let parsed: serde_json::Value =
+            serde_json::from_str(content).map_err(|e| CowError::AppData(e.to_string()))?;
+
+        let body = serde_json::json!({
+            "pinataContent": parsed,
+            "pinataOptions": { "cidVersion": 1 },
+        });
+
+        let resp = reqwest::Client::new()
+            .post(&url)
+            .header("pinata_api_key", api_key)
+            .header("pinata_secret_api_key", api_secret)
+            .json(&body)
+            .send()
+            .await?;
+
+        let status = resp.status().as_u16();
+        let text = resp.text().await?;
+        if status != 200 {
+            return Err(CowError::Api { status, body: text });
+        }
+
+        #[derive(serde::Deserialize)]
+        #[serde(rename_all = "PascalCase")]
+        struct PinataResponse {
+            ipfs_hash: String,
+        }
+        let pinata: PinataResponse =
+            serde_json::from_str(&text).map_err(|e| CowError::AppData(e.to_string()))?;
+        Ok(pinata.ipfs_hash)
     }
 }
 
@@ -526,6 +614,40 @@ mod tests {
         assert!(result.is_ok(), "trait object eth_call should succeed");
     }
 
+    // ── Mock: IpfsClient ───────────────────────────────────────────────
+
+    /// A mock IPFS client that returns canned responses.
+    struct MockIpfsClient {
+        /// The content returned by [`fetch`].
+        fetch_content: String,
+        /// The CID returned by [`upload`].
+        upload_cid: String,
+    }
+
+    impl MockIpfsClient {
+        /// Build a minimal mock with fixed canned responses.
+        fn new() -> Self {
+            Self {
+                fetch_content: r#"{"version":"1.3.0","appCode":"test"}"#.to_owned(),
+                upload_cid: "bafybeimockcid".to_owned(),
+            }
+        }
+    }
+
+    #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
+    #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
+    impl IpfsClient for MockIpfsClient {
+        async fn fetch(&self, _cid: &str) -> Result<String, CowError> {
+            Ok(self.fetch_content.clone())
+        }
+
+        async fn upload(&self, _content: &str) -> Result<String, CowError> {
+            Ok(self.upload_cid.clone())
+        }
+    }
+
+    // ── Tests ──────────────────────────────────────────────────────────
+
     #[test]
     fn real_private_key_signer_implements_cow_signer() {
         // Compile-time check: PrivateKeySigner implements CowSigner.
@@ -545,5 +667,36 @@ mod tests {
         // Compile-time check: OnchainReader implements RpcProvider.
         fn _assert_rpc_provider<T: RpcProvider>() {}
         _assert_rpc_provider::<crate::onchain::OnchainReader>();
+    }
+
+    #[test]
+    fn real_ipfs_implements_ipfs_client() {
+        // Compile-time check: Ipfs implements IpfsClient.
+        fn _assert_ipfs_client<T: IpfsClient>() {}
+        _assert_ipfs_client::<crate::app_data::Ipfs>();
+    }
+
+    #[tokio::test]
+    async fn mock_ipfs_client_fetch() {
+        let mock = MockIpfsClient::new();
+        let result = mock.fetch("bafybeisomecid").await;
+        assert!(result.is_ok(), "mock fetch should succeed");
+        assert!(result.unwrap_or_else(|e| panic!("{e}")).contains("version"));
+    }
+
+    #[tokio::test]
+    async fn mock_ipfs_client_upload() {
+        let mock = MockIpfsClient::new();
+        let result = mock.upload(r#"{"test": true}"#).await;
+        assert!(result.is_ok(), "mock upload should succeed");
+        assert_eq!(result.unwrap_or_else(|e| panic!("{e}")), "bafybeimockcid");
+    }
+
+    #[tokio::test]
+    async fn trait_object_ipfs_client() {
+        // Verify the trait is object-safe and works behind Arc<dyn>.
+        let mock: std::sync::Arc<dyn IpfsClient> = std::sync::Arc::new(MockIpfsClient::new());
+        let result = mock.fetch("bafybeisomecid").await;
+        assert!(result.is_ok(), "trait object fetch should succeed");
     }
 }
