@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>cow-rs Wallet Console</title>
+  <style>
+    :root {
+      --bg: #0d1117; --bg2: #161b22; --fg: #c9d1d9; --muted: #8b949e;
+      --accent: #58a6ff; --green: #3fb950; --warn: #d29922; --red: #f85149;
+      --btn: #21262d; --btn-hover: #30363d; --border: #30363d;
+      --cow-purple: #9b6dff; --cow-blue: #3772ff;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace;
+      background: var(--bg); color: var(--fg);
+      padding: 1.5rem; max-width: 1200px; margin: 0 auto;
+    }
+
+    /* Header */
+    .header { text-align: center; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border); padding-bottom: 1rem; }
+    .header h1 { font-size: 1.8rem; color: var(--fg); }
+    .header h1 .cow { color: var(--green); }
+    .header h1 .wallet { color: var(--cow-purple); }
+    .header p { color: var(--muted); font-size: 0.9rem; margin-top: 0.3rem; }
+
+    /* Config panel */
+    .config-panel {
+      display: flex; gap: 0.8rem; align-items: end; flex-wrap: wrap;
+      border: 1px solid var(--border); border-radius: 8px;
+      padding: 1rem; margin-bottom: 1.2rem; background: var(--bg2);
+    }
+    .config-panel .field { display: flex; flex-direction: column; }
+    .config-panel .field label { color: var(--muted); font-size: 0.75rem; margin-bottom: 0.2rem; }
+    .config-panel select, .config-panel input {
+      background: var(--btn); color: var(--fg); border: 1px solid var(--border);
+      padding: 0.4rem 0.6rem; border-radius: 6px; font-size: 0.85rem;
+      font-family: monospace; min-width: 140px;
+    }
+    .config-panel button { margin-top: auto; }
+
+    /* Columns layout */
+    .columns { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2rem; margin-bottom: 1.2rem; }
+    @media (max-width: 800px) { .columns { grid-template-columns: 1fr; } }
+
+    /* Sections */
+    .section {
+      border: 1px solid var(--border); border-radius: 8px;
+      padding: 1rem; margin-bottom: 1rem; background: var(--bg2);
+    }
+    .section h2 { font-size: 0.95rem; color: var(--accent); margin-bottom: 0.6rem; display: flex; align-items: center; gap: 0.4rem; }
+    .section h2 .badge {
+      font-size: 0.65rem; padding: 0.15rem 0.4rem; border-radius: 4px;
+      font-weight: normal; text-transform: uppercase;
+    }
+    .badge-mock { background: var(--green); color: #0d1117; }
+    .badge-injected { background: var(--cow-purple); color: #fff; }
+    .badge-util { background: var(--cow-blue); color: #fff; }
+
+    .warning {
+      background: #d299221a; border: 1px solid var(--warn); border-radius: 6px;
+      padding: 0.5rem 0.7rem; margin-bottom: 0.6rem; font-size: 0.78rem; color: var(--warn);
+    }
+
+    /* Buttons */
+    button {
+      background: var(--btn); color: var(--fg); border: 1px solid var(--border);
+      padding: 0.45rem 0.9rem; border-radius: 6px; cursor: pointer;
+      font-size: 0.82rem; margin: 0.2rem 0.2rem 0.2rem 0;
+      transition: background 0.15s, opacity 0.15s;
+    }
+    button:hover { background: var(--btn-hover); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    button.loading { position: relative; color: transparent; }
+    button.loading::after {
+      content: ''; position: absolute; left: 50%; top: 50%;
+      width: 14px; height: 14px; margin: -7px 0 0 -7px;
+      border: 2px solid var(--muted); border-top-color: var(--accent);
+      border-radius: 50%; animation: spin 0.6s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Inputs / textareas */
+    input, textarea, select {
+      background: var(--btn); color: var(--fg); border: 1px solid var(--border);
+      padding: 0.45rem; border-radius: 6px; font-family: monospace;
+      font-size: 0.82rem; width: 100%; margin-bottom: 0.4rem;
+    }
+    textarea { min-height: 100px; resize: vertical; }
+    label { display: block; color: var(--muted); font-size: 0.75rem; margin-bottom: 0.2rem; }
+
+    /* Output areas */
+    .output {
+      background: #0d1117; border: 1px solid var(--border); border-radius: 6px;
+      padding: 0.8rem; margin-top: 0.6rem; white-space: pre-wrap;
+      word-break: break-all; font-family: monospace; font-size: 0.8rem;
+      min-height: 60px; max-height: 400px; overflow-y: auto; color: var(--green);
+    }
+    .output.error { color: var(--red); }
+
+    /* Input panels */
+    .input-panels { margin-bottom: 1.2rem; }
+    .input-panels .section { margin-bottom: 0.8rem; }
+
+    /* Chain info footer */
+    .chain-info-bar {
+      border: 1px solid var(--border); border-radius: 8px; padding: 0.6rem 1rem;
+      background: var(--bg2); font-size: 0.78rem; color: var(--muted);
+      margin-bottom: 1rem;
+    }
+    .chain-info-bar code { color: var(--accent); }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <div class="header">
+    <h1><span class="cow">cow</span>-rs <span class="wallet">Wallet Console</span></h1>
+    <p>CoW Protocol Rust SDK &mdash; Mock &amp; Injected Wallet Demo via WebAssembly</p>
+  </div>
+
+  <!-- Config Panel -->
+  <div class="config-panel">
+    <div class="field">
+      <label for="chain-select">Chain</label>
+      <select id="chain-select">
+        <option value="11155111" selected>Sepolia (testnet)</option>
+        <option value="1">Ethereum Mainnet</option>
+        <option value="100">Gnosis Chain</option>
+        <option value="42161">Arbitrum One</option>
+        <option value="8453">Base</option>
+        <option value="137">Polygon</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="env-select">Environment</label>
+      <select id="env-select">
+        <option value="prod">Production</option>
+        <option value="staging">Staging (Barn)</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="app-code">App Code</label>
+      <input type="text" id="app-code" value="cow-rs-wallet-console" />
+    </div>
+    <button id="btn-chain-info">Chain Info</button>
+    <button id="btn-all-chains">All Chains</button>
+  </div>
+
+  <!-- Chain Info Bar -->
+  <div class="chain-info-bar" id="chain-info-bar">
+    Select a chain and click <strong>Chain Info</strong> to see contract addresses and API URLs.
+  </div>
+
+  <!-- Two Columns: Mock / Injected -->
+  <div class="columns">
+
+    <!-- Left: Mock Wallet -->
+    <div>
+      <div class="section">
+        <h2>Mock Wallet <span class="badge badge-mock">Deterministic</span></h2>
+        <div class="warning">Uses the well-known Hardhat #0 test key. Never send real funds to this address.</div>
+
+        <button id="btn-mock-connect">Connect</button>
+        <div class="output" id="out-mock-connect">Click Connect to see mock session info...</div>
+
+        <div style="margin-top: 0.8rem;">
+          <label for="mock-message">Message to sign</label>
+          <input type="text" id="mock-message" value="Hello, CoW Protocol!" />
+          <button id="btn-mock-sign-msg">Sign Message</button>
+        </div>
+        <div class="output" id="out-mock-sign-msg">Sign a message with the mock key...</div>
+
+        <div style="margin-top: 0.8rem;">
+          <button id="btn-mock-sign-order">Sign Order</button>
+          <span style="font-size:0.72rem;color:var(--muted)">Uses Order JSON below</span>
+        </div>
+        <div class="output" id="out-mock-sign-order">Sign an order with EIP-712...</div>
+
+        <div style="margin-top: 0.8rem;">
+          <button id="btn-mock-quote">Get Quote</button>
+          <span style="font-size:0.72rem;color:var(--muted)">Uses Trade JSON below (live API call)</span>
+        </div>
+        <div class="output" id="out-mock-quote">Fetch a real quote from the CoW API...</div>
+
+        <div style="margin-top: 0.8rem;">
+          <button id="btn-mock-full-flow">Full Trade Flow</button>
+          <span style="font-size:0.72rem;color:var(--muted)">Quote + Sign (does NOT submit)</span>
+        </div>
+        <div class="output" id="out-mock-full-flow">Execute the full mock trade flow...</div>
+      </div>
+    </div>
+
+    <!-- Right: Injected Wallet -->
+    <div>
+      <div class="section">
+        <h2>Injected Wallet <span class="badge badge-injected">window.ethereum</span></h2>
+
+        <button id="btn-injected-detect">Detect Wallet</button>
+        <div class="output" id="out-injected-detect">Click Detect to check for window.ethereum...</div>
+
+        <div style="margin-top: 0.8rem;">
+          <button id="btn-injected-connect">Connect (eth_requestAccounts)</button>
+        </div>
+        <div class="output" id="out-injected-connect">Connect your browser wallet...</div>
+
+        <div style="margin-top: 0.8rem;">
+          <button id="btn-injected-sign-order">Sign Order</button>
+          <span style="font-size:0.72rem;color:var(--muted)">Uses Order JSON below + injected signer</span>
+        </div>
+        <div class="output" id="out-injected-sign-order">Sign an order with your browser wallet...</div>
+      </div>
+
+      <!-- Sample Data -->
+      <div class="section">
+        <h2>Sample Data <span class="badge badge-util">Generators</span></h2>
+        <button id="btn-sample-trade">Load Sample Trade</button>
+        <button id="btn-sample-order">Load Sample Order</button>
+        <span style="font-size:0.72rem;color:var(--muted);display:block;margin-top:0.3rem">
+          Populates the input panels below with chain-appropriate data.
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Input Panels -->
+  <div class="input-panels">
+    <div class="section">
+      <h2>Trade JSON <span style="font-size:0.72rem;color:var(--muted);font-weight:normal">(for Quote / Full Flow)</span></h2>
+      <textarea id="trade-json">{
+  "sellToken": "0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14",
+  "buyToken": "0x0625aFB445C3B6B7B929342a04A22599fd5dBB59",
+  "from": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+  "kind": "sell",
+  "sellAmountBeforeFee": "100000000000000000"
+}</textarea>
+    </div>
+
+    <div class="section">
+      <h2>Order JSON <span style="font-size:0.72rem;color:var(--muted);font-weight:normal">(for Sign Order)</span></h2>
+      <textarea id="order-json">{
+  "sellToken": "0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14",
+  "buyToken": "0x0625aFB445C3B6B7B929342a04A22599fd5dBB59",
+  "receiver": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+  "sellAmount": "1000000000000000000",
+  "buyAmount": "1000000000",
+  "validTo": 1999999999,
+  "appData": "0x0000000000000000000000000000000000000000000000000000000000000000",
+  "feeAmount": "0",
+  "kind": "sell",
+  "partiallyFillable": false,
+  "sellTokenBalance": "erc20",
+  "buyTokenBalance": "erc20"
+}</textarea>
+    </div>
+  </div>
+
+  <script type="module">
+    import init, { BrowserWalletConsole } from './pkg/cow_rs_browser_wallet_console.js';
+
+    async function run() {
+      await init();
+
+      const $ = id => document.getElementById(id);
+      const chainId = () => parseInt($('chain-select').value, 10);
+      const env = () => $('env-select').value;
+
+      let console_ = new BrowserWalletConsole(chainId());
+
+      // Recreate console when chain changes
+      $('chain-select').addEventListener('change', () => {
+        console_ = new BrowserWalletConsole(chainId());
+      });
+
+      // Helper: run an async action with loading state
+      async function withLoading(btnId, outId, fn) {
+        const btn = $(btnId);
+        const out = $(outId);
+        btn.classList.add('loading');
+        btn.disabled = true;
+        out.classList.remove('error');
+        out.textContent = 'Loading...';
+        try {
+          const result = await fn();
+          out.textContent = result;
+        } catch (e) {
+          out.classList.add('error');
+          out.textContent = 'Error: ' + (typeof e === 'string' ? e : (e.message || JSON.stringify(e)));
+        } finally {
+          btn.classList.remove('loading');
+          btn.disabled = false;
+        }
+      }
+
+      // Sync helper
+      function runSync(outId, fn) {
+        const out = $(outId);
+        out.classList.remove('error');
+        try {
+          out.textContent = fn();
+        } catch (e) {
+          out.classList.add('error');
+          out.textContent = 'Error: ' + (typeof e === 'string' ? e : (e.message || JSON.stringify(e)));
+        }
+      }
+
+      // ── Config ──────────────────────────────────────────────────────
+      $('btn-chain-info').addEventListener('click', () => {
+        $('chain-info-bar').innerHTML = '<pre style="margin:0;font-size:0.78rem;color:var(--fg);white-space:pre-wrap;">' +
+          console_.chainInfoJson().replace(/</g, '&lt;') + '</pre>';
+      });
+
+      $('btn-all-chains').addEventListener('click', () => {
+        $('chain-info-bar').innerHTML = '<pre style="margin:0;font-size:0.78rem;color:var(--fg);white-space:pre-wrap;">' +
+          BrowserWalletConsole.supportedChainsJson().replace(/</g, '&lt;') + '</pre>';
+      });
+
+      // ── Mock Wallet ─────────────────────────────────────────────────
+      $('btn-mock-connect').addEventListener('click', () => {
+        runSync('out-mock-connect', () => console_.mockConnect());
+      });
+
+      $('btn-mock-sign-msg').addEventListener('click', () => {
+        withLoading('btn-mock-sign-msg', 'out-mock-sign-msg', () =>
+          console_.mockSignMessage($('mock-message').value)
+        );
+      });
+
+      $('btn-mock-sign-order').addEventListener('click', () => {
+        withLoading('btn-mock-sign-order', 'out-mock-sign-order', () =>
+          console_.mockSignOrder($('order-json').value)
+        );
+      });
+
+      $('btn-mock-quote').addEventListener('click', () => {
+        withLoading('btn-mock-quote', 'out-mock-quote', () =>
+          console_.mockGetQuote($('trade-json').value, env())
+        );
+      });
+
+      $('btn-mock-full-flow').addEventListener('click', () => {
+        withLoading('btn-mock-full-flow', 'out-mock-full-flow', () =>
+          console_.mockFullTradeFlow($('trade-json').value, env(), $('app-code').value)
+        );
+      });
+
+      // ── Injected Wallet ─────────────────────────────────────────────
+      $('btn-injected-detect').addEventListener('click', () => {
+        runSync('out-injected-detect', () => console_.injectedDetect());
+      });
+
+      let connectedAccount = null;
+
+      $('btn-injected-connect').addEventListener('click', async () => {
+        const out = $('out-injected-connect');
+        out.classList.remove('error');
+        if (!window.ethereum) {
+          out.classList.add('error');
+          out.textContent = 'No injected wallet found (window.ethereum is undefined).\nInstall MetaMask or another wallet extension.';
+          return;
+        }
+        try {
+          out.textContent = 'Requesting accounts...';
+          const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+          connectedAccount = accounts[0];
+          const chainIdHex = await window.ethereum.request({ method: 'eth_chainId' });
+          out.textContent = JSON.stringify({
+            connected: true,
+            address: connectedAccount,
+            chainId: parseInt(chainIdHex, 16),
+            wallet: 'injected (window.ethereum)',
+          }, null, 2);
+        } catch (e) {
+          out.classList.add('error');
+          out.textContent = 'Error: ' + (e.message || JSON.stringify(e));
+        }
+      });
+
+      $('btn-injected-sign-order').addEventListener('click', () => {
+        withLoading('btn-injected-sign-order', 'out-injected-sign-order', async () => {
+          if (!window.ethereum) {
+            throw 'No injected wallet found. Install MetaMask or connect first.';
+          }
+          if (!connectedAccount) {
+            throw 'Please connect your wallet first.';
+          }
+
+          // JS signing function that bridges to window.ethereum
+          const signerFn = async (digest) => {
+            const sig = await window.ethereum.request({
+              method: 'personal_sign',
+              params: [digest, connectedAccount],
+            });
+            return sig;
+          };
+
+          return await console_.injectedSignOrder($('order-json').value, signerFn);
+        });
+      });
+
+      // ── Sample Data ─────────────────────────────────────────────────
+      $('btn-sample-trade').addEventListener('click', () => {
+        $('trade-json').value = console_.sampleTradeJson();
+      });
+
+      $('btn-sample-order').addEventListener('click', () => {
+        $('order-json').value = console_.sampleOrderJson();
+      });
+    }
+
+    run();
+  </script>
+</body>
+</html>
