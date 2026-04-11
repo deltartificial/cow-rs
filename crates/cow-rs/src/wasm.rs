@@ -196,25 +196,25 @@ pub async fn wasm_sign_order(
 
 // ── Browser Wallet Signing (EIP-1193) ────────────────────────────────────────
 
-/// Sign a CoW Protocol order using a browser wallet via EIP-1193.
+/// Sign a `CoW` Protocol order using a browser wallet via `EIP-1193`.
 ///
-/// Instead of a private key, this function accepts a JavaScript callback
+/// Instead of a private key, this function accepts a `JavaScript` callback
 /// (`signer_fn`) that receives the EIP-712 signing digest and returns a
 /// `Promise<string>` with the `0x`-prefixed hex signature. This allows
-/// MetaMask or any EIP-1193 wallet to sign without exposing private keys.
+/// `MetaMask` or any `EIP-1193` wallet to sign without exposing private keys.
 ///
 /// # Arguments
 ///
-/// * `order_json` — Order JSON string (same format as `signOrder`).
+/// * `order_json` — Order JSON string (same format as [`wasm_sign_order`]).
 /// * `chain_id` — Numeric chain ID.
-/// * `signer_fn` — A JavaScript function: `(digest: string) => Promise<string>`.
+/// * `signer_fn` — A `JavaScript` function: `(digest: string) => Promise<string>`.
 ///
 /// # Returns
 ///
 /// A JSON string: `{ "signature": "0x...", "signingScheme": "eip712",
 /// "orderHash": "0x...", "domainSeparator": "0x...", "signingDigest": "0x..." }`.
 ///
-/// # JavaScript Usage
+/// # `JavaScript` Usage
 ///
 /// ```javascript
 /// const signerFn = async (digest) => {
@@ -245,7 +245,12 @@ pub async fn wasm_sign_order_with_browser_wallet(
     // Call the JS signer function with the digest
     let promise = signer_fn
         .call1(&JsValue::NULL, &JsValue::from_str(&digest_hex))
-        .map_err(|e| to_js_err(format!("signer_fn call failed: {}", e.as_string().unwrap_or_default())))?;
+        .map_err(|e| {
+            to_js_err(format!(
+                "signer_fn call failed: {}",
+                e.as_string().unwrap_or_default()
+            ))
+        })?;
 
     // Await the Promise
     let future = wasm_bindgen_futures::JsFuture::from(js_sys::Promise::from(promise));
