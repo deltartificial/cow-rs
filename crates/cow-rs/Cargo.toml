@@ -10,16 +10,7 @@ homepage.workspace = true
 description = "Rust SDK for the CoW Protocol"
 
 [package.metadata.cargo-udeps.ignore]
-normal = [
-  "ahash",
-  "alloy-consensus",
-  "alloy-rpc-types-eth",
-  "idna",
-  "num-bigint",
-  "ref-cast",
-  "serde-wasm-bindgen",
-  "syn",
-]
+normal = ["serde-wasm-bindgen", "syn"]
 
 [lib]
 doctest = true
@@ -39,28 +30,21 @@ wasm = [
 schema-validation = ["dep:jsonschema"]
 
 [dependencies]
-ahash.workspace = true
-alloy-consensus.workspace = true
 alloy-primitives.workspace = true
-alloy-rpc-types-eth.workspace = true
 alloy-signer.workspace = true
 alloy-signer-local.workspace = true
 chrono.workspace = true
 foldhash.workspace = true
 futures.workspace = true
 getrandom = { workspace = true, optional = true }
-# Pin idna ≥1.1 for -Z minimal-versions (prevents ICU v1/v2 incompatibility)
-idna.workspace = true
 jsonschema = { workspace = true, optional = true }
-num-bigint.workspace = true
 progenitor-client.workspace = true
-ref-cast.workspace = true
 reqwest.workspace = true
 rust_decimal.workspace = true
 serde.workspace = true
 serde-wasm-bindgen = { workspace = true, optional = true }
 serde_json.workspace = true
-# Pin minimum syn version for -Z minimal-versions compatibility
+# syn pinned for parse_quote_spanned (wasm-bindgen transitive)
 syn.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, optional = true }

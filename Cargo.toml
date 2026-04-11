@@ -189,12 +189,9 @@ unnecessary_lazy_evaluations = "allow"
 
 [workspace.dependencies]
 # External
-ahash = { version = "0.8.7", default-features = false }
-alloy-consensus = { version = "1.5", default-features = false }
 alloy-primitives = { version = "1", features = ["serde"] }
-alloy-rpc-types-eth = { version = "1.5", default-features = false }
-alloy-signer = "1.8.3"
-alloy-signer-local = "1.8.3"
+alloy-signer = "1"
+alloy-signer-local = "1"
 chrono = { version = "0.4", features = ["serde"] }
 # Internal crate
 cow-rs = { path = "crates/cow-rs", version = "1.0.0" }
@@ -202,15 +199,12 @@ foldhash = { version = "0.2", features = ["std"] }
 futures = "0.3"
 getrandom = { version = "0.2", default-features = false }
 graphql-parser = "0.4"
-idna = { version = "1.1", default-features = false }
 jsonschema = { version = "0.28", default-features = false, features = ["resolve-file"] }
-num-bigint = { version = "0.4.4", default-features = false }
 openapiv3 = "2.2"
 prettyplease = "0.2"
 progenitor-client = "0.13"
 progenitor-impl = "0.13"
 proptest = "1"
-ref-cast = { version = "1.0.22", default-features = false }
 reqwest = { version = "0.13", default-features = false, features = ["json"] }
 rust_decimal = { version = "1", features = ["maths", "serde"] }
 serde = { version = "1.0.171", features = ["derive"] }
@@ -221,9 +215,7 @@ serde_yaml = "0.9"
 syn = { version = "1.0.67", features = ["full"] }
 thiserror = "2"
 tokio = { version = "1", features = ["sync", "macros"] }
-# tracing ≥0.1.40 so that -Z minimal-versions pulls tracing-core ≥0.1.32
-# (which has `impl Value for String`, needed by alloy-trie)
-tracing = "0.1.40"
+tracing = "0.1"
 wasm-bindgen = "0.2.83"
 wasm-bindgen-futures = "0.4"
 wiremock = { version = "0.6", default-features = false }
