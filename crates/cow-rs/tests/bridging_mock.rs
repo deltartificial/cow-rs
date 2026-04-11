@@ -2765,9 +2765,9 @@ fn is_bridge_quote_and_post_cross_chain() {
         bridge: BridgeQuoteResults {
             provider_info: BridgeProviderInfo {
                 name: "mock".into(),
-                logo_url: "".into(),
+                logo_url: String::new(),
                 dapp_id: "mock-dapp".into(),
-                website: "".into(),
+                website: String::new(),
                 provider_type: BridgeProviderType::HookBridgeProvider,
             },
             quote: quote_result,
