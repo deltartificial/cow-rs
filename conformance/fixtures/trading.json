@@ -1,0 +1,131 @@
+{
+  "schema_version": 1,
+  "surface": "trading",
+  "generated_at_utc": "2026-04-11T00:00:00Z",
+  "source_refs": [
+    {
+      "repo": "cow-sdk",
+      "commit": "17fcfc590be8529dc4fe05b1c472fef1b07b47f4",
+      "path": "packages/sdk/src/trading/consts.ts",
+      "anchors": ["DEFAULT_SLIPPAGE_BPS", "DEFAULT_QUOTE_VALIDITY"]
+    },
+    {
+      "repo": "cow-sdk",
+      "commit": "17fcfc590be8529dc4fe05b1c472fef1b07b47f4",
+      "path": "packages/sdk/src/trading/calculateAmountsAndCosts.ts",
+      "anchors": ["applySlippage", "computeQuoteAmountsAndCosts"]
+    }
+  ],
+  "cases": [
+    {
+      "id": "trading-default-slippage-bps",
+      "kind": "positive",
+      "description": "Default slippage tolerance is 50 bps (0.5%)",
+      "expected": {
+        "default_slippage_bps": 50
+      }
+    },
+    {
+      "id": "trading-default-quote-validity",
+      "kind": "positive",
+      "description": "Default order TTL is 1800 seconds (30 minutes)",
+      "expected": {
+        "default_quote_validity_seconds": 1800
+      }
+    },
+    {
+      "id": "trading-eth-flow-default-slippage",
+      "kind": "positive",
+      "description": "ETH flow default slippage equals DEFAULT_SLIPPAGE_BPS",
+      "expected": {
+        "eth_flow_default_slippage_bps": 50
+      }
+    },
+    {
+      "id": "trading-gas-limit-default",
+      "kind": "positive",
+      "description": "Default gas limit for contract wallet interactions",
+      "expected": {
+        "gas_limit_default": 150000
+      }
+    },
+    {
+      "id": "trading-slippage-sell-order",
+      "kind": "behavior-contract",
+      "description": "Sell order slippage: buy_amount * (10000 - bps) / 10000",
+      "input": {
+        "buy_amount": "2000",
+        "slippage_bps": 50
+      },
+      "expected": {
+        "adjusted_buy_amount": "1990"
+      }
+    },
+    {
+      "id": "trading-slippage-buy-order",
+      "kind": "behavior-contract",
+      "description": "Buy order slippage: sell_amount * (10000 + bps) / 10000",
+      "input": {
+        "sell_amount": "1000",
+        "slippage_bps": 50
+      },
+      "expected": {
+        "adjusted_sell_amount": "1005"
+      }
+    },
+    {
+      "id": "trading-amounts-zero-check",
+      "kind": "behavior-contract",
+      "description": "Amounts::is_zero returns true only when both amounts are zero",
+      "expected": {
+        "zero_zero_is_zero": true,
+        "nonzero_zero_is_zero": false,
+        "zero_nonzero_is_zero": false
+      }
+    },
+    {
+      "id": "trading-network-fee-zero-check",
+      "kind": "behavior-contract",
+      "description": "NetworkFee::is_zero returns true only when both components are zero",
+      "expected": {
+        "zero_zero_is_zero": true,
+        "nonzero_zero_is_zero": false,
+        "zero_nonzero_is_zero": false
+      }
+    },
+    {
+      "id": "trading-slippage-suggest-constants",
+      "kind": "positive",
+      "description": "Slippage suggestion default constants from the SDK",
+      "expected": {
+        "default_fee_slippage_factor_pct": 50,
+        "default_volume_slippage_bps": 50,
+        "max_slippage_bps": 10000
+      }
+    },
+    {
+      "id": "trading-percentage-bps-conversion",
+      "kind": "behavior-contract",
+      "description": "Bidirectional conversion between percentage and basis points",
+      "expected": {
+        "half_pct_to_bps": 50,
+        "one_pct_to_bps": 100,
+        "fifty_bps_to_pct_numerator": 50,
+        "fifty_bps_to_pct_denominator": 100,
+        "hundred_bps_to_pct_numerator": 100,
+        "hundred_bps_to_pct_denominator": 100
+      }
+    },
+    {
+      "id": "trading-gas-margin",
+      "kind": "behavior-contract",
+      "description": "Gas margin adds 20% safety buffer: gas * 120 / 100",
+      "input": {
+        "gas_estimate": 100000
+      },
+      "expected": {
+        "with_margin": 120000
+      }
+    }
+  ]
+}

@@ -1,0 +1,118 @@
+{
+  "schema_version": 1,
+  "surface": "orderbook",
+  "generated_at_utc": "2026-04-11T00:00:00Z",
+  "source_refs": [
+    {
+      "repo": "cow-sdk",
+      "commit": "17fcfc590be8529dc4fe05b1c472fef1b07b47f4",
+      "path": "packages/sdk/src/order-book/api.ts",
+      "anchors": ["OrderBookApi", "getQuote", "sendOrder"]
+    },
+    {
+      "repo": "cow-sdk",
+      "commit": "17fcfc590be8529dc4fe05b1c472fef1b07b47f4",
+      "path": "packages/sdk/src/order-book/types.ts",
+      "anchors": ["OrderStatus", "OrderClass", "QuoteSide"]
+    }
+  ],
+  "cases": [
+    {
+      "id": "orderbook-api-endpoints",
+      "kind": "contract-shape",
+      "description": "Orderbook REST API endpoint paths",
+      "expected": {
+        "version": "/api/v1/version",
+        "quote": "/api/v1/quote",
+        "orders": "/api/v1/orders",
+        "order_by_uid": "/api/v1/orders/{uid}",
+        "order_status": "/api/v1/orders/{uid}/status",
+        "native_price": "/api/v1/token/{address}/native_price",
+        "account_orders": "/api/v1/account/{address}/orders",
+        "auction": "/api/v1/auction",
+        "solver_competition": "/api/v1/solver_competition/{auction_id}",
+        "solver_competition_by_tx": "/api/v1/solver_competition/by_tx_hash/{tx_hash}",
+        "transactions_orders": "/api/v1/transactions/{tx_hash}/orders",
+        "total_surplus": "/api/v1/users/{address}/total_surplus",
+        "app_data": "/api/v1/app_data/{app_data_hash}"
+      }
+    },
+    {
+      "id": "orderbook-order-status-values",
+      "kind": "contract-shape",
+      "description": "OrderStatus enum camelCase string representations",
+      "expected": {
+        "presignature_pending": "presignaturePending",
+        "open": "open",
+        "fulfilled": "fulfilled",
+        "cancelled": "cancelled",
+        "expired": "expired"
+      }
+    },
+    {
+      "id": "orderbook-order-class-values",
+      "kind": "contract-shape",
+      "description": "OrderClass enum camelCase string representations",
+      "expected": {
+        "market": "market",
+        "limit": "limit",
+        "liquidity": "liquidity"
+      }
+    },
+    {
+      "id": "orderbook-quote-side-sell",
+      "kind": "behavior-contract",
+      "description": "QuoteSide::sell sets kind=sell and sell_amount_before_fee",
+      "input": {
+        "amount": "1000000000000000000"
+      },
+      "expected": {
+        "kind": "sell",
+        "has_sell_amount_before_fee": true,
+        "has_buy_amount_after_fee": false
+      }
+    },
+    {
+      "id": "orderbook-quote-side-buy",
+      "kind": "behavior-contract",
+      "description": "QuoteSide::buy sets kind=buy and buy_amount_after_fee",
+      "input": {
+        "amount": "1000000000"
+      },
+      "expected": {
+        "kind": "buy",
+        "has_sell_amount_before_fee": false,
+        "has_buy_amount_after_fee": true
+      }
+    },
+    {
+      "id": "orderbook-quote-request-defaults",
+      "kind": "behavior-contract",
+      "description": "OrderQuoteRequest default field values",
+      "expected": {
+        "partially_fillable_default": false,
+        "sell_token_balance_default": "erc20",
+        "buy_token_balance_default": "erc20"
+      }
+    },
+    {
+      "id": "orderbook-trade-response-fields",
+      "kind": "contract-shape",
+      "description": "Trade response struct field names (camelCase in JSON)",
+      "expected": {
+        "fields": [
+          "blockNumber",
+          "logIndex",
+          "orderUid",
+          "owner",
+          "sellToken",
+          "buyToken",
+          "sellAmount",
+          "sellAmountBeforeFees",
+          "buyAmount",
+          "txHash"
+        ]
+      }
+    }
+  ]
+}
