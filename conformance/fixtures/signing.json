@@ -1,0 +1,109 @@
+{
+  "schema_version": 1,
+  "surface": "signing",
+  "generated_at_utc": "2026-04-11T00:00:00Z",
+  "source_refs": [
+    {
+      "repo": "cow-sdk",
+      "commit": "17fcfc590be8529dc4fe05b1c472fef1b07b47f4",
+      "path": "packages/sdk/src/order-signing/orderSigningUtils.ts",
+      "anchors": ["domain", "hashOrder", "computeOrderUid"]
+    }
+  ],
+  "cases": [
+    {
+      "id": "signing-domain-separator-mainnet",
+      "kind": "positive",
+      "description": "EIP-712 domain separator for chain 1 (mainnet)",
+      "input": { "chain_id": 1 },
+      "expected": {
+        "domain_separator": "0x5fedd2508a367423da19469f0e1e4a9f2d64264669cfda85ae327672131d3325"
+      }
+    },
+    {
+      "id": "signing-domain-separator-gnosis",
+      "kind": "positive",
+      "description": "EIP-712 domain separator for chain 100 (gnosis)",
+      "input": { "chain_id": 100 },
+      "expected": {
+        "domain_separator": "0x506c66c78d51d42f78a6180645a869b0e56a6ad9f9806e9cb1ace7ee9b9dce89"
+      }
+    },
+    {
+      "id": "signing-order-hash-sell",
+      "kind": "positive",
+      "description": "EIP-712 struct hash for a sell order",
+      "input": {
+        "order": {
+          "sellToken": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+          "buyToken": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+          "receiver": "0x0000000000000000000000000000000000000000",
+          "sellAmount": "1000000000000000000",
+          "buyAmount": "1000000000",
+          "validTo": 1999999999,
+          "appData": "0x0000000000000000000000000000000000000000000000000000000000000000",
+          "feeAmount": "0",
+          "kind": "sell",
+          "partiallyFillable": false,
+          "sellTokenBalance": "erc20",
+          "buyTokenBalance": "erc20"
+        }
+      },
+      "expected": {
+        "order_hash_is_deterministic": true,
+        "order_hash_length": 66
+      }
+    },
+    {
+      "id": "signing-order-uid-format",
+      "kind": "behavior-contract",
+      "description": "Order UID is 56 bytes: orderDigest(32) + owner(20) + validTo(4)",
+      "expected": {
+        "uid_hex_length": 114,
+        "components": ["orderDigest_32bytes", "owner_20bytes", "validTo_4bytes"]
+      }
+    },
+    {
+      "id": "signing-order-uid-roundtrip",
+      "kind": "positive",
+      "description": "pack_order_uid_params and extract_order_uid_params are inverse",
+      "input": {
+        "owner": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+        "valid_to": 1999999999
+      },
+      "expected": {
+        "roundtrip_succeeds": true
+      }
+    },
+    {
+      "id": "signing-ecdsa-eip712",
+      "kind": "behavior-contract",
+      "description": "EIP-712 signing produces a 65-byte ECDSA signature",
+      "expected": {
+        "signature_hex_length": 132,
+        "signing_scheme": "eip712"
+      }
+    },
+    {
+      "id": "signing-ecdsa-ethsign",
+      "kind": "behavior-contract",
+      "description": "eth_sign signing produces a 65-byte ECDSA signature with ethsign scheme",
+      "expected": {
+        "signature_hex_length": 132,
+        "signing_scheme": "ethsign"
+      }
+    },
+    {
+      "id": "signing-presign-result",
+      "kind": "positive",
+      "description": "Pre-sign result uses the owner address as the signature",
+      "input": {
+        "owner": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"
+      },
+      "expected": {
+        "signing_scheme": "presign",
+        "signature_contains_owner": true
+      }
+    }
+  ]
+}
