@@ -194,6 +194,82 @@ pub async fn wasm_sign_order(
     serde_json::to_string(&json).map_err(to_js_err)
 }
 
+// ── Browser Wallet Signing (EIP-1193) ────────────────────────────────────────
+
+/// Sign a CoW Protocol order using a browser wallet via EIP-1193.
+///
+/// Instead of a private key, this function accepts a JavaScript callback
+/// (`signer_fn`) that receives the EIP-712 signing digest and returns a
+/// `Promise<string>` with the `0x`-prefixed hex signature. This allows
+/// MetaMask or any EIP-1193 wallet to sign without exposing private keys.
+///
+/// # Arguments
+///
+/// * `order_json` — Order JSON string (same format as `signOrder`).
+/// * `chain_id` — Numeric chain ID.
+/// * `signer_fn` — A JavaScript function: `(digest: string) => Promise<string>`.
+///
+/// # Returns
+///
+/// A JSON string: `{ "signature": "0x...", "signingScheme": "eip712",
+/// "orderHash": "0x...", "domainSeparator": "0x...", "signingDigest": "0x..." }`.
+///
+/// # JavaScript Usage
+///
+/// ```javascript
+/// const signerFn = async (digest) => {
+///   return await window.ethereum.request({
+///     method: 'personal_sign',
+///     params: [digest, account],
+///   });
+/// };
+/// const result = await signOrderWithBrowserWallet(orderJson, chainId, signerFn);
+/// ```
+#[wasm_bindgen(js_name = "signOrderWithBrowserWallet")]
+pub async fn wasm_sign_order_with_browser_wallet(
+    order_json: &str,
+    chain_id: u32,
+    signer_fn: &js_sys::Function,
+) -> Result<String, JsValue> {
+    let order = parse_order(order_json)?;
+    let chain = u64::from(chain_id);
+
+    let domain_sep = domain_separator(chain);
+    let o_hash = order_hash(&order);
+    let digest = signing_digest(domain_sep, o_hash);
+
+    let domain_sep_hex = hex_b256(domain_sep);
+    let order_hash_hex = hex_b256(o_hash);
+    let digest_hex = hex_b256(digest);
+
+    // Call the JS signer function with the digest
+    let promise = signer_fn
+        .call1(&JsValue::NULL, &JsValue::from_str(&digest_hex))
+        .map_err(|e| to_js_err(format!("signer_fn call failed: {}", e.as_string().unwrap_or_default())))?;
+
+    // Await the Promise
+    let future = wasm_bindgen_futures::JsFuture::from(js_sys::Promise::from(promise));
+    let signature = future.await.map_err(|e| {
+        to_js_err(format!(
+            "signer rejected: {}",
+            e.as_string().unwrap_or_default()
+        ))
+    })?;
+
+    let sig_str = signature
+        .as_string()
+        .ok_or_else(|| to_js_err("signer_fn must return a hex string signature"))?;
+
+    let json = serde_json::json!({
+        "signature": sig_str,
+        "signingScheme": "eip712",
+        "orderHash": order_hash_hex,
+        "domainSeparator": domain_sep_hex,
+        "signingDigest": digest_hex,
+    });
+    serde_json::to_string(&json).map_err(to_js_err)
+}
+
 // ── App-Data ─────────────────────────────────────────────────────────────────
 
 /// Compute the keccak256 app-data hash from an `AppDataDoc` JSON string.
