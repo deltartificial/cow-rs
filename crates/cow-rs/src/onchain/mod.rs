@@ -446,8 +446,8 @@ mod tests {
     #[test]
     fn onchain_reader_clone() {
         let reader = OnchainReader::new("https://example.com");
-        let cloned = reader.clone();
-        assert_eq!(cloned.rpc_url, "https://example.com");
+        let cloned_url = reader.clone().rpc_url;
+        assert_eq!(cloned_url, "https://example.com");
     }
 
     #[test]

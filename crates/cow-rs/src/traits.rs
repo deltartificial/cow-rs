@@ -705,9 +705,8 @@ mod tests {
 
     #[tokio::test]
     async fn private_key_signer_address() {
-        use alloy_signer::Signer;
         let signer = alloy_signer_local::PrivateKeySigner::random();
-        let expected = signer.address();
+        let expected = alloy_signer::Signer::address(&signer);
         let cow_addr = <alloy_signer_local::PrivateKeySigner as CowSigner>::address(&signer);
         assert_eq!(cow_addr, expected);
     }
