@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "surface": "core",
+  "generated_at_utc": "2026-04-11T00:00:00Z",
+  "source_refs": [
+    {
+      "repo": "cow-sdk",
+      "commit": "17fcfc590be8529dc4fe05b1c472fef1b07b47f4",
+      "path": "packages/common/src/chains.ts",
+      "anchors": ["SupportedChainId"]
+    }
+  ],
+  "cases": [
+    {
+      "id": "core-supported-chain-ids",
+      "kind": "contract-shape",
+      "description": "All chains supported by the CoW Protocol orderbook",
+      "expected": {
+        "chain_ids": [1, 100, 42161, 8453, 11155111, 137, 43114, 56, 59144, 232, 9745, 57073]
+      }
+    },
+    {
+      "id": "core-settlement-address",
+      "kind": "positive",
+      "description": "Settlement contract address is identical across all chains",
+      "expected": {
+        "address": "0x9008D19f58AAbD9eD0D60971565AA8510560ab41"
+      }
+    },
+    {
+      "id": "core-vault-relayer-address",
+      "kind": "positive",
+      "description": "Vault relayer address is identical across all chains",
+      "expected": {
+        "address": "0xC92E8bdf79f0507f65a392b0ab4667716BFE0110"
+      }
+    },
+    {
+      "id": "core-buy-eth-address",
+      "kind": "positive",
+      "description": "BUY_ETH_ADDRESS sentinel for native currency orders",
+      "expected": {
+        "address": "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"
+      }
+    },
+    {
+      "id": "core-api-base-urls",
+      "kind": "behavior-contract",
+      "description": "API base URLs follow the pattern https://{barn.}api.cow.fi/{network}",
+      "expected": {
+        "prod_mainnet": "https://api.cow.fi/mainnet",
+        "prod_gnosis": "https://api.cow.fi/xdai",
+        "staging_mainnet": "https://barn.api.cow.fi/mainnet",
+        "staging_sepolia": "https://barn.api.cow.fi/sepolia"
+      }
+    },
+    {
+      "id": "core-order-kind-values",
+      "kind": "contract-shape",
+      "description": "OrderKind enum string representations",
+      "expected": {
+        "sell": "sell",
+        "buy": "buy"
+      }
+    },
+    {
+      "id": "core-signing-scheme-values",
+      "kind": "contract-shape",
+      "description": "SigningScheme enum string representations",
+      "expected": {
+        "eip712": "eip712",
+        "ethsign": "ethsign",
+        "eip1271": "eip1271",
+        "presign": "presign"
+      }
+    },
+    {
+      "id": "core-token-balance-values",
+      "kind": "contract-shape",
+      "description": "TokenBalance enum string representations",
+      "expected": {
+        "erc20": "erc20",
+        "external": "external",
+        "internal": "internal"
+      }
+    }
+  ]
+}

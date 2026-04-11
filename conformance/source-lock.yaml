@@ -1,0 +1,39 @@
+# Pinned upstream source contract for parity fixtures.
+# Each fixture case proves that our Rust SDK produces identical output
+# to the TypeScript SDK at the pinned commit.
+#
+# Workflow:
+#   1. Pin upstream commits here
+#   2. Extract test vectors from TS SDK at those commits
+#   3. Commit fixtures as reviewable JSON
+#   4. Rust tests load fixtures and assert output == expected
+#
+# To update: change commits, re-extract fixtures, run `cargo nextest run`
+
+repositories:
+  cow-sdk:
+    url: https://github.com/cowprotocol/cow-sdk
+    commit: 17fcfc590be8529dc4fe05b1c472fef1b07b47f4
+    description: "CoW Protocol TypeScript SDK"
+    pinned_at: "2026-04-11"
+
+  cow-contracts:
+    url: https://github.com/cowprotocol/contracts
+    commit: c94c595a791681cf8ba7495117dcde397b932885
+    description: "GPv2 Settlement smart contracts"
+    pinned_at: "2026-04-11"
+
+  services:
+    url: https://github.com/cowprotocol/services
+    commit: cfbec985dfe476bf7ef42750435f7d5a12223a85
+    description: "Orderbook API (OpenAPI spec reference)"
+    reference_only: true
+    pinned_at: "2026-04-11"
+
+surfaces:
+  - core
+  - contracts
+  - signing
+  - app-data
+  - orderbook
+  - trading

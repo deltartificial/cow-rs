@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "surface": "contracts",
+  "generated_at_utc": "2026-04-11T00:00:00Z",
+  "source_refs": [
+    {
+      "repo": "cow-contracts",
+      "commit": "c94c595a791681cf8ba7495117dcde397b932885",
+      "path": "contracts/GPv2Settlement.sol",
+      "anchors": ["GPv2Order", "setPreSignature", "invalidateOrder"]
+    }
+  ],
+  "cases": [
+    {
+      "id": "contracts-order-type-fields",
+      "kind": "contract-shape",
+      "description": "GPv2Order.Data has exactly 12 fields in the correct order",
+      "expected": {
+        "fields": [
+          "sellToken", "buyToken", "receiver", "sellAmount", "buyAmount",
+          "validTo", "appData", "feeAmount", "kind", "partiallyFillable",
+          "sellTokenBalance", "buyTokenBalance"
+        ]
+      }
+    },
+    {
+      "id": "contracts-order-uid-length",
+      "kind": "contract-shape",
+      "description": "Order UID is exactly 56 bytes (112 hex chars + 0x prefix = 114)",
+      "expected": {
+        "byte_length": 56,
+        "hex_string_length": 114
+      }
+    },
+    {
+      "id": "contracts-set-pre-signature-selector",
+      "kind": "positive",
+      "description": "setPreSignature(bytes,bool) has a specific 4-byte selector",
+      "expected": {
+        "selector_length": 4,
+        "calldata_min_length": 164
+      }
+    },
+    {
+      "id": "contracts-invalidate-order-selector",
+      "kind": "positive",
+      "description": "invalidateOrder(bytes) has a specific 4-byte selector",
+      "expected": {
+        "selector_length": 4,
+        "calldata_min_length": 132
+      }
+    },
+    {
+      "id": "contracts-create2-deterministic",
+      "kind": "behavior-contract",
+      "description": "CREATE2 deployment address is deterministic for same bytecode + salt",
+      "expected": {
+        "same_input_same_output": true,
+        "different_bytecode_different_output": true
+      }
+    },
+    {
+      "id": "contracts-eip1967-implementation-slot",
+      "kind": "positive",
+      "description": "EIP-1967 implementation storage slot",
+      "expected": {
+        "slot": "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc"
+      }
+    },
+    {
+      "id": "contracts-eip1967-owner-slot",
+      "kind": "positive",
+      "description": "EIP-1967 admin/owner storage slot",
+      "expected": {
+        "slot": "0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103"
+      }
+    },
+    {
+      "id": "contracts-max-valid-to",
+      "kind": "positive",
+      "description": "MAX_VALID_TO_EPOCH is u32::MAX",
+      "expected": {
+        "value": 4294967295
+      }
+    }
+  ]
+}
