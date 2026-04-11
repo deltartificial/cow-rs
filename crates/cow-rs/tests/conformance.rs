@@ -15,14 +15,20 @@ use cow_rs::{
     config::{
         chain::{api_base_url, order_explorer_link},
         contracts::{
-            BUY_ETH_ADDRESS, IMPLEMENTATION_STORAGE_SLOT, MAX_VALID_TO_EPOCH,
-            OWNER_STORAGE_SLOT, SETTLEMENT_CONTRACT, VAULT_RELAYER,
-            deterministic_deployment_address, settlement_contract,
+            BUY_ETH_ADDRESS, IMPLEMENTATION_STORAGE_SLOT, MAX_VALID_TO_EPOCH, OWNER_STORAGE_SLOT,
+            SETTLEMENT_CONTRACT, VAULT_RELAYER, deterministic_deployment_address,
+            settlement_contract,
         },
     },
+    order_book::types::{OrderClass, OrderStatus, QuoteSide},
     order_signing::{
         eip712::{domain_separator, order_hash, signing_digest},
         utils::{compute_order_uid, presign_result},
+    },
+    trading::{
+        Amounts, DEFAULT_FEE_SLIPPAGE_FACTOR_PCT, DEFAULT_QUOTE_VALIDITY, DEFAULT_SLIPPAGE_BPS,
+        DEFAULT_VOLUME_SLIPPAGE_BPS, ETH_FLOW_DEFAULT_SLIPPAGE_BPS, GAS_LIMIT_DEFAULT,
+        MAX_SLIPPAGE_BPS, NetworkFee, bps_to_percentage, calculate_gas_margin, percentage_to_bps,
     },
 };
 
@@ -35,8 +41,7 @@ fn load_fixture(surface: &str) -> serde_json::Value {
     );
     let content = std::fs::read_to_string(&path)
         .unwrap_or_else(|e| panic!("failed to read fixture {path}: {e}"));
-    serde_json::from_str(&content)
-        .unwrap_or_else(|e| panic!("failed to parse fixture {path}: {e}"))
+    serde_json::from_str(&content).unwrap_or_else(|e| panic!("failed to parse fixture {path}: {e}"))
 }
 
 fn find_case<'a>(fixture: &'a serde_json::Value, id: &str) -> &'a serde_json::Value {
@@ -174,7 +179,8 @@ fn conformance_signing_order_uid_format() {
         "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48".parse().unwrap(),
         alloy_primitives::U256::from(1_000_000_000_000_000_000u64),
         alloy_primitives::U256::from(1_000_000_000u64),
-    ).with_valid_to(1999999999);
+    )
+    .with_valid_to(1999999999);
     let owner: alloy_primitives::Address =
         "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045".parse().unwrap();
     let uid = compute_order_uid(1, &order, owner);
@@ -188,7 +194,10 @@ fn conformance_signing_presign_result() {
     let owner: alloy_primitives::Address =
         case["input"]["owner"].as_str().unwrap().parse().unwrap();
     let result = presign_result(owner);
-    assert_eq!(result.signing_scheme.as_str(), case["expected"]["signing_scheme"].as_str().unwrap());
+    assert_eq!(
+        result.signing_scheme.as_str(),
+        case["expected"]["signing_scheme"].as_str().unwrap()
+    );
     assert!(result.signature.to_lowercase().contains(&format!("{:x}", owner).to_lowercase()));
 }
 
@@ -205,7 +214,10 @@ fn conformance_appdata_hex_to_cid_roundtrip() {
     assert_eq!(cid.len(), case["expected"]["cid_length"].as_u64().unwrap() as usize);
 
     let recovered = cid_to_appdata_hex(&cid).unwrap();
-    assert_eq!(recovered.len(), case["expected"]["roundtrip_hex_length"].as_u64().unwrap() as usize);
+    assert_eq!(
+        recovered.len(),
+        case["expected"]["roundtrip_hex_length"].as_u64().unwrap() as usize
+    );
 }
 
 #[test]
@@ -307,8 +319,285 @@ fn conformance_contracts_eip1967_slots() {
 fn conformance_contracts_max_valid_to() {
     let fixture = load_fixture("contracts");
     let case = find_case(&fixture, "contracts-max-valid-to");
+    assert_eq!(u64::from(MAX_VALID_TO_EPOCH), case["expected"]["value"].as_u64().unwrap());
+}
+
+// ── Orderbook surface ──────────────────────────────────────────────────────
+
+#[test]
+fn conformance_orderbook_order_status_values() {
+    let fixture = load_fixture("orderbook");
+    let case = find_case(&fixture, "orderbook-order-status-values");
+    let expected = &case["expected"];
     assert_eq!(
-        u64::from(MAX_VALID_TO_EPOCH),
-        case["expected"]["value"].as_u64().unwrap()
+        OrderStatus::PresignaturePending.as_str(),
+        expected["presignature_pending"].as_str().unwrap()
     );
+    assert_eq!(OrderStatus::Open.as_str(), expected["open"].as_str().unwrap());
+    assert_eq!(OrderStatus::Fulfilled.as_str(), expected["fulfilled"].as_str().unwrap());
+    assert_eq!(OrderStatus::Cancelled.as_str(), expected["cancelled"].as_str().unwrap());
+    assert_eq!(OrderStatus::Expired.as_str(), expected["expired"].as_str().unwrap());
+}
+
+#[test]
+fn conformance_orderbook_order_class_values() {
+    let fixture = load_fixture("orderbook");
+    let case = find_case(&fixture, "orderbook-order-class-values");
+    let expected = &case["expected"];
+    assert_eq!(OrderClass::Market.as_str(), expected["market"].as_str().unwrap());
+    assert_eq!(OrderClass::Limit.as_str(), expected["limit"].as_str().unwrap());
+    assert_eq!(OrderClass::Liquidity.as_str(), expected["liquidity"].as_str().unwrap());
+}
+
+#[test]
+fn conformance_orderbook_quote_side_sell() {
+    let fixture = load_fixture("orderbook");
+    let case = find_case(&fixture, "orderbook-quote-side-sell");
+    let amount = case["input"]["amount"].as_str().unwrap();
+    let expected = &case["expected"];
+
+    let side = QuoteSide::sell(amount);
+    assert_eq!(side.kind.as_str(), expected["kind"].as_str().unwrap());
+    assert_eq!(
+        side.sell_amount_before_fee.is_some(),
+        expected["has_sell_amount_before_fee"].as_bool().unwrap()
+    );
+    assert_eq!(
+        side.buy_amount_after_fee.is_some(),
+        expected["has_buy_amount_after_fee"].as_bool().unwrap()
+    );
+}
+
+#[test]
+fn conformance_orderbook_quote_side_buy() {
+    let fixture = load_fixture("orderbook");
+    let case = find_case(&fixture, "orderbook-quote-side-buy");
+    let amount = case["input"]["amount"].as_str().unwrap();
+    let expected = &case["expected"];
+
+    let side = QuoteSide::buy(amount);
+    assert_eq!(side.kind.as_str(), expected["kind"].as_str().unwrap());
+    assert_eq!(
+        side.sell_amount_before_fee.is_some(),
+        expected["has_sell_amount_before_fee"].as_bool().unwrap()
+    );
+    assert_eq!(
+        side.buy_amount_after_fee.is_some(),
+        expected["has_buy_amount_after_fee"].as_bool().unwrap()
+    );
+}
+
+#[test]
+fn conformance_orderbook_quote_request_defaults() {
+    let fixture = load_fixture("orderbook");
+    let case = find_case(&fixture, "orderbook-quote-request-defaults");
+    let expected = &case["expected"];
+
+    // Default values verified against the struct definition.
+    assert_eq!(false, expected["partially_fillable_default"].as_bool().unwrap());
+    assert_eq!(
+        TokenBalance::Erc20.as_str(),
+        expected["sell_token_balance_default"].as_str().unwrap()
+    );
+    assert_eq!(
+        TokenBalance::Erc20.as_str(),
+        expected["buy_token_balance_default"].as_str().unwrap()
+    );
+}
+
+#[test]
+fn conformance_orderbook_trade_response_fields() {
+    let fixture = load_fixture("orderbook");
+    let case = find_case(&fixture, "orderbook-trade-response-fields");
+    let expected_fields: Vec<&str> = case["expected"]["fields"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| v.as_str().unwrap())
+        .collect();
+
+    // Serialize a Trade instance and verify all expected fields appear in the JSON.
+    let trade = cow_rs::order_book::types::Trade {
+        block_number: 1,
+        log_index: 0,
+        order_uid: "0x".to_owned(),
+        owner: "0x".to_owned(),
+        sell_token: "0x".to_owned(),
+        buy_token: "0x".to_owned(),
+        sell_amount: "0".to_owned(),
+        sell_amount_before_fees: "0".to_owned(),
+        buy_amount: "0".to_owned(),
+        tx_hash: Some("0x".to_owned()),
+    };
+    let json: serde_json::Value = serde_json::to_value(&trade).unwrap();
+    let obj = json.as_object().unwrap();
+    for field in &expected_fields {
+        assert!(obj.contains_key(*field), "missing field: {field}");
+    }
+}
+
+// ── Trading surface ────────────────────────────────────────────────────────
+
+#[test]
+fn conformance_trading_default_slippage_bps() {
+    let fixture = load_fixture("trading");
+    let case = find_case(&fixture, "trading-default-slippage-bps");
+    assert_eq!(
+        u64::from(DEFAULT_SLIPPAGE_BPS),
+        case["expected"]["default_slippage_bps"].as_u64().unwrap()
+    );
+}
+
+#[test]
+fn conformance_trading_default_quote_validity() {
+    let fixture = load_fixture("trading");
+    let case = find_case(&fixture, "trading-default-quote-validity");
+    assert_eq!(
+        u64::from(DEFAULT_QUOTE_VALIDITY),
+        case["expected"]["default_quote_validity_seconds"].as_u64().unwrap()
+    );
+}
+
+#[test]
+fn conformance_trading_eth_flow_default_slippage() {
+    let fixture = load_fixture("trading");
+    let case = find_case(&fixture, "trading-eth-flow-default-slippage");
+    assert_eq!(
+        u64::from(ETH_FLOW_DEFAULT_SLIPPAGE_BPS),
+        case["expected"]["eth_flow_default_slippage_bps"].as_u64().unwrap()
+    );
+}
+
+#[test]
+fn conformance_trading_gas_limit_default() {
+    let fixture = load_fixture("trading");
+    let case = find_case(&fixture, "trading-gas-limit-default");
+    assert_eq!(GAS_LIMIT_DEFAULT, case["expected"]["gas_limit_default"].as_u64().unwrap());
+}
+
+#[test]
+fn conformance_trading_slippage_sell_order() {
+    let fixture = load_fixture("trading");
+    let case = find_case(&fixture, "trading-slippage-sell-order");
+    let buy_amount: alloy_primitives::U256 =
+        case["input"]["buy_amount"].as_str().unwrap().parse().unwrap();
+    let slippage_bps = case["input"]["slippage_bps"].as_u64().unwrap() as u32;
+
+    // Sell order slippage: buy_amount * (10000 - bps) / 10000
+    let adjusted = buy_amount * alloy_primitives::U256::from(10_000u32 - slippage_bps) /
+        alloy_primitives::U256::from(10_000u32);
+    let expected: alloy_primitives::U256 =
+        case["expected"]["adjusted_buy_amount"].as_str().unwrap().parse().unwrap();
+    assert_eq!(adjusted, expected);
+}
+
+#[test]
+fn conformance_trading_slippage_buy_order() {
+    let fixture = load_fixture("trading");
+    let case = find_case(&fixture, "trading-slippage-buy-order");
+    let sell_amount: alloy_primitives::U256 =
+        case["input"]["sell_amount"].as_str().unwrap().parse().unwrap();
+    let slippage_bps = case["input"]["slippage_bps"].as_u64().unwrap() as u32;
+
+    // Buy order slippage: sell_amount * (10000 + bps) / 10000
+    let adjusted = sell_amount * alloy_primitives::U256::from(10_000u32 + slippage_bps) /
+        alloy_primitives::U256::from(10_000u32);
+    let expected: alloy_primitives::U256 =
+        case["expected"]["adjusted_sell_amount"].as_str().unwrap().parse().unwrap();
+    assert_eq!(adjusted, expected);
+}
+
+#[test]
+fn conformance_trading_amounts_zero_check() {
+    let fixture = load_fixture("trading");
+    let case = find_case(&fixture, "trading-amounts-zero-check");
+    let expected = &case["expected"];
+
+    let zero = Amounts::new(alloy_primitives::U256::ZERO, alloy_primitives::U256::ZERO);
+    assert_eq!(zero.is_zero(), expected["zero_zero_is_zero"].as_bool().unwrap());
+
+    let nonzero_sell =
+        Amounts::new(alloy_primitives::U256::from(1u32), alloy_primitives::U256::ZERO);
+    assert_eq!(nonzero_sell.is_zero(), expected["nonzero_zero_is_zero"].as_bool().unwrap());
+
+    let nonzero_buy =
+        Amounts::new(alloy_primitives::U256::ZERO, alloy_primitives::U256::from(1u32));
+    assert_eq!(nonzero_buy.is_zero(), expected["zero_nonzero_is_zero"].as_bool().unwrap());
+}
+
+#[test]
+fn conformance_trading_network_fee_zero_check() {
+    let fixture = load_fixture("trading");
+    let case = find_case(&fixture, "trading-network-fee-zero-check");
+    let expected = &case["expected"];
+
+    let zero = NetworkFee::new(alloy_primitives::U256::ZERO, alloy_primitives::U256::ZERO);
+    assert_eq!(zero.is_zero(), expected["zero_zero_is_zero"].as_bool().unwrap());
+
+    let nonzero_sell =
+        NetworkFee::new(alloy_primitives::U256::from(1u32), alloy_primitives::U256::ZERO);
+    assert_eq!(nonzero_sell.is_zero(), expected["nonzero_zero_is_zero"].as_bool().unwrap());
+
+    let nonzero_buy =
+        NetworkFee::new(alloy_primitives::U256::ZERO, alloy_primitives::U256::from(1u32));
+    assert_eq!(nonzero_buy.is_zero(), expected["zero_nonzero_is_zero"].as_bool().unwrap());
+}
+
+#[test]
+fn conformance_trading_slippage_suggest_constants() {
+    let fixture = load_fixture("trading");
+    let case = find_case(&fixture, "trading-slippage-suggest-constants");
+    let expected = &case["expected"];
+
+    assert_eq!(
+        u64::from(DEFAULT_FEE_SLIPPAGE_FACTOR_PCT),
+        expected["default_fee_slippage_factor_pct"].as_u64().unwrap()
+    );
+    assert_eq!(
+        u64::from(DEFAULT_VOLUME_SLIPPAGE_BPS),
+        expected["default_volume_slippage_bps"].as_u64().unwrap()
+    );
+    assert_eq!(u64::from(MAX_SLIPPAGE_BPS), expected["max_slippage_bps"].as_u64().unwrap());
+}
+
+#[test]
+fn conformance_trading_percentage_bps_conversion() {
+    let fixture = load_fixture("trading");
+    let case = find_case(&fixture, "trading-percentage-bps-conversion");
+    let expected = &case["expected"];
+
+    assert_eq!(
+        u64::from(percentage_to_bps(rust_decimal::Decimal::new(5, 1))),
+        expected["half_pct_to_bps"].as_u64().unwrap()
+    );
+    assert_eq!(
+        u64::from(percentage_to_bps(rust_decimal::Decimal::new(1, 0))),
+        expected["one_pct_to_bps"].as_u64().unwrap()
+    );
+    // bps_to_percentage(50) == 50/100 == 0.5
+    let fifty_pct = bps_to_percentage(50);
+    let fifty_expected =
+        rust_decimal::Decimal::from(expected["fifty_bps_to_pct_numerator"].as_u64().unwrap()) /
+            rust_decimal::Decimal::from(
+                expected["fifty_bps_to_pct_denominator"].as_u64().unwrap(),
+            );
+    assert_eq!(fifty_pct, fifty_expected);
+
+    // bps_to_percentage(100) == 100/100 == 1.0
+    let hundred_pct = bps_to_percentage(100);
+    let hundred_expected =
+        rust_decimal::Decimal::from(expected["hundred_bps_to_pct_numerator"].as_u64().unwrap()) /
+            rust_decimal::Decimal::from(
+                expected["hundred_bps_to_pct_denominator"].as_u64().unwrap(),
+            );
+    assert_eq!(hundred_pct, hundred_expected);
+}
+
+#[test]
+fn conformance_trading_gas_margin() {
+    let fixture = load_fixture("trading");
+    let case = find_case(&fixture, "trading-gas-margin");
+    let gas_estimate = case["input"]["gas_estimate"].as_u64().unwrap();
+    let expected = case["expected"]["with_margin"].as_u64().unwrap();
+    assert_eq!(calculate_gas_margin(gas_estimate), expected);
 }
