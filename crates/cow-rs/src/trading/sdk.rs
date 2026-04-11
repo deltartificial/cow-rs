@@ -205,7 +205,7 @@ pub fn swap_params_to_limit_order_params(
 // ── Config ───────────────────────────────────────────────────────────────────
 
 /// Configuration for [`TradingSdk`].
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct TradingSdkConfig {
     /// Target chain.
     pub chain_id: SupportedChainId,
@@ -231,6 +231,31 @@ pub struct TradingSdkConfig {
     /// [`TradingSdk::get_cow_protocol_allowance`]).  When `None`, those
     /// methods return a [`CowError::Rpc`] with code `-1`.
     pub rpc_url: Option<String>,
+    /// Optional injectable orderbook client for testing or custom backends.
+    ///
+    /// When set, the [`TradingSdk`] will use this client instead of creating
+    /// a default [`OrderBookApi`]. This enables dependency injection of mock
+    /// implementations for unit testing without network I/O.
+    ///
+    /// Uses `Arc<dyn OrderbookClient>` for shared ownership and object safety.
+    /// Wrapped in `Option` to maintain backwards compatibility with existing
+    /// constructors.
+    pub orderbook_client: Option<Arc<dyn crate::traits::OrderbookClient>>,
+}
+
+impl std::fmt::Debug for TradingSdkConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TradingSdkConfig")
+            .field("chain_id", &self.chain_id)
+            .field("env", &self.env)
+            .field("app_code", &self.app_code)
+            .field("slippage_bps", &self.slippage_bps)
+            .field("utm", &self.utm)
+            .field("partner_fee", &self.partner_fee)
+            .field("rpc_url", &self.rpc_url)
+            .field("orderbook_client", &self.orderbook_client.as_ref().map(|_| ".."))
+            .finish()
+    }
 }
 
 impl TradingSdkConfig {
@@ -255,6 +280,7 @@ impl TradingSdkConfig {
             utm: None,
             partner_fee: None,
             rpc_url: None,
+            orderbook_client: None,
         }
     }
 
@@ -282,6 +308,7 @@ impl TradingSdkConfig {
             utm: None,
             partner_fee: None,
             rpc_url: None,
+            orderbook_client: None,
         }
     }
 
@@ -346,6 +373,28 @@ impl TradingSdkConfig {
         self.rpc_url = Some(rpc_url.into());
         self
     }
+
+    /// Inject a custom [`OrderbookClient`](crate::traits::OrderbookClient) implementation.
+    ///
+    /// When set, the [`TradingSdk`] will use this client for all orderbook
+    /// operations instead of the default [`OrderBookApi`]. This enables
+    /// dependency injection of mock implementations for testing.
+    ///
+    /// # Arguments
+    ///
+    /// * `client` — an `Arc<dyn OrderbookClient>` wrapping your implementation.
+    ///
+    /// # Returns
+    ///
+    /// The config with the orderbook client set (builder pattern).
+    #[must_use]
+    pub fn with_orderbook_client(
+        mut self,
+        client: Arc<dyn crate::traits::OrderbookClient>,
+    ) -> Self {
+        self.orderbook_client = Some(client);
+        self
+    }
 }
 
 // ── SDK ───────────────────────────────────────────────────────────────────────
@@ -391,11 +440,24 @@ impl TradingSdkConfig {
 /// # Ok(())
 /// # }
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct TradingSdk {
     config: Arc<TradingSdkConfig>,
     api: Arc<OrderBookApi>,
     signer: Arc<PrivateKeySigner>,
+    /// Optional injected orderbook client for testing or custom backends.
+    orderbook_client: Option<Arc<dyn crate::traits::OrderbookClient>>,
+}
+
+impl std::fmt::Debug for TradingSdk {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TradingSdk")
+            .field("config", &self.config)
+            .field("api", &self.api)
+            .field("signer", &self.signer)
+            .field("orderbook_client", &self.orderbook_client.as_ref().map(|_| ".."))
+            .finish()
+    }
 }
 
 impl TradingSdk {
@@ -421,7 +483,13 @@ impl TradingSdk {
             .parse()
             .map_err(|e: alloy_signer_local::LocalSignerError| CowError::Signing(e.to_string()))?;
         let api = OrderBookApi::new(config.chain_id, config.env);
-        Ok(Self { config: Arc::new(config), api: Arc::new(api), signer: Arc::new(signer) })
+        let orderbook_client = config.orderbook_client.clone();
+        Ok(Self {
+            config: Arc::new(config),
+            api: Arc::new(api),
+            signer: Arc::new(signer),
+            orderbook_client,
+        })
     }
 
     /// Create a new [`TradingSdk`] with a custom base URL for the orderbook API.
@@ -451,7 +519,44 @@ impl TradingSdk {
             .parse()
             .map_err(|e: alloy_signer_local::LocalSignerError| CowError::Signing(e.to_string()))?;
         let api = OrderBookApi::new_with_url(config.chain_id, config.env, base_url);
-        Ok(Self { config: Arc::new(config), api: Arc::new(api), signer: Arc::new(signer) })
+        let orderbook_client = config.orderbook_client.clone();
+        Ok(Self {
+            config: Arc::new(config),
+            api: Arc::new(api),
+            signer: Arc::new(signer),
+            orderbook_client,
+        })
+    }
+
+    /// Replace the orderbook client used by this SDK instance.
+    ///
+    /// Returns a new [`TradingSdk`] that delegates all orderbook operations
+    /// to `client` instead of the default [`OrderBookApi`]. The underlying
+    /// [`OrderBookApi`] is still retained for any future methods that need
+    /// direct access to endpoints not covered by the trait.
+    ///
+    /// # Arguments
+    ///
+    /// * `client` — an `Arc<dyn OrderbookClient>` wrapping your implementation.
+    ///
+    /// # Returns
+    ///
+    /// A new [`TradingSdk`] with the injected orderbook client.
+    #[must_use]
+    pub fn with_orderbook(mut self, client: Arc<dyn crate::traits::OrderbookClient>) -> Self {
+        self.orderbook_client = Some(client);
+        self
+    }
+
+    /// Return the injected orderbook client, or fall back to the default
+    /// [`OrderBookApi`].
+    #[allow(dead_code, reason = "public API surface for future integration and downstream use")]
+    fn resolve_orderbook(&self) -> Arc<dyn crate::traits::OrderbookClient> {
+        if let Some(ref client) = self.orderbook_client {
+            Arc::clone(client)
+        } else {
+            Arc::clone(&self.api) as Arc<dyn crate::traits::OrderbookClient>
+        }
     }
 
     /// Fetch a price quote from the `CoW` Protocol orderbook.
