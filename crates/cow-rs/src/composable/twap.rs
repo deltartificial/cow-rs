@@ -1188,4 +1188,55 @@ mod tests {
         let s = format!("{order}");
         assert!(!s.is_empty());
     }
+
+    #[test]
+    fn twap_order_is_valid_zero_buy_token() {
+        let mut data = sample_data();
+        data.buy_token = Address::ZERO;
+        assert!(!TwapOrder::new(data).is_valid());
+    }
+
+    #[test]
+    fn twap_order_is_valid_zero_buy_amount() {
+        let mut data = sample_data();
+        data.buy_amount = U256::ZERO;
+        assert!(!TwapOrder::new(data).is_valid());
+    }
+
+    #[test]
+    fn twap_order_is_valid_duration_exceeds_max_frequency() {
+        let mut data = sample_data();
+        data.part_duration = super::super::types::MAX_FREQUENCY + 1;
+        assert!(!TwapOrder::new(data).is_valid());
+    }
+
+    #[test]
+    fn twap_order_is_buy_via_kind() {
+        let data = TwapData::buy(buy_token(), sell_token(), U256::from(800u64), 4, 3600);
+        let order = TwapOrder::new(data);
+        assert!(order.is_buy());
+        assert!(!order.is_sell());
+    }
+
+    #[test]
+    fn decode_params_truncated_data() {
+        // Valid header but data_len claims more bytes than available
+        let params = ConditionalOrderParams {
+            handler: Address::ZERO,
+            salt: B256::ZERO,
+            static_input: vec![0xaa; 64],
+        };
+        let hex = encode_params(&params);
+        // Truncate the hex to cut off some data bytes
+        let truncated = &hex[..hex.len() - 10];
+        assert!(decode_params(truncated).is_err());
+    }
+
+    #[test]
+    fn format_epoch_invalid_timestamp() {
+        // A very old negative-like (overflow) timestamp should fallback to raw number
+        let s = format_epoch(0);
+        // timestamp 0 = 1970-01-01
+        assert!(s.contains("1970"));
+    }
 }

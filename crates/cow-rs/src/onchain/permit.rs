@@ -232,4 +232,39 @@ mod tests {
     fn token_address_non_zero() {
         assert_ne!(token(), Address::ZERO);
     }
+
+    #[test]
+    fn onchain_token_info_debug_and_clone() {
+        let info = OnchainTokenInfo {
+            balance: U256::from(100u64),
+            allowance: U256::from(50u64),
+            nonce: U256::from(3u64),
+            decimals: 18,
+            version: "2".into(),
+        };
+        let cloned = info.clone();
+        assert_eq!(info, cloned);
+        let debug = format!("{info:?}");
+        assert!(debug.contains("balance"));
+    }
+
+    #[test]
+    fn onchain_token_info_allowance_exact_zero() {
+        let info = OnchainTokenInfo {
+            balance: U256::ZERO,
+            allowance: U256::ZERO,
+            nonce: U256::ZERO,
+            decimals: 6,
+            version: "1".into(),
+        };
+        assert!(info.allowance_covers(U256::ZERO));
+        assert!(!info.allowance_covers(U256::from(1u64)));
+    }
+
+    #[test]
+    fn nonces_calldata_address_padded() {
+        let cd = build_eip2612_nonces_calldata(Address::ZERO);
+        // First 4 bytes are selector, next 12 bytes should be zero-padding
+        assert!(cd[4..16].iter().all(|&b| b == 0));
+    }
 }

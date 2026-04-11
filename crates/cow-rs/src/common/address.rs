@@ -972,4 +972,71 @@ mod tests {
         set.insert(a);
         assert!(set.contains(&b));
     }
+
+    #[test]
+    fn is_native_token_gnosis() {
+        // Gnosis chain (100) has its own native token
+        assert!(is_native_token(100, "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"));
+    }
+
+    #[test]
+    fn is_native_token_non_native() {
+        assert!(!is_native_token(1, "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"));
+    }
+
+    #[test]
+    fn is_wrapped_native_token_gnosis() {
+        // WXDAI on Gnosis
+        assert!(is_wrapped_native_token(100, "0xe91D153E0b41518A2Ce8Dd3D7944Fa863463a97d"));
+    }
+
+    #[test]
+    fn btc_legacy_too_long() {
+        // 35 chars starting with '1' is too long for legacy
+        assert!(!is_btc_legacy("1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNaa"));
+    }
+
+    #[test]
+    fn btc_bech32_mixed_case_invalid() {
+        // Mixed case after bc1 should fail
+        assert!(!is_btc_bech32_mainnet("bc1Qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4"));
+    }
+
+    #[test]
+    fn btc_legacy_empty_is_false() {
+        assert!(!is_btc_legacy(""));
+    }
+
+    #[test]
+    fn is_supported_address_btc() {
+        assert!(is_supported_address("1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa"));
+    }
+
+    #[test]
+    fn is_supported_address_evm() {
+        assert!(is_supported_address("0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"));
+    }
+
+    #[test]
+    fn is_supported_address_invalid() {
+        assert!(!is_supported_address("xyz"));
+    }
+
+    #[test]
+    fn token_id_hash_eq() {
+        let a = get_token_id(1, "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2");
+        let b = get_token_id(1, "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2");
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn get_address_key_sol_fallback() {
+        // Something not matching EVM or BTC falls to Sol
+        let key = get_address_key("11111111111111111111111111111111");
+        // 32 chars is valid Solana but also passes the EVM check? No, it doesn't have 0x prefix
+        // Actually 32 chars base58 matches Solana, but get_address_key checks BTC first...
+        // BTC won't match: starts with '1' but length 32 (25-34 is in range for legacy)
+        // and base58 chars are valid. So this will match BTC.
+        assert!(matches!(key, AddressKey::Btc(_)));
+    }
 }

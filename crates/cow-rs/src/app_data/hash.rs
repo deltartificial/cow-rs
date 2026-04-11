@@ -482,4 +482,73 @@ mod tests {
         assert!(merged.metadata.widget.is_some());
         assert!(merged.metadata.signer.is_some());
     }
+
+    #[test]
+    fn merge_app_data_doc_overrides_hooks() {
+        use crate::app_data::types::{CowHook, OrderInteractionHooks};
+        let base = AppDataDoc::new("Base");
+        let hook =
+            CowHook::new("0x0000000000000000000000000000000000000001", "0xdeadbeef", "100000");
+        let other = AppDataDoc {
+            version: LATEST_APP_DATA_VERSION.to_owned(),
+            app_code: None,
+            environment: None,
+            metadata: Metadata::default()
+                .with_hooks(OrderInteractionHooks::new(vec![hook], vec![])),
+        };
+        let merged = merge_app_data_doc(base, other);
+        assert!(merged.metadata.hooks.is_some());
+    }
+
+    #[test]
+    fn merge_app_data_doc_overrides_order_class() {
+        use crate::app_data::types::OrderClassKind;
+        let base = AppDataDoc::new("Base");
+        let other = AppDataDoc::new("Other").with_order_class(OrderClassKind::Twap);
+        let merged = merge_app_data_doc(base, other);
+        assert!(merged.metadata.order_class.is_some());
+    }
+
+    #[test]
+    fn merge_app_data_doc_overrides_partner_fee() {
+        use crate::app_data::types::{PartnerFee, PartnerFeeEntry};
+        let base = AppDataDoc::new("Base");
+        let other = AppDataDoc {
+            version: LATEST_APP_DATA_VERSION.to_owned(),
+            app_code: None,
+            environment: None,
+            metadata: Metadata::default().with_partner_fee(PartnerFee::Single(
+                PartnerFeeEntry::volume(50, "0x0000000000000000000000000000000000000001"),
+            )),
+        };
+        let merged = merge_app_data_doc(base, other);
+        assert!(merged.metadata.partner_fee.is_some());
+    }
+
+    #[test]
+    fn merge_app_data_doc_overrides_replaced_order() {
+        let base = AppDataDoc::new("Base");
+        let uid = format!("0x{}", "ab".repeat(56));
+        let other = AppDataDoc::new("Other").with_replaced_order(uid);
+        let merged = merge_app_data_doc(base, other);
+        assert!(merged.metadata.replaced_order.is_some());
+    }
+
+    #[test]
+    fn sort_keys_handles_arrays_and_nested() {
+        let v = serde_json::json!({
+            "b": [{"z": 1, "a": 2}],
+            "a": null,
+        });
+        let sorted = sort_keys(v);
+        let s = serde_json::to_string(&sorted).unwrap();
+        // "a" should come before "b" in the output
+        let a_idx = s.find("\"a\"").unwrap();
+        let b_idx = s.find("\"b\"").unwrap();
+        assert!(a_idx < b_idx);
+        // Inside the array, "a" should come before "z"
+        let inner_a = s.rfind("\"a\"").unwrap();
+        let inner_z = s.find("\"z\"").unwrap();
+        assert!(inner_a < inner_z);
+    }
 }

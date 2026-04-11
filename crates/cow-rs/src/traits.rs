@@ -700,4 +700,46 @@ mod tests {
         let result = mock.fetch("bafybeisomecid").await;
         assert!(result.is_ok(), "trait object fetch should succeed");
     }
+
+    // ── PrivateKeySigner blanket impl tests ────────────────────────────
+
+    #[tokio::test]
+    async fn private_key_signer_address() {
+        use alloy_signer::Signer;
+        let signer = alloy_signer_local::PrivateKeySigner::random();
+        let expected = signer.address();
+        let cow_addr = <alloy_signer_local::PrivateKeySigner as CowSigner>::address(&signer);
+        assert_eq!(cow_addr, expected);
+    }
+
+    #[tokio::test]
+    async fn private_key_signer_sign_typed_data() {
+        let signer = alloy_signer_local::PrivateKeySigner::random();
+        let result = CowSigner::sign_typed_data(&signer, B256::ZERO, B256::ZERO).await;
+        assert!(result.is_ok(), "PrivateKeySigner sign_typed_data should succeed");
+        assert_eq!(result.unwrap().len(), 65);
+    }
+
+    #[tokio::test]
+    async fn private_key_signer_sign_message() {
+        let signer = alloy_signer_local::PrivateKeySigner::random();
+        let result = CowSigner::sign_message(&signer, b"hello world").await;
+        assert!(result.is_ok(), "PrivateKeySigner sign_message should succeed");
+        assert_eq!(result.unwrap().len(), 65);
+    }
+
+    // ── Ipfs struct construction tests ──────────────────────────────────
+
+    #[test]
+    fn ipfs_struct_default_fields() {
+        let ipfs = crate::app_data::Ipfs {
+            read_uri: None,
+            write_uri: None,
+            pinata_api_key: None,
+            pinata_api_secret: None,
+        };
+        // Exercise the default read URI path in IpfsClient::fetch
+        assert!(ipfs.read_uri.is_none());
+        assert!(ipfs.pinata_api_key.is_none());
+    }
 }

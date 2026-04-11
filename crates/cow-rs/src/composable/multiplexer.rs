@@ -920,6 +920,54 @@ mod tests {
     }
 
     #[test]
+    fn from_json_all_proof_locations() {
+        for (val, expected) in [
+            (0, ProofLocation::Private),
+            (1, ProofLocation::Emitted),
+            (2, ProofLocation::Swarm),
+            (3, ProofLocation::Waku),
+            (4, ProofLocation::Reserved),
+            (5, ProofLocation::Ipfs),
+        ] {
+            let json = format!(r#"{{"proof_location": {val}, "orders": []}}"#);
+            let mux = Multiplexer::from_json(&json).unwrap();
+            assert_eq!(mux.proof_location(), expected);
+        }
+    }
+
+    #[test]
+    fn multiplexer_root_three_orders() {
+        let mut mux = Multiplexer::new(ProofLocation::Private);
+        mux.add(make_params(0xaa));
+        mux.add(make_params(0xbb));
+        mux.add(make_params(0xcc));
+        let root = mux.root().unwrap();
+        assert!(root.is_some());
+        // Verify the proof for each order
+        for i in 0..3 {
+            let proof = mux.proof(i).unwrap();
+            assert!(!proof.proof.is_empty() || mux.len() == 1);
+        }
+    }
+
+    #[test]
+    fn order_proof_accessors() {
+        let params = make_params(0xaa);
+        let id = order_id(&params);
+        let proof = OrderProof::new(id, vec![B256::ZERO], params.clone());
+        assert_eq!(proof.order_id, id);
+        assert_eq!(proof.proof_len(), 1);
+        assert_eq!(proof.params.salt, params.salt);
+    }
+
+    #[test]
+    fn proof_with_params_accessors() {
+        let params = make_params(0xaa);
+        let pwp = ProofWithParams::new(vec![B256::ZERO, B256::ZERO], params);
+        assert_eq!(pwp.proof_len(), 2);
+    }
+
+    #[test]
     fn display_proof_with_params() {
         let mut mux = Multiplexer::new(ProofLocation::Private);
         mux.add(make_params(0xaa));

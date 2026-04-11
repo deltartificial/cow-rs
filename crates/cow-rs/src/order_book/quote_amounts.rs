@@ -873,4 +873,71 @@ mod tests {
         assert!(result.sell_amount > U256::from(10_000u64));
         assert_eq!(result.buy_amount, U256::from(1000u64));
     }
+
+    // ── Buy order full pipeline ─────────────────────────────────────────
+
+    #[test]
+    fn buy_order_amounts_to_sign_correct() {
+        let order_params = buy_order();
+        let result = get_quote_amounts_and_costs(&QuoteAmountsAndCostsParams {
+            order_params,
+            slippage_percent_bps: 50,
+            partner_fee_bps: Some(50),
+            protocol_fee_bps: Some(10.0),
+        });
+        // For buy orders, amounts_to_sign.sell_amount = after_slippage.sell_amount
+        assert_eq!(result.amounts_to_sign.sell_amount, result.after_slippage.sell_amount);
+        // For buy orders, amounts_to_sign.buy_amount = before_all_fees.buy_amount
+        assert_eq!(result.amounts_to_sign.buy_amount, result.before_all_fees.buy_amount);
+        assert!(!result.is_sell);
+    }
+
+    #[test]
+    fn sell_order_amounts_to_sign_correct() {
+        let order_params = sell_order();
+        let result = get_quote_amounts_and_costs(&QuoteAmountsAndCostsParams {
+            order_params,
+            slippage_percent_bps: 50,
+            partner_fee_bps: Some(50),
+            protocol_fee_bps: Some(10.0),
+        });
+        // For sell orders, amounts_to_sign.sell_amount = before_all_fees.sell_amount
+        assert_eq!(result.amounts_to_sign.sell_amount, result.before_all_fees.sell_amount);
+        // For sell orders, amounts_to_sign.buy_amount = after_slippage.buy_amount
+        assert_eq!(result.amounts_to_sign.buy_amount, result.after_slippage.buy_amount);
+        assert!(result.is_sell);
+    }
+
+    // ── Transform order ─────────────────────────────────────────────────
+
+    #[test]
+    fn transform_order_sets_total_fee() {
+        let json = serde_json::json!({
+            "uid": "0xmockuid",
+            "sellToken": "0xfff9976782d46cc05630d1f6ebab18b2324d6b14",
+            "buyToken": "0x1c7d4b196cb0c7b01d743fbc6116a902379c7238",
+            "receiver": "0x0000000000000000000000000000000000000000",
+            "sellAmount": "1000",
+            "buyAmount": "500",
+            "validTo": 1700000000u32,
+            "appData": "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "feeAmount": "10",
+            "kind": "sell",
+            "partiallyFillable": false,
+            "creationDate": "2024-01-01T00:00:00Z",
+            "owner": "0x0000000000000000000000000000000000000000",
+            "executedSellAmount": "100",
+            "executedSellAmountBeforeFees": "100",
+            "executedBuyAmount": "50",
+            "executedFeeAmount": "5",
+            "invalidated": false,
+            "status": "open",
+            "signingScheme": "eip712",
+            "signature": "0x",
+        });
+        let order: super::super::Order = serde_json::from_value(json).unwrap();
+        let enriched = transform_order(order);
+        assert!(enriched.total_fee.is_some());
+        assert_eq!(enriched.total_fee.unwrap(), "5");
+    }
 }

@@ -270,4 +270,34 @@ mod tests {
         let result = serde_json::from_str::<Wrapper>(r#"{"value":"not-a-number"}"#);
         assert!(result.is_err());
     }
+
+    #[test]
+    fn u256_to_dec_string_via_serialize_with() {
+        use serde::Serialize;
+
+        #[derive(Serialize)]
+        struct Wrapper {
+            #[serde(serialize_with = "u256_to_dec_string")]
+            value: U256,
+        }
+
+        let w = Wrapper { value: U256::from(7777u64) };
+        let json = serde_json::to_string(&w).unwrap();
+        assert!(json.contains("\"7777\""));
+    }
+
+    #[test]
+    fn json_with_bigint_replacer_with_u256_field() {
+        use serde::Serialize;
+
+        #[derive(Serialize)]
+        struct WithU256 {
+            #[serde(serialize_with = "u256_to_dec_string")]
+            amount: U256,
+        }
+
+        let val = WithU256 { amount: U256::from(123u64) };
+        let json = json_with_bigint_replacer(&val).unwrap();
+        assert!(json.contains("\"123\""));
+    }
 }
