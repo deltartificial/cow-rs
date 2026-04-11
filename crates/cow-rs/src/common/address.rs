@@ -773,4 +773,203 @@ mod tests {
             SupportedChainId::Mainnet,
         ));
     }
+
+    // ── Additional coverage ────────────────────────────────────────────
+
+    #[test]
+    fn evm_address_0x_prefix() {
+        // 0X prefix should also work
+        assert!(is_evm_address("0XC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"));
+    }
+
+    #[test]
+    fn evm_address_no_hex_prefix() {
+        assert!(!is_evm_address("xxC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"));
+    }
+
+    #[test]
+    fn btc_legacy_p2sh_valid() {
+        assert!(is_btc_address("3J98t1WpEZ73CNmQviecrnyiWrnqRhWNLy"));
+    }
+
+    #[test]
+    fn btc_bech32_uppercase_valid() {
+        assert!(is_btc_address("BC1QW508D6QEJXTDG4Y5R3ZARVARY0C5XW7KV8F3T4"));
+    }
+
+    #[test]
+    fn btc_address_too_short() {
+        assert!(!is_btc_address("1234567890123456789012345"[..24].to_string().as_str()));
+    }
+
+    #[test]
+    fn btc_address_bad_start_char() {
+        // 25-char address starting with '2' (not '1' or '3')
+        assert!(!is_btc_address("2A1zP1eP5QGefi2DMPTfTL5SLmv7D"));
+    }
+
+    #[test]
+    fn btc_bech32_too_short() {
+        // Less than 42 chars
+        assert!(!is_btc_address("bc1qw508d6qejxtdg4y5r3zarvar"));
+    }
+
+    #[test]
+    fn btc_bech32_bad_prefix() {
+        let addr = "xc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4";
+        assert!(!is_btc_address(addr));
+    }
+
+    #[test]
+    fn solana_address_with_invalid_base58() {
+        // 'O' is not in base58 alphabet
+        assert!(!is_solana_address("OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO"));
+        // 'l' (lowercase L) is not in base58 alphabet
+        assert!(!is_solana_address("llllllllllllllllllllllllllllllllll"));
+    }
+
+    #[test]
+    fn is_supported_address_solana() {
+        assert!(is_supported_address("9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"));
+    }
+
+    #[test]
+    fn get_address_key_btc() {
+        let key = get_address_key("1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa");
+        assert!(matches!(key, AddressKey::Btc(_)));
+        assert_eq!(key.as_str(), "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa");
+    }
+
+    #[test]
+    fn get_address_key_unknown_falls_to_sol() {
+        let key = get_address_key("some-unknown-address-format");
+        assert!(matches!(key, AddressKey::Sol(_)));
+    }
+
+    #[test]
+    fn address_key_display() {
+        let key = get_address_key("0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2");
+        assert_eq!(format!("{key}"), "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2");
+    }
+
+    #[test]
+    fn token_id_display() {
+        let id = get_token_id(1, "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2");
+        assert_eq!(format!("{id}"), "1:0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2");
+    }
+
+    #[test]
+    fn are_addresses_equal_non_evm_exact() {
+        assert!(are_addresses_equal(
+            Some("1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa"),
+            Some("1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa"),
+        ));
+        // One EVM, one not
+        assert!(!are_addresses_equal(
+            Some("0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"),
+            Some("1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa"),
+        ));
+    }
+
+    #[test]
+    fn are_tokens_equal_none() {
+        struct Tok {
+            chain: u64,
+            addr: String,
+        }
+        impl TokenLike for Tok {
+            fn chain_id(&self) -> u64 {
+                self.chain
+            }
+            fn address(&self) -> &str {
+                &self.addr
+            }
+        }
+        let t = Tok { chain: 1, addr: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2".into() };
+        assert!(!are_tokens_equal::<Tok>(None, Some(&t)));
+        assert!(!are_tokens_equal::<Tok>(Some(&t), None));
+        assert!(!are_tokens_equal::<Tok>(None, None));
+    }
+
+    #[test]
+    fn are_tokens_equal_different_chain() {
+        struct Tok {
+            chain: u64,
+            addr: String,
+        }
+        impl TokenLike for Tok {
+            fn chain_id(&self) -> u64 {
+                self.chain
+            }
+            fn address(&self) -> &str {
+                &self.addr
+            }
+        }
+        let a = Tok { chain: 1, addr: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2".into() };
+        let b = Tok { chain: 100, addr: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2".into() };
+        assert!(!are_tokens_equal(Some(&a), Some(&b)));
+    }
+
+    #[test]
+    fn is_native_token_unknown_chain() {
+        assert!(!is_native_token(9999, "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"));
+    }
+
+    #[test]
+    fn is_wrapped_native_token_unknown_chain() {
+        assert!(!is_wrapped_native_token(9999, "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"));
+    }
+
+    #[test]
+    fn vault_relayer_staging_detected() {
+        // The staging vault relayer address
+        assert!(is_cow_vault_relayer_contract(
+            "0xc7242d167563352e2bca4d71c043fbe542db8fb2",
+            SupportedChainId::Mainnet,
+        ));
+    }
+
+    #[test]
+    fn vault_relayer_non_matching() {
+        assert!(!is_cow_vault_relayer_contract(
+            "0x0000000000000000000000000000000000000000",
+            SupportedChainId::Mainnet,
+        ));
+    }
+
+    #[test]
+    fn settlement_contract_non_matching() {
+        assert!(!is_cow_settlement_contract(
+            "0x0000000000000000000000000000000000000000",
+            SupportedChainId::Mainnet,
+        ));
+    }
+
+    #[test]
+    fn btc_legacy_with_base58_invalid_chars() {
+        // Contains 'I' which is not in base58
+        assert!(!is_btc_address("1I1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa"));
+    }
+
+    #[test]
+    fn get_btc_address_key_identity() {
+        let addr = "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa";
+        assert_eq!(get_btc_address_key(addr), addr);
+    }
+
+    #[test]
+    fn get_sol_address_key_identity() {
+        let addr = "11111111111111111111111111111111";
+        assert_eq!(get_sol_address_key(addr), addr);
+    }
+
+    #[test]
+    fn address_key_hash_and_eq() {
+        use foldhash::HashSet;
+        let a = get_address_key("0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2");
+        let b = get_address_key("0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2");
+        let mut set = HashSet::default();
+        set.insert(a);
+        assert!(set.contains(&b));
+    }
 }

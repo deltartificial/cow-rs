@@ -340,3 +340,210 @@ fn name_selector_matches_keccak256() {
     let expected = &keccak256(b"name()")[..4];
     assert_eq!(&*cd, expected);
 }
+
+// ── eth_get_storage_at ──────────────────────────────────────────────────────
+
+fn storage_slot_result(bytes: &[u8; 32]) -> String {
+    format!("0x{}", alloy_primitives::hex::encode(bytes))
+}
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn eth_get_storage_at_returns_slot_value() {
+    let server = MockServer::start().await;
+    let mut slot_val = [0u8; 32];
+    slot_val[12..32].copy_from_slice(&[0xAAu8; 20]);
+    Mock::given(matchers::method("POST"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(jsonrpc_ok(&storage_slot_result(&slot_val))),
+        )
+        .mount(&server)
+        .await;
+
+    let reader = make_reader(&server);
+    let proxy = address!("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48");
+    let result = reader.implementation_address(proxy).await.unwrap();
+    assert_eq!(result, Address::from([0xAAu8; 20]));
+}
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn owner_address_returns_decoded_address() {
+    let server = MockServer::start().await;
+    let mut slot_val = [0u8; 32];
+    slot_val[12..32].copy_from_slice(&[0xBBu8; 20]);
+    Mock::given(matchers::method("POST"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(jsonrpc_ok(&storage_slot_result(&slot_val))),
+        )
+        .mount(&server)
+        .await;
+
+    let reader = make_reader(&server);
+    let proxy = address!("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48");
+    let result = reader.owner_address(proxy).await.unwrap();
+    assert_eq!(result, Address::from([0xBBu8; 20]));
+}
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn implementation_address_rpc_error() {
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("POST"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "error": { "code": -32000, "message": "storage not found" }
+        })))
+        .mount(&server)
+        .await;
+
+    let reader = make_reader(&server);
+    let proxy = address!("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48");
+    let result = reader.implementation_address(proxy).await;
+    assert!(result.is_err());
+}
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn owner_address_http_error() {
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("POST"))
+        .respond_with(ResponseTemplate::new(503).set_body_string("unavailable"))
+        .mount(&server)
+        .await;
+
+    let reader = make_reader(&server);
+    let proxy = address!("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48");
+    let result = reader.owner_address(proxy).await;
+    assert!(result.is_err());
+}
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn eth_get_storage_at_too_short_result() {
+    let server = MockServer::start().await;
+    // Return only 16 bytes instead of 32
+    let hex_result = format!("0x{}", alloy_primitives::hex::encode([0u8; 16]));
+    Mock::given(matchers::method("POST"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(jsonrpc_ok(&hex_result)))
+        .mount(&server)
+        .await;
+
+    let reader = make_reader(&server);
+    let proxy = address!("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48");
+    let result = reader.implementation_address(proxy).await;
+    assert!(result.is_err());
+}
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn eth_get_storage_at_missing_result_field() {
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("POST"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1
+        })))
+        .mount(&server)
+        .await;
+
+    let reader = make_reader(&server);
+    let proxy = address!("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48");
+    let result = reader.implementation_address(proxy).await;
+    assert!(result.is_err());
+}
+
+// ── Missing result field ────────────────────────────────────────────────────
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn missing_result_field_returns_error() {
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("POST"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1
+        })))
+        .mount(&server)
+        .await;
+
+    let result = make_reader(&server).erc20_balance(token(), owner()).await;
+    assert!(result.is_err());
+}
+
+// ── Invalid hex decode ──────────────────────────────────────────────────────
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn invalid_hex_result_returns_error() {
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("POST"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(jsonrpc_ok("0xZZZZ")))
+        .mount(&server)
+        .await;
+
+    let result = make_reader(&server).erc20_balance(token(), owner()).await;
+    assert!(result.is_err());
+}
+
+// ── OnchainTokenInfo helpers ────────────────────────────────────────────────
+
+#[test]
+fn onchain_token_info_has_balance_true() {
+    use cow_rs::OnchainTokenInfo;
+    let info = OnchainTokenInfo {
+        balance: U256::from(100u64),
+        allowance: U256::ZERO,
+        nonce: U256::ZERO,
+        decimals: 6,
+        version: "1".into(),
+    };
+    assert!(info.has_balance());
+}
+
+#[test]
+fn onchain_token_info_has_balance_false() {
+    use cow_rs::OnchainTokenInfo;
+    let info = OnchainTokenInfo {
+        balance: U256::ZERO,
+        allowance: U256::ZERO,
+        nonce: U256::ZERO,
+        decimals: 6,
+        version: "1".into(),
+    };
+    assert!(!info.has_balance());
+}
+
+#[test]
+fn onchain_token_info_allowance_covers() {
+    use cow_rs::OnchainTokenInfo;
+    let info = OnchainTokenInfo {
+        balance: U256::ZERO,
+        allowance: U256::from(1000u64),
+        nonce: U256::ZERO,
+        decimals: 6,
+        version: "1".into(),
+    };
+    assert!(info.allowance_covers(U256::from(999u64)));
+    assert!(info.allowance_covers(U256::from(1000u64)));
+    assert!(!info.allowance_covers(U256::from(1001u64)));
+}
+
+// ── Nonce / version selector verification ───────────────────────────────────
+
+#[test]
+fn nonces_selector_matches_keccak256() {
+    use cow_rs::build_eip2612_nonces_calldata;
+    let cd = build_eip2612_nonces_calldata(owner());
+    let expected = &keccak256(b"nonces(address)")[..4];
+    assert_eq!(&cd[..4], expected);
+}
+
+#[test]
+fn version_selector_matches_keccak256() {
+    use cow_rs::build_eip2612_version_calldata;
+    let cd = build_eip2612_version_calldata();
+    let expected = &keccak256(b"version()")[..4];
+    assert_eq!(&*cd, expected);
+}

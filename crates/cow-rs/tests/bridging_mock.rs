@@ -10,7 +10,12 @@
     clippy::deref_by_slicing,
     clippy::redundant_clone,
     clippy::single_match_else,
-    clippy::single_match
+    clippy::single_match,
+    clippy::too_many_lines,
+    clippy::cognitive_complexity,
+    clippy::items_after_statements,
+    clippy::needless_raw_strings,
+    clippy::unreadable_literal
 )]
 //! Wiremock-based integration tests for bridging HTTP interactions.
 //!
@@ -1354,4 +1359,1355 @@ async fn across_status_api_mock_pending() {
     let json_val: serde_json::Value = resp.json().await.unwrap();
     assert!(is_valid_across_status_response(&json_val));
     assert_eq!(json_val["status"].as_str().unwrap(), "pending");
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// NEW COVERAGE TESTS — across.rs
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ── Across event parsing with real log structures ──────────────────────────
+
+#[test]
+fn get_across_deposit_events_parses_valid_log() {
+    use alloy_primitives::{B256, U256, keccak256};
+    use cow_rs::bridging::{
+        EvmLogEntry,
+        across::{across_spoke_pool_addresses, get_across_deposit_events},
+    };
+
+    let spoke_pools = across_spoke_pool_addresses();
+    let spoke_pool = *spoke_pools.get(&1).unwrap();
+
+    let topic0 = keccak256(
+        "FundsDeposited(bytes32,bytes32,uint256,uint256,uint256,uint256,uint32,uint32,uint32,bytes32,bytes32,bytes32,bytes)",
+    );
+
+    // Build indexed topics: destinationChainId=42161, depositId=7, depositor=0x3333..
+    let mut dest_chain_bytes = [0u8; 32];
+    dest_chain_bytes[24..32].copy_from_slice(&42161u64.to_be_bytes());
+    let topic1 = B256::from(dest_chain_bytes);
+
+    let mut deposit_id_bytes = [0u8; 32];
+    deposit_id_bytes[31] = 7;
+    let topic2 = B256::from(deposit_id_bytes);
+
+    let mut depositor_bytes = [0u8; 32];
+    depositor_bytes[12..32].copy_from_slice(&[0x33u8; 20]);
+    let topic3 = B256::from(depositor_bytes);
+
+    // Build non-indexed data: 9 x 32-byte words
+    let mut data = vec![0u8; 9 * 32];
+    // inputToken (word 0) - address at bytes 12..32
+    data[12..32].copy_from_slice(&[0xAAu8; 20]);
+    // outputToken (word 1) - address at bytes 44..64
+    data[44..64].copy_from_slice(&[0xBBu8; 20]);
+    // inputAmount (word 2)
+    data[64 + 31] = 100;
+    // outputAmount (word 3)
+    data[96 + 31] = 95;
+    // quoteTimestamp (word 4) - u32 at bytes 156..160
+    data[156..160].copy_from_slice(&1700000000u32.to_be_bytes());
+    // fillDeadline (word 5) - u32 at bytes 188..192
+    data[188..192].copy_from_slice(&1700003600u32.to_be_bytes());
+    // exclusivityDeadline (word 6) - u32 at bytes 220..224
+    data[220..224].copy_from_slice(&0u32.to_be_bytes());
+    // recipient (word 7) - address at bytes 236..256
+    data[236..256].copy_from_slice(&[0xCCu8; 20]);
+    // exclusiveRelayer (word 8) - address at bytes 268..288
+    data[268..288].copy_from_slice(&[0x00u8; 20]);
+
+    let log =
+        EvmLogEntry { address: spoke_pool, topics: vec![topic0, topic1, topic2, topic3], data };
+
+    let events = get_across_deposit_events(1, &[log]);
+    assert_eq!(events.len(), 1);
+    let evt = &events[0];
+    assert_eq!(evt.destination_chain_id, 42161);
+    assert_eq!(evt.deposit_id, U256::from(7u64));
+    assert_eq!(evt.input_amount, U256::from(100u64));
+    assert_eq!(evt.output_amount, U256::from(95u64));
+    assert_eq!(evt.quote_timestamp, 1700000000);
+    assert_eq!(evt.fill_deadline, 1700003600);
+}
+
+#[test]
+fn get_across_deposit_events_skips_log_with_wrong_address() {
+    use alloy_primitives::{Address, B256, keccak256};
+    use cow_rs::bridging::{EvmLogEntry, across::get_across_deposit_events};
+
+    let topic0 = keccak256(
+        "FundsDeposited(bytes32,bytes32,uint256,uint256,uint256,uint256,uint32,uint32,uint32,bytes32,bytes32,bytes32,bytes)",
+    );
+
+    let log = EvmLogEntry {
+        address: Address::ZERO,
+        topics: vec![topic0, B256::ZERO, B256::ZERO, B256::ZERO],
+        data: vec![0u8; 9 * 32],
+    };
+
+    let events = get_across_deposit_events(1, &[log]);
+    assert!(events.is_empty());
+}
+
+#[test]
+fn get_across_deposit_events_skips_log_with_insufficient_topics() {
+    use alloy_primitives::keccak256;
+    use cow_rs::bridging::{
+        EvmLogEntry,
+        across::{across_spoke_pool_addresses, get_across_deposit_events},
+    };
+
+    let spoke_pools = across_spoke_pool_addresses();
+    let spoke_pool = *spoke_pools.get(&1).unwrap();
+    let topic0 = keccak256(
+        "FundsDeposited(bytes32,bytes32,uint256,uint256,uint256,uint256,uint32,uint32,uint32,bytes32,bytes32,bytes32,bytes)",
+    );
+
+    let log = EvmLogEntry {
+        address: spoke_pool,
+        topics: vec![topic0], // only 1 topic, need 4
+        data: vec![0u8; 9 * 32],
+    };
+
+    let events = get_across_deposit_events(1, &[log]);
+    assert!(events.is_empty());
+}
+
+#[test]
+fn get_across_deposit_events_skips_log_with_insufficient_data() {
+    use alloy_primitives::{B256, keccak256};
+    use cow_rs::bridging::{
+        EvmLogEntry,
+        across::{across_spoke_pool_addresses, get_across_deposit_events},
+    };
+
+    let spoke_pools = across_spoke_pool_addresses();
+    let spoke_pool = *spoke_pools.get(&1).unwrap();
+    let topic0 = keccak256(
+        "FundsDeposited(bytes32,bytes32,uint256,uint256,uint256,uint256,uint32,uint32,uint32,bytes32,bytes32,bytes32,bytes)",
+    );
+
+    let log = EvmLogEntry {
+        address: spoke_pool,
+        topics: vec![topic0, B256::ZERO, B256::ZERO, B256::ZERO],
+        data: vec![0u8; 32], // too short, need 9*32
+    };
+
+    let events = get_across_deposit_events(1, &[log]);
+    assert!(events.is_empty());
+}
+
+// ── CoW Trade event parsing ────────────────────────────────────────────────
+
+#[test]
+fn get_cow_trade_events_parses_valid_log() {
+    use alloy_primitives::{Address, B256, U256, keccak256};
+    use cow_rs::bridging::{EvmLogEntry, across::get_cow_trade_events};
+
+    let topic0 = keccak256("Trade(address,address,address,uint256,uint256,uint256,bytes)");
+
+    // Use the actual settlement contract address for mainnet
+    let settlement: Address = "0x9008D19f58AAbD9eD0D60971565AA8510560ab41".parse().unwrap();
+
+    // owner in topic1
+    let mut owner_bytes = [0u8; 32];
+    owner_bytes[12..32].copy_from_slice(&[0x11u8; 20]);
+    let topic1 = B256::from(owner_bytes);
+
+    // Non-indexed data: sellToken, buyToken, sellAmount, buyAmount, feeAmount, orderUid
+    // orderUid is dynamic bytes: offset + length + data
+    let uid_data = b"order-uid-data-0x1234";
+    let uid_padded_len = uid_data.len().div_ceil(32) * 32;
+    let mut data = vec![0u8; 7 * 32 + uid_padded_len];
+
+    // sellToken (word 0)
+    data[12..32].copy_from_slice(&[0xAAu8; 20]);
+    // buyToken (word 1)
+    data[44..64].copy_from_slice(&[0xBBu8; 20]);
+    // sellAmount (word 2)
+    data[64 + 31] = 100;
+    // buyAmount (word 3)
+    data[96 + 31] = 95;
+    // feeAmount (word 4)
+    data[128 + 31] = 5;
+    // offset to bytes (word 5) = 6*32 = 192
+    data[160 + 31] = 192;
+    // length of uid (word 6)
+    data[192 + 31] = uid_data.len() as u8;
+    // uid data
+    data[224..224 + uid_data.len()].copy_from_slice(uid_data);
+
+    let log = EvmLogEntry { address: settlement, topics: vec![topic0, topic1], data };
+
+    let events = get_cow_trade_events(1, &[log], None);
+    assert_eq!(events.len(), 1);
+    assert_eq!(events[0].sell_amount, U256::from(100u64));
+    assert_eq!(events[0].buy_amount, U256::from(95u64));
+    assert_eq!(events[0].fee_amount, U256::from(5u64));
+}
+
+#[test]
+fn get_cow_trade_events_with_settlement_override() {
+    use alloy_primitives::{Address, B256, keccak256};
+    use cow_rs::bridging::{EvmLogEntry, across::get_cow_trade_events};
+
+    let topic0 = keccak256("Trade(address,address,address,uint256,uint256,uint256,bytes)");
+
+    let custom_settlement: Address = "0x1234567890abcdef1234567890abcdef12345678".parse().unwrap();
+
+    let mut owner_bytes = [0u8; 32];
+    owner_bytes[12..32].copy_from_slice(&[0x11u8; 20]);
+    let topic1 = B256::from(owner_bytes);
+
+    let uid_data = b"uid";
+    let uid_padded_len = uid_data.len().div_ceil(32) * 32;
+    let mut data = vec![0u8; 7 * 32 + uid_padded_len];
+    data[160 + 31] = 192; // offset
+    data[192 + 31] = uid_data.len() as u8; // length
+    data[224..224 + uid_data.len()].copy_from_slice(uid_data);
+
+    let log = EvmLogEntry { address: custom_settlement, topics: vec![topic0, topic1], data };
+
+    // Without override: not matched (wrong address for chain 99999)
+    let events = get_cow_trade_events(99999, std::slice::from_ref(&log), None);
+    assert!(events.is_empty());
+
+    // With override: matched
+    let events = get_cow_trade_events(99999, std::slice::from_ref(&log), Some(custom_settlement));
+    assert_eq!(events.len(), 1);
+}
+
+#[test]
+fn get_cow_trade_events_skips_log_with_too_few_topics() {
+    use alloy_primitives::{Address, keccak256};
+    use cow_rs::bridging::{EvmLogEntry, across::get_cow_trade_events};
+
+    let topic0 = keccak256("Trade(address,address,address,uint256,uint256,uint256,bytes)");
+    let settlement: Address = "0x9008D19f58AAbD9eD0D60971565AA8510560ab41".parse().unwrap();
+
+    let log = EvmLogEntry {
+        address: settlement,
+        topics: vec![topic0], // only 1 topic, need 2
+        data: vec![0u8; 7 * 32],
+    };
+
+    let events = get_cow_trade_events(1, &[log], None);
+    assert!(events.is_empty());
+}
+
+#[test]
+fn get_cow_trade_events_skips_log_with_insufficient_data() {
+    use alloy_primitives::{B256, keccak256};
+    use cow_rs::bridging::{EvmLogEntry, across::get_cow_trade_events};
+
+    let topic0 = keccak256("Trade(address,address,address,uint256,uint256,uint256,bytes)");
+    let settlement: alloy_primitives::Address =
+        "0x9008D19f58AAbD9eD0D60971565AA8510560ab41".parse().unwrap();
+
+    let log = EvmLogEntry {
+        address: settlement,
+        topics: vec![topic0, B256::ZERO],
+        data: vec![0u8; 32], // too short
+    };
+
+    let events = get_cow_trade_events(1, &[log], None);
+    assert!(events.is_empty());
+}
+
+// ── get_deposit_params with matching events ────────────────────────────────
+
+#[test]
+fn get_deposit_params_matches_trade_and_deposit() {
+    use alloy_primitives::{Address, B256, U256, keccak256};
+    use cow_rs::bridging::{
+        EvmLogEntry,
+        across::{across_spoke_pool_addresses, get_deposit_params},
+    };
+
+    let spoke_pools = across_spoke_pool_addresses();
+    let spoke_pool = *spoke_pools.get(&1).unwrap();
+    let settlement: Address = "0x9008D19f58AAbD9eD0D60971565AA8510560ab41".parse().unwrap();
+
+    // Build Across FundsDeposited log
+    let deposit_topic0 = keccak256(
+        "FundsDeposited(bytes32,bytes32,uint256,uint256,uint256,uint256,uint32,uint32,uint32,bytes32,bytes32,bytes32,bytes)",
+    );
+    let mut dest_chain_bytes = [0u8; 32];
+    dest_chain_bytes[24..32].copy_from_slice(&42161u64.to_be_bytes());
+    let topic1 = B256::from(dest_chain_bytes);
+    let mut deposit_id_bytes = [0u8; 32];
+    deposit_id_bytes[31] = 1;
+    let topic2 = B256::from(deposit_id_bytes);
+    let mut depositor_bytes = [0u8; 32];
+    depositor_bytes[12..32].copy_from_slice(&[0x33u8; 20]);
+    let topic3 = B256::from(depositor_bytes);
+
+    let mut deposit_data = vec![0u8; 9 * 32];
+    deposit_data[12..32].copy_from_slice(&[0xAAu8; 20]); // inputToken
+    deposit_data[44..64].copy_from_slice(&[0xBBu8; 20]); // outputToken
+    deposit_data[64 + 31] = 100; // inputAmount
+    deposit_data[96 + 31] = 95; // outputAmount
+    deposit_data[156..160].copy_from_slice(&1700000000u32.to_be_bytes()); // quoteTimestamp
+    deposit_data[188..192].copy_from_slice(&1700003600u32.to_be_bytes()); // fillDeadline
+    deposit_data[236..256].copy_from_slice(&[0xCCu8; 20]); // recipient
+
+    let deposit_log = EvmLogEntry {
+        address: spoke_pool,
+        topics: vec![deposit_topic0, topic1, topic2, topic3],
+        data: deposit_data,
+    };
+
+    // Build CoW Trade log
+    let trade_topic0 = keccak256("Trade(address,address,address,uint256,uint256,uint256,bytes)");
+    let mut owner_bytes = [0u8; 32];
+    owner_bytes[12..32].copy_from_slice(&[0x11u8; 20]);
+    let trade_topic1 = B256::from(owner_bytes);
+
+    let order_uid = "0xdeadbeef";
+    let uid_bytes = alloy_primitives::hex::decode("deadbeef").unwrap();
+    let uid_padded_len = uid_bytes.len().div_ceil(32) * 32;
+    let mut trade_data = vec![0u8; 7 * 32 + uid_padded_len];
+    trade_data[160 + 31] = 192; // offset
+    trade_data[192 + 31] = uid_bytes.len() as u8; // length
+    trade_data[224..224 + uid_bytes.len()].copy_from_slice(&uid_bytes);
+
+    let trade_log = EvmLogEntry {
+        address: settlement,
+        topics: vec![trade_topic0, trade_topic1],
+        data: trade_data,
+    };
+
+    let result = get_deposit_params(1, order_uid, &[deposit_log, trade_log], None);
+    assert!(result.is_some());
+    let params = result.unwrap();
+    assert_eq!(params.destination_chain_id, 42161);
+    assert_eq!(params.input_amount, U256::from(100u64));
+    assert_eq!(params.source_chain_id, 1);
+}
+
+#[test]
+fn get_deposit_params_returns_none_when_order_not_found() {
+    use alloy_primitives::{Address, B256, keccak256};
+    use cow_rs::bridging::{
+        EvmLogEntry,
+        across::{across_spoke_pool_addresses, get_deposit_params},
+    };
+
+    let spoke_pools = across_spoke_pool_addresses();
+    let spoke_pool = *spoke_pools.get(&1).unwrap();
+    let settlement: Address = "0x9008D19f58AAbD9eD0D60971565AA8510560ab41".parse().unwrap();
+
+    let deposit_topic0 = keccak256(
+        "FundsDeposited(bytes32,bytes32,uint256,uint256,uint256,uint256,uint32,uint32,uint32,bytes32,bytes32,bytes32,bytes)",
+    );
+
+    let deposit_log = EvmLogEntry {
+        address: spoke_pool,
+        topics: vec![deposit_topic0, B256::ZERO, B256::ZERO, B256::ZERO],
+        data: vec![0u8; 9 * 32],
+    };
+
+    let trade_topic0 = keccak256("Trade(address,address,address,uint256,uint256,uint256,bytes)");
+    let uid_bytes = b"different";
+    let uid_padded_len = uid_bytes.len().div_ceil(32) * 32;
+    let mut trade_data = vec![0u8; 7 * 32 + uid_padded_len];
+    trade_data[160 + 31] = 192;
+    trade_data[192 + 31] = uid_bytes.len() as u8;
+    trade_data[224..224 + uid_bytes.len()].copy_from_slice(uid_bytes);
+
+    let trade_log = EvmLogEntry {
+        address: settlement,
+        topics: vec![trade_topic0, B256::ZERO],
+        data: trade_data,
+    };
+
+    // Looking for an order that doesn't match
+    let result = get_deposit_params(1, "0xnotfound", &[deposit_log, trade_log], None);
+    assert!(result.is_none());
+}
+
+// ── create_across_deposit_call ─────────────────────────────────────────────
+
+#[test]
+fn create_across_deposit_call_success() {
+    use cow_rs::bridging::across::{AcrossDepositCallParams, create_across_deposit_call};
+
+    let params = AcrossDepositCallParams {
+        request: sample_request(),
+        suggested_fees: sample_suggested_fees(),
+        cow_shed_account: address!("1111111111111111111111111111111111111111"),
+    };
+
+    let result = create_across_deposit_call(&params);
+    assert!(result.is_ok());
+    let call = result.unwrap();
+    assert!(!call.data.is_empty());
+    // Data should start with depositV3 selector (4 bytes)
+    assert!(call.data.len() > 4);
+    // Value should be zero (not native currency)
+    assert_eq!(call.value, U256::ZERO);
+}
+
+#[test]
+fn create_across_deposit_call_with_receiver() {
+    use cow_rs::bridging::across::{AcrossDepositCallParams, create_across_deposit_call};
+
+    let mut req = sample_request();
+    req.receiver = Some("0x4444444444444444444444444444444444444444".to_owned());
+
+    let params = AcrossDepositCallParams {
+        request: req,
+        suggested_fees: sample_suggested_fees(),
+        cow_shed_account: address!("1111111111111111111111111111111111111111"),
+    };
+
+    let result = create_across_deposit_call(&params);
+    assert!(result.is_ok());
+}
+
+#[test]
+fn create_across_deposit_call_unknown_chain_fails() {
+    use cow_rs::bridging::across::{AcrossDepositCallParams, create_across_deposit_call};
+
+    let mut req = sample_request();
+    req.sell_chain_id = 99999;
+
+    let params = AcrossDepositCallParams {
+        request: req,
+        suggested_fees: sample_suggested_fees(),
+        cow_shed_account: address!("1111111111111111111111111111111111111111"),
+    };
+
+    let result = create_across_deposit_call(&params);
+    assert!(result.is_err());
+}
+
+// ── Across token mapping for all chains ────────────────────────────────────
+
+#[test]
+fn across_token_mapping_contains_optimism() {
+    use cow_rs::bridging::across::across_token_mapping;
+    let mapping = across_token_mapping();
+    assert!(mapping.contains_key(&10)); // Optimism
+    let optimism = mapping.get(&10).unwrap();
+    assert!(optimism.tokens.contains_key("usdc"));
+    assert!(optimism.tokens.contains_key("weth"));
+}
+
+#[test]
+fn across_token_mapping_base_tokens() {
+    use cow_rs::bridging::across::across_token_mapping;
+    let mapping = across_token_mapping();
+    let base = mapping.get(&8453).unwrap();
+    assert!(base.tokens.contains_key("usdc"));
+    assert!(base.tokens.contains_key("weth"));
+    assert!(base.tokens.contains_key("dai"));
+}
+
+// ── Across spoke pool for all chains ───────────────────────────────────────
+
+#[test]
+fn across_spoke_pool_addresses_contains_all_chains() {
+    use cow_rs::bridging::across::across_spoke_pool_addresses;
+    let pools = across_spoke_pool_addresses();
+    // Check that all expected chains have pools
+    assert!(pools.contains_key(&137)); // Polygon
+    assert!(pools.contains_key(&10)); // Optimism
+    assert!(pools.contains_key(&11155111)); // Sepolia
+}
+
+// ── get_token_by_address_and_chain_id for various chains ───────────────────
+
+#[test]
+fn get_token_by_address_and_chain_id_returns_none_for_unknown_address() {
+    use alloy_primitives::Address;
+    use cow_rs::bridging::across::get_token_by_address_and_chain_id;
+    let result = get_token_by_address_and_chain_id(Address::ZERO, 1);
+    assert!(result.is_none());
+}
+
+// ── to_bridge_quote_result with buy kind ───────────────────────────────────
+
+#[test]
+fn across_to_bridge_quote_result_buy_kind() {
+    let mut req = sample_request();
+    req.kind = OrderKind::Buy;
+    let fees = sample_suggested_fees();
+    let result = to_bridge_quote_result(&req, 50, &fees).unwrap();
+    assert!(!result.is_sell);
+}
+
+// ── to_bridge_quote_result with different decimals ─────────────────────────
+
+#[test]
+fn across_to_bridge_quote_result_different_decimals() {
+    let mut req = sample_request();
+    req.sell_token_decimals = 18;
+    req.buy_token_decimals = 6;
+    let fees = sample_suggested_fees();
+    let result = to_bridge_quote_result(&req, 50, &fees).unwrap();
+    // buy amount before fee should be scaled down due to decimal difference
+    assert!(result.amounts_and_costs.before_fee.buy_amount < req.sell_amount);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// NEW COVERAGE TESTS — sdk.rs
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ── Type guard functions ───────────────────────────────────────────────────
+
+#[test]
+fn is_bridge_quote_and_post_returns_true_for_cross_chain() {
+    use cow_rs::bridging::sdk::{
+        BridgeQuoteAndPost, CrossChainQuoteAndPost, QuoteAndPost, is_bridge_quote_and_post,
+        is_quote_and_post,
+    };
+
+    let cross_chain = CrossChainQuoteAndPost::CrossChain(Box::new(BridgeQuoteAndPost {
+        swap: QuoteBridgeResponse {
+            provider: "mock".to_owned(),
+            sell_amount: U256::ZERO,
+            buy_amount: U256::ZERO,
+            fee_amount: U256::ZERO,
+            estimated_secs: 0,
+            bridge_hook: None,
+        },
+        bridge: cow_rs::bridging::types::BridgeQuoteResults {
+            provider_info: cow_rs::bridging::types::BridgeProviderInfo {
+                name: "test".to_owned(),
+                logo_url: String::new(),
+                dapp_id: "test-dapp".to_owned(),
+                website: String::new(),
+                provider_type: cow_rs::bridging::types::BridgeProviderType::HookBridgeProvider,
+            },
+            quote: cow_rs::bridging::types::BridgeQuoteResult {
+                id: None,
+                signature: None,
+                attestation_signature: None,
+                quote_body: None,
+                is_sell: true,
+                amounts_and_costs: cow_rs::bridging::types::BridgeQuoteAmountsAndCosts {
+                    before_fee: cow_rs::bridging::types::BridgeAmounts {
+                        sell_amount: U256::ZERO,
+                        buy_amount: U256::ZERO,
+                    },
+                    after_fee: cow_rs::bridging::types::BridgeAmounts {
+                        sell_amount: U256::ZERO,
+                        buy_amount: U256::ZERO,
+                    },
+                    after_slippage: cow_rs::bridging::types::BridgeAmounts {
+                        sell_amount: U256::ZERO,
+                        buy_amount: U256::ZERO,
+                    },
+                    costs: cow_rs::bridging::types::BridgeCosts {
+                        bridging_fee: cow_rs::bridging::types::BridgingFee {
+                            fee_bps: 0,
+                            amount_in_sell_currency: U256::ZERO,
+                            amount_in_buy_currency: U256::ZERO,
+                        },
+                    },
+                    slippage_bps: 0,
+                },
+                expected_fill_time_seconds: None,
+                quote_timestamp: 0,
+                fees: cow_rs::bridging::types::BridgeFees {
+                    bridge_fee: U256::ZERO,
+                    destination_gas_fee: U256::ZERO,
+                },
+                limits: cow_rs::bridging::types::BridgeLimits {
+                    min_deposit: U256::ZERO,
+                    max_deposit: U256::ZERO,
+                },
+            },
+            bridge_call_details: None,
+            bridge_receiver_override: None,
+        },
+    }));
+
+    assert!(is_bridge_quote_and_post(&cross_chain));
+    assert!(!is_quote_and_post(&cross_chain));
+
+    let same_chain = CrossChainQuoteAndPost::SameChain(Box::new(QuoteAndPost {
+        quote: QuoteBridgeResponse {
+            provider: "mock".to_owned(),
+            sell_amount: U256::ZERO,
+            buy_amount: U256::ZERO,
+            fee_amount: U256::ZERO,
+            estimated_secs: 0,
+            bridge_hook: None,
+        },
+    }));
+
+    assert!(!is_bridge_quote_and_post(&same_chain));
+    assert!(is_quote_and_post(&same_chain));
+}
+
+// ── assert_is_* functions ──────────────────────────────────────────────────
+
+#[test]
+fn assert_is_bridge_quote_and_post_errors_on_same_chain() {
+    use cow_rs::bridging::sdk::{
+        CrossChainQuoteAndPost, QuoteAndPost, assert_is_bridge_quote_and_post,
+    };
+
+    let same_chain = CrossChainQuoteAndPost::SameChain(Box::new(QuoteAndPost {
+        quote: QuoteBridgeResponse {
+            provider: "mock".to_owned(),
+            sell_amount: U256::ZERO,
+            buy_amount: U256::ZERO,
+            fee_amount: U256::ZERO,
+            estimated_secs: 0,
+            bridge_hook: None,
+        },
+    }));
+
+    let result = assert_is_bridge_quote_and_post(&same_chain);
+    assert!(result.is_err());
+}
+
+#[test]
+fn assert_is_quote_and_post_errors_on_cross_chain() {
+    use cow_rs::bridging::sdk::{
+        BridgeQuoteAndPost, CrossChainQuoteAndPost, assert_is_quote_and_post,
+    };
+
+    let cross_chain = CrossChainQuoteAndPost::CrossChain(Box::new(BridgeQuoteAndPost {
+        swap: QuoteBridgeResponse {
+            provider: "mock".to_owned(),
+            sell_amount: U256::ZERO,
+            buy_amount: U256::ZERO,
+            fee_amount: U256::ZERO,
+            estimated_secs: 0,
+            bridge_hook: None,
+        },
+        bridge: cow_rs::bridging::types::BridgeQuoteResults {
+            provider_info: cow_rs::bridging::types::BridgeProviderInfo {
+                name: "test".to_owned(),
+                logo_url: String::new(),
+                dapp_id: String::new(),
+                website: String::new(),
+                provider_type: cow_rs::bridging::types::BridgeProviderType::HookBridgeProvider,
+            },
+            quote: cow_rs::bridging::types::BridgeQuoteResult {
+                id: None,
+                signature: None,
+                attestation_signature: None,
+                quote_body: None,
+                is_sell: true,
+                amounts_and_costs: cow_rs::bridging::types::BridgeQuoteAmountsAndCosts {
+                    before_fee: cow_rs::bridging::types::BridgeAmounts {
+                        sell_amount: U256::ZERO,
+                        buy_amount: U256::ZERO,
+                    },
+                    after_fee: cow_rs::bridging::types::BridgeAmounts {
+                        sell_amount: U256::ZERO,
+                        buy_amount: U256::ZERO,
+                    },
+                    after_slippage: cow_rs::bridging::types::BridgeAmounts {
+                        sell_amount: U256::ZERO,
+                        buy_amount: U256::ZERO,
+                    },
+                    costs: cow_rs::bridging::types::BridgeCosts {
+                        bridging_fee: cow_rs::bridging::types::BridgingFee {
+                            fee_bps: 0,
+                            amount_in_sell_currency: U256::ZERO,
+                            amount_in_buy_currency: U256::ZERO,
+                        },
+                    },
+                    slippage_bps: 0,
+                },
+                expected_fill_time_seconds: None,
+                quote_timestamp: 0,
+                fees: cow_rs::bridging::types::BridgeFees {
+                    bridge_fee: U256::ZERO,
+                    destination_gas_fee: U256::ZERO,
+                },
+                limits: cow_rs::bridging::types::BridgeLimits {
+                    min_deposit: U256::ZERO,
+                    max_deposit: U256::ZERO,
+                },
+            },
+            bridge_call_details: None,
+            bridge_receiver_override: None,
+        },
+    }));
+
+    let result = assert_is_quote_and_post(&cross_chain);
+    assert!(result.is_err());
+}
+
+// ── Stub async functions return expected errors ────────────────────────────
+
+#[tokio::test]
+async fn get_bridge_signed_hook_returns_tx_build_error() {
+    use cow_rs::bridging::sdk::get_bridge_signed_hook;
+
+    let quote = cow_rs::bridging::types::BridgeQuoteResult {
+        id: None,
+        signature: None,
+        attestation_signature: None,
+        quote_body: None,
+        is_sell: true,
+        amounts_and_costs: cow_rs::bridging::types::BridgeQuoteAmountsAndCosts {
+            before_fee: cow_rs::bridging::types::BridgeAmounts {
+                sell_amount: U256::ZERO,
+                buy_amount: U256::ZERO,
+            },
+            after_fee: cow_rs::bridging::types::BridgeAmounts {
+                sell_amount: U256::ZERO,
+                buy_amount: U256::ZERO,
+            },
+            after_slippage: cow_rs::bridging::types::BridgeAmounts {
+                sell_amount: U256::ZERO,
+                buy_amount: U256::ZERO,
+            },
+            costs: cow_rs::bridging::types::BridgeCosts {
+                bridging_fee: cow_rs::bridging::types::BridgingFee {
+                    fee_bps: 0,
+                    amount_in_sell_currency: U256::ZERO,
+                    amount_in_buy_currency: U256::ZERO,
+                },
+            },
+            slippage_bps: 0,
+        },
+        expected_fill_time_seconds: None,
+        quote_timestamp: 0,
+        fees: cow_rs::bridging::types::BridgeFees {
+            bridge_fee: U256::ZERO,
+            destination_gas_fee: U256::ZERO,
+        },
+        limits: cow_rs::bridging::types::BridgeLimits {
+            min_deposit: U256::ZERO,
+            max_deposit: U256::ZERO,
+        },
+    };
+
+    let result = get_bridge_signed_hook(&quote, &[]).await;
+    assert!(result.is_err());
+    assert!(matches!(result, Err(BridgeError::TxBuildError(_))));
+}
+
+#[tokio::test]
+async fn get_quote_with_bridge_returns_tx_build_error() {
+    use cow_rs::bridging::sdk::{GetQuoteWithBridgeParams, get_quote_with_bridge};
+
+    let params =
+        GetQuoteWithBridgeParams { swap_and_bridge_request: sample_request(), slippage_bps: 50 };
+
+    let result = get_quote_with_bridge(&params).await;
+    assert!(result.is_err());
+    assert!(matches!(result, Err(BridgeError::TxBuildError(_))));
+}
+
+#[tokio::test]
+async fn get_quote_without_bridge_returns_tx_build_error() {
+    use cow_rs::bridging::sdk::get_quote_without_bridge;
+    let result = get_quote_without_bridge(&sample_request()).await;
+    assert!(result.is_err());
+    assert!(matches!(result, Err(BridgeError::TxBuildError(_))));
+}
+
+#[tokio::test]
+async fn get_swap_quote_returns_tx_build_error() {
+    use cow_rs::bridging::sdk::get_swap_quote;
+    let result = get_swap_quote(&sample_request()).await;
+    assert!(result.is_err());
+    assert!(matches!(result, Err(BridgeError::TxBuildError(_))));
+}
+
+#[tokio::test]
+async fn create_post_swap_order_from_quote_returns_tx_build_error() {
+    use cow_rs::bridging::sdk::{BridgeQuoteAndPost, create_post_swap_order_from_quote};
+
+    let quote = BridgeQuoteAndPost {
+        swap: QuoteBridgeResponse {
+            provider: "mock".to_owned(),
+            sell_amount: U256::ZERO,
+            buy_amount: U256::ZERO,
+            fee_amount: U256::ZERO,
+            estimated_secs: 0,
+            bridge_hook: None,
+        },
+        bridge: cow_rs::bridging::types::BridgeQuoteResults {
+            provider_info: cow_rs::bridging::types::BridgeProviderInfo {
+                name: "test".to_owned(),
+                logo_url: String::new(),
+                dapp_id: String::new(),
+                website: String::new(),
+                provider_type: cow_rs::bridging::types::BridgeProviderType::HookBridgeProvider,
+            },
+            quote: cow_rs::bridging::types::BridgeQuoteResult {
+                id: None,
+                signature: None,
+                attestation_signature: None,
+                quote_body: None,
+                is_sell: true,
+                amounts_and_costs: cow_rs::bridging::types::BridgeQuoteAmountsAndCosts {
+                    before_fee: cow_rs::bridging::types::BridgeAmounts {
+                        sell_amount: U256::ZERO,
+                        buy_amount: U256::ZERO,
+                    },
+                    after_fee: cow_rs::bridging::types::BridgeAmounts {
+                        sell_amount: U256::ZERO,
+                        buy_amount: U256::ZERO,
+                    },
+                    after_slippage: cow_rs::bridging::types::BridgeAmounts {
+                        sell_amount: U256::ZERO,
+                        buy_amount: U256::ZERO,
+                    },
+                    costs: cow_rs::bridging::types::BridgeCosts {
+                        bridging_fee: cow_rs::bridging::types::BridgingFee {
+                            fee_bps: 0,
+                            amount_in_sell_currency: U256::ZERO,
+                            amount_in_buy_currency: U256::ZERO,
+                        },
+                    },
+                    slippage_bps: 0,
+                },
+                expected_fill_time_seconds: None,
+                quote_timestamp: 0,
+                fees: cow_rs::bridging::types::BridgeFees {
+                    bridge_fee: U256::ZERO,
+                    destination_gas_fee: U256::ZERO,
+                },
+                limits: cow_rs::bridging::types::BridgeLimits {
+                    min_deposit: U256::ZERO,
+                    max_deposit: U256::ZERO,
+                },
+            },
+            bridge_call_details: None,
+            bridge_receiver_override: None,
+        },
+    };
+
+    let result = create_post_swap_order_from_quote(&quote).await;
+    assert!(result.is_err());
+    assert!(matches!(result, Err(BridgeError::TxBuildError(_))));
+}
+
+#[tokio::test]
+async fn get_intermediate_swap_result_returns_tx_build_error() {
+    use cow_rs::bridging::sdk::get_intermediate_swap_result;
+    let result = get_intermediate_swap_result(&sample_request()).await;
+    assert!(result.is_err());
+    assert!(matches!(result, Err(BridgeError::TxBuildError(_))));
+}
+
+#[tokio::test]
+async fn get_quote_with_hook_bridge_returns_tx_build_error() {
+    use cow_rs::bridging::sdk::{GetQuoteWithBridgeParams, get_quote_with_hook_bridge};
+    let params =
+        GetQuoteWithBridgeParams { swap_and_bridge_request: sample_request(), slippage_bps: 50 };
+    let result = get_quote_with_hook_bridge(&params).await;
+    assert!(result.is_err());
+    assert!(matches!(result, Err(BridgeError::TxBuildError(_))));
+}
+
+#[tokio::test]
+async fn get_quote_with_receiver_account_bridge_returns_tx_build_error() {
+    use cow_rs::bridging::sdk::{GetQuoteWithBridgeParams, get_quote_with_receiver_account_bridge};
+    let params =
+        GetQuoteWithBridgeParams { swap_and_bridge_request: sample_request(), slippage_bps: 50 };
+    let result = get_quote_with_receiver_account_bridge(&params).await;
+    assert!(result.is_err());
+    assert!(matches!(result, Err(BridgeError::TxBuildError(_))));
+}
+
+// ── QuoteStrategy ──────────────────────────────────────────────────────────
+
+#[test]
+fn quote_strategy_names() {
+    use cow_rs::bridging::sdk::QuoteStrategy;
+    assert_eq!(QuoteStrategy::Single.name(), "SingleQuoteStrategy");
+    assert_eq!(QuoteStrategy::Multi.name(), "MultiQuoteStrategy");
+    assert_eq!(QuoteStrategy::Best.name(), "BestQuoteStrategy");
+}
+
+#[test]
+fn create_strategies_returns_three() {
+    use cow_rs::bridging::sdk::{QuoteStrategy, create_strategies};
+    let strategies = create_strategies();
+    assert_eq!(strategies.len(), 3);
+    assert_eq!(strategies[0], QuoteStrategy::Single);
+    assert_eq!(strategies[1], QuoteStrategy::Multi);
+    assert_eq!(strategies[2], QuoteStrategy::Best);
+}
+
+// ── get_cache_key ──────────────────────────────────────────────────────────
+
+#[test]
+fn get_cache_key_format() {
+    use cow_rs::bridging::sdk::get_cache_key;
+    let req = sample_request();
+    let key = get_cache_key(&req);
+    assert!(key.contains("1-42161-"));
+    assert!(key.contains("0x"));
+}
+
+#[test]
+fn get_cache_key_deterministic() {
+    use cow_rs::bridging::sdk::get_cache_key;
+    let req = sample_request();
+    assert_eq!(get_cache_key(&req), get_cache_key(&req));
+}
+
+// ── safe_call_best_quote_callback ──────────────────────────────────────────
+
+#[test]
+fn safe_call_best_quote_callback_invokes_callback() {
+    use cow_rs::bridging::sdk::safe_call_best_quote_callback;
+    use std::sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    };
+
+    let called = Arc::new(AtomicBool::new(false));
+    let called_clone = called.clone();
+
+    let result = cow_rs::bridging::types::MultiQuoteResult {
+        provider_dapp_id: "test".to_owned(),
+        quote: None,
+        error: None,
+    };
+
+    safe_call_best_quote_callback(
+        Some(move |_: &cow_rs::bridging::types::MultiQuoteResult| {
+            called_clone.store(true, Ordering::SeqCst);
+        }),
+        &result,
+    );
+
+    assert!(called.load(Ordering::SeqCst));
+}
+
+#[test]
+fn safe_call_best_quote_callback_none_is_noop() {
+    use cow_rs::bridging::sdk::safe_call_best_quote_callback;
+
+    let result = cow_rs::bridging::types::MultiQuoteResult {
+        provider_dapp_id: "test".to_owned(),
+        quote: None,
+        error: None,
+    };
+
+    safe_call_best_quote_callback(None::<fn(&cow_rs::bridging::types::MultiQuoteResult)>, &result);
+}
+
+#[test]
+fn safe_call_progressive_callback_invokes_callback() {
+    use cow_rs::bridging::sdk::safe_call_progressive_callback;
+    use std::sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    };
+
+    let called = Arc::new(AtomicBool::new(false));
+    let called_clone = called.clone();
+
+    let result = cow_rs::bridging::types::MultiQuoteResult {
+        provider_dapp_id: "test".to_owned(),
+        quote: None,
+        error: None,
+    };
+
+    safe_call_progressive_callback(
+        Some(move |_: &cow_rs::bridging::types::MultiQuoteResult| {
+            called_clone.store(true, Ordering::SeqCst);
+        }),
+        &result,
+    );
+
+    assert!(called.load(Ordering::SeqCst));
+}
+
+#[test]
+fn safe_call_progressive_callback_none_is_noop() {
+    use cow_rs::bridging::sdk::safe_call_progressive_callback;
+
+    let result = cow_rs::bridging::types::MultiQuoteResult {
+        provider_dapp_id: "test".to_owned(),
+        quote: None,
+        error: None,
+    };
+
+    safe_call_progressive_callback(None::<fn(&cow_rs::bridging::types::MultiQuoteResult)>, &result);
+}
+
+// ── BridgingSdk Debug and builder ──────────────────────────────────────────
+
+#[test]
+fn bridging_sdk_debug_format() {
+    let sdk = BridgingSdk::new();
+    let debug = format!("{sdk:?}");
+    assert!(debug.contains("BridgingSdk"));
+    assert!(debug.contains("provider_count"));
+}
+
+#[test]
+fn bridging_sdk_with_bungee_adds_provider() {
+    let sdk = BridgingSdk::new().with_bungee("test-key");
+    assert_eq!(sdk.provider_count(), 1);
+}
+
+#[test]
+fn bridging_sdk_default_has_no_providers() {
+    let sdk = BridgingSdk::default();
+    assert_eq!(sdk.provider_count(), 0);
+}
+
+// ── get_cross_chain_order ──────────────────────────────────────────────────
+
+#[test]
+fn get_cross_chain_order_returns_error_for_empty_logs() {
+    use cow_rs::bridging::sdk::{GetCrossChainOrderParams, get_cross_chain_order};
+
+    let params = GetCrossChainOrderParams {
+        chain_id: 1,
+        order_id: "0xdeadbeef".to_owned(),
+        full_app_data: None,
+        trade_tx_hash: "0xabc".to_owned(),
+        logs: &[],
+        settlement_override: None,
+    };
+
+    let result = get_cross_chain_order(&params);
+    assert!(result.is_err());
+}
+
+// ── get_all_quotes with unsupported providers ──────────────────────────────
+
+#[tokio::test]
+async fn sdk_get_all_quotes_empty_for_unsupported_providers() {
+    let mut sdk = BridgingSdk::new();
+    sdk.add_provider(UnsupportedProvider);
+
+    let req = sample_request();
+    let results = sdk.get_all_quotes(&req).await;
+    assert!(results.is_empty());
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// NEW COVERAGE TESTS — bungee.rs
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ── BungeeProvider name and supports_route ─────────────────────────────────
+
+#[test]
+fn bungee_provider_name_is_bungee() {
+    use cow_rs::bridging::bungee::BungeeProvider;
+    let provider = BungeeProvider::new("test-key");
+    assert_eq!(BridgeProvider::name(&provider), "bungee");
+}
+
+#[test]
+fn bungee_provider_supports_any_route() {
+    use cow_rs::bridging::bungee::BungeeProvider;
+    let provider = BungeeProvider::new("test-key");
+    assert!(BridgeProvider::supports_route(&provider, 1, 42161));
+    assert!(BridgeProvider::supports_route(&provider, 99999, 0));
+}
+
+// ── decode_amounts for GnosisNative ────────────────────────────────────────
+
+#[test]
+fn decode_amounts_for_gnosis_native_3bf5c228() {
+    // For GnosisNative 0x3bf5c228: bytes_start_index=136, amount at hex offset 2+16=18
+    // But the amount is at bytes_string_start_index=18 from start of tx_data
+    let amount_hex = "0000000000000000000000000000000000000000000000000000000000000064"; // 100
+    // Need route_id (4 bytes) + selector (4 bytes) + enough padding before the amount at offset 136
+    // The bytes_string indices are relative to the tx_data string
+    // bytes_string_start_index = 2 + 8*2 = 18, so amount starts at char 18 of tx_data
+    let tx_data = format!("0x112233443bf5c228{amount_hex}");
+    let decoded = decode_amounts_bungee_tx_data(&tx_data, BungeeBridge::GnosisNative).unwrap();
+    assert_eq!(decoded.input_amount, U256::from(100u64));
+}
+
+#[test]
+fn decode_amounts_for_gnosis_native_fcb23eb0() {
+    let amount_hex = "0000000000000000000000000000000000000000000000000000000000000032"; // 50
+    let tx_data = format!("0x11223344fcb23eb0{amount_hex}");
+    let decoded = decode_amounts_bungee_tx_data(&tx_data, BungeeBridge::GnosisNative).unwrap();
+    assert_eq!(decoded.input_amount, U256::from(50u64));
+}
+
+// ── decode_amounts truncated data ──────────────────────────────────────────
+
+#[test]
+fn decode_amounts_rejects_truncated_amount_field() {
+    // Valid route_id + selector, but data too short for the amount
+    let tx_data = "0x11223344cc54d2240000000000000000";
+    let result = decode_amounts_bungee_tx_data(tx_data, BungeeBridge::Across);
+    assert!(result.is_err());
+}
+
+// ── create_bungee_deposit_call for CircleCctp ──────────────────────────────
+
+#[test]
+fn create_bungee_deposit_call_cctp() {
+    use cow_rs::bridging::bungee::{BungeeDepositCallParams, create_bungee_deposit_call};
+    let amount_hex = "0000000000000000000000000000000000000000000000000000000000000064";
+    let build_tx_data = format!("0x11223344b7dfe9d0{amount_hex}");
+
+    let params = BungeeDepositCallParams {
+        request: sample_request(),
+        build_tx_data,
+        input_amount: U256::from(100u64),
+        bridge: BungeeBridge::CircleCctp,
+    };
+
+    let result = create_bungee_deposit_call(&params);
+    assert!(result.is_ok());
+    let call = result.unwrap();
+    assert!(!call.data.is_empty());
+    assert_eq!(call.value, U256::ZERO);
+}
+
+// ── create_bungee_deposit_call for GnosisNative ────────────────────────────
+
+#[test]
+fn create_bungee_deposit_call_gnosis_native() {
+    use cow_rs::bridging::bungee::{BungeeDepositCallParams, create_bungee_deposit_call};
+    let amount_hex = "0000000000000000000000000000000000000000000000000000000000000064";
+    let build_tx_data = format!("0x112233443bf5c228{amount_hex}");
+
+    let mut req = sample_request();
+    req.sell_chain_id = 100; // GnosisChain
+
+    let params = BungeeDepositCallParams {
+        request: req,
+        build_tx_data,
+        input_amount: U256::from(100u64),
+        bridge: BungeeBridge::GnosisNative,
+    };
+
+    let result = create_bungee_deposit_call(&params);
+    assert!(result.is_ok());
+}
+
+// ── create_bungee_deposit_call with native token ───────────────────────────
+
+#[test]
+fn create_bungee_deposit_call_native_token_has_value() {
+    use cow_rs::bridging::bungee::{BungeeDepositCallParams, create_bungee_deposit_call};
+    let amount_hex = "0000000000000000000000000000000000000000000000000000000000000064";
+    let build_tx_data = format!("0x11223344cc54d224{amount_hex}");
+
+    let mut req = sample_request();
+    // Set sell_token to native currency address
+    req.sell_token = cow_rs::config::NATIVE_CURRENCY_ADDRESS;
+
+    let params = BungeeDepositCallParams {
+        request: req,
+        build_tx_data,
+        input_amount: U256::from(100u64),
+        bridge: BungeeBridge::Across,
+    };
+
+    let result = create_bungee_deposit_call(&params);
+    assert!(result.is_ok());
+    let call = result.unwrap();
+    assert_eq!(call.value, U256::from(100u64));
+}
+
+// ── create_bungee_deposit_call with unsupported selector ───────────────────
+
+#[test]
+fn create_bungee_deposit_call_unsupported_selector_fails() {
+    use cow_rs::bridging::bungee::{BungeeDepositCallParams, create_bungee_deposit_call};
+    let amount_hex = "0000000000000000000000000000000000000000000000000000000000000064";
+    let build_tx_data = format!("0x1122334400000000{amount_hex}");
+
+    let params = BungeeDepositCallParams {
+        request: sample_request(),
+        build_tx_data,
+        input_amount: U256::from(100u64),
+        bridge: BungeeBridge::Across,
+    };
+
+    let result = create_bungee_deposit_call(&params);
+    assert!(result.is_err());
+}
+
+// ── bungee_to_bridge_quote_result edge cases ───────────────────────────────
+
+#[test]
+fn bungee_to_bridge_quote_result_with_quote_body() {
+    let req = sample_request();
+    let result = bungee_to_bridge_quote_result(
+        &req,
+        100,
+        U256::from(900_000_000u64),
+        U256::from(100_000_000u64),
+        1700000000,
+        300,
+        Some("q-2".to_owned()),
+        Some("{\"route\": \"test\"}".to_owned()),
+    )
+    .unwrap();
+
+    assert_eq!(result.id, Some("q-2".to_owned()));
+    assert_eq!(result.quote_body, Some("{\"route\": \"test\"}".to_owned()));
+    assert_eq!(result.amounts_and_costs.slippage_bps, 100);
+    assert_eq!(result.fees.bridge_fee, U256::from(100_000_000u64));
+    assert_eq!(result.fees.destination_gas_fee, U256::ZERO);
+}
+
+#[test]
+fn bungee_to_bridge_quote_result_buy_kind() {
+    let mut req = sample_request();
+    req.kind = OrderKind::Buy;
+
+    let result = bungee_to_bridge_quote_result(
+        &req,
+        50,
+        U256::from(100u64),
+        U256::from(5u64),
+        0,
+        0,
+        None,
+        None,
+    )
+    .unwrap();
+
+    assert!(!result.is_sell);
+}
+
+// ── is_valid_quote_response edge cases ─────────────────────────────────────
+
+#[test]
+fn is_valid_quote_response_rejects_missing_success() {
+    let resp = json!({ "result": { "manualRoutes": [] } });
+    assert!(!is_valid_quote_response(&resp));
+}
+
+#[test]
+fn is_valid_quote_response_rejects_non_bool_success() {
+    let resp = json!({ "success": "yes", "result": { "manualRoutes": [] } });
+    assert!(!is_valid_quote_response(&resp));
+}
+
+#[test]
+fn is_valid_quote_response_rejects_non_array_routes() {
+    let resp = json!({
+        "success": true,
+        "result": { "manualRoutes": "not an array" }
+    });
+    assert!(!is_valid_quote_response(&resp));
+}
+
+#[test]
+fn is_valid_quote_response_rejects_route_without_output() {
+    let resp = json!({
+        "success": true,
+        "result": {
+            "manualRoutes": [{
+                "quoteId": "q-1",
+                "estimatedTime": 60,
+                "routeDetails": { "routeFee": { "amount": "5" } }
+            }]
+        }
+    });
+    assert!(!is_valid_quote_response(&resp));
+}
+
+#[test]
+fn is_valid_quote_response_rejects_route_without_estimated_time() {
+    let resp = json!({
+        "success": true,
+        "result": {
+            "manualRoutes": [{
+                "quoteId": "q-1",
+                "output": { "amount": "100" },
+                "routeDetails": { "routeFee": { "amount": "5" } }
+            }]
+        }
+    });
+    assert!(!is_valid_quote_response(&resp));
+}
+
+#[test]
+fn is_valid_quote_response_rejects_route_without_route_fee() {
+    let resp = json!({
+        "success": true,
+        "result": {
+            "manualRoutes": [{
+                "quoteId": "q-1",
+                "output": { "amount": "100" },
+                "estimatedTime": 60,
+                "routeDetails": {}
+            }]
+        }
+    });
+    assert!(!is_valid_quote_response(&resp));
+}
+
+// ── is_valid_bungee_events_response edge cases ─────────────────────────────
+
+#[test]
+fn is_valid_bungee_events_response_rejects_missing_success() {
+    let resp = json!({ "result": [] });
+    assert!(!is_valid_bungee_events_response(&resp));
+}
+
+#[test]
+fn is_valid_bungee_events_response_rejects_non_array_result() {
+    let resp = json!({ "success": true, "result": "not array" });
+    assert!(!is_valid_bungee_events_response(&resp));
+}
+
+#[test]
+fn is_valid_bungee_events_response_accepts_empty_result() {
+    let resp = json!({ "success": true, "result": [] });
+    assert!(is_valid_bungee_events_response(&resp));
+}
+
+// ── Bungee constants ───────────────────────────────────────────────────────
+
+#[test]
+fn bungee_constants_non_empty() {
+    use cow_rs::bridging::bungee::{
+        BUNGEE_APPROVE_AND_BRIDGE_V1_ADDRESS, BUNGEE_COWSWAP_LIB_ADDRESS, SOCKET_VERIFIER_ADDRESS,
+    };
+    assert!(!BUNGEE_APPROVE_AND_BRIDGE_V1_ADDRESS.is_empty());
+    assert!(!BUNGEE_COWSWAP_LIB_ADDRESS.is_empty());
+    assert!(!SOCKET_VERIFIER_ADDRESS.is_empty());
+}
+
+// ── SDK constants ──────────────────────────────────────────────────────────
+
+#[test]
+fn sdk_constants_are_set() {
+    use cow_rs::bridging::sdk::*;
+    assert!(!BUNGEE_API_PATH.is_empty());
+    assert!(!BUNGEE_MANUAL_API_PATH.is_empty());
+    assert!(!BUNGEE_BASE_URL.is_empty());
+    assert!(!BUNGEE_API_URL.is_empty());
+    assert!(!BUNGEE_MANUAL_API_URL.is_empty());
+    assert!(!BUNGEE_EVENTS_API_URL.is_empty());
+    assert!(!ACROSS_API_URL.is_empty());
+    assert_eq!(DEFAULT_BRIDGE_SLIPPAGE_BPS, 50);
+    assert!(DEFAULT_GAS_COST_FOR_HOOK_ESTIMATION > 0);
+    assert!(DEFAULT_EXTRA_GAS_FOR_HOOK_ESTIMATION > 0);
+    assert!(DEFAULT_EXTRA_GAS_PROXY_CREATION > 0);
+    assert!(!HOOK_DAPP_BRIDGE_PROVIDER_PREFIX.is_empty());
+    assert!(!BUNGEE_HOOK_DAPP_ID.is_empty());
+    assert!(!ACROSS_HOOK_DAPP_ID.is_empty());
+    assert!(!NEAR_INTENTS_HOOK_DAPP_ID.is_empty());
+    assert!(BUNGEE_API_FALLBACK_TIMEOUT > 0);
+    assert!(DEFAULT_TOTAL_TIMEOUT_MS > 0);
+    assert!(DEFAULT_PROVIDER_TIMEOUT_MS > 0);
+}
+
+// ── Across event interface constants ───────────────────────────────────────
+
+#[test]
+fn across_event_interface_constants() {
+    use cow_rs::bridging::across::{
+        ACROSS_DEPOSIT_EVENT_INTERFACE, ACROSS_FUNDS_DEPOSITED_TOPIC, COW_TRADE_EVENT_INTERFACE,
+        COW_TRADE_EVENT_SIGNATURE,
+    };
+    assert_eq!(ACROSS_DEPOSIT_EVENT_INTERFACE, ACROSS_FUNDS_DEPOSITED_TOPIC);
+    assert_eq!(COW_TRADE_EVENT_INTERFACE, COW_TRADE_EVENT_SIGNATURE);
+    assert!(ACROSS_FUNDS_DEPOSITED_TOPIC.contains("FundsDeposited"));
+    assert!(COW_TRADE_EVENT_SIGNATURE.contains("Trade"));
 }

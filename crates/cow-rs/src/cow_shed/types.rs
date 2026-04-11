@@ -150,3 +150,62 @@ impl CowShedHookParams {
         &self.nonce
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cow_shed_call_new_defaults() {
+        let call = CowShedCall::new(Address::ZERO, vec![0xDE, 0xAD]);
+        assert_eq!(call.target, Address::ZERO);
+        assert_eq!(call.calldata, vec![0xDE, 0xAD]);
+        assert_eq!(call.value, U256::ZERO);
+        assert!(!call.allow_failure);
+        assert!(!call.has_value());
+    }
+
+    #[test]
+    fn cow_shed_call_with_value() {
+        let call = CowShedCall::new(Address::ZERO, vec![]).with_value(U256::from(1000u64));
+        assert!(call.has_value());
+        assert_eq!(call.value, U256::from(1000u64));
+    }
+
+    #[test]
+    fn cow_shed_call_allowing_failure() {
+        let call = CowShedCall::new(Address::ZERO, vec![]).allowing_failure();
+        assert!(call.allow_failure);
+    }
+
+    #[test]
+    fn cow_shed_call_target_ref() {
+        let addr = Address::repeat_byte(0x42);
+        let call = CowShedCall::new(addr, vec![]);
+        assert_eq!(*call.target_ref(), addr);
+    }
+
+    #[test]
+    fn cow_shed_call_calldata_ref() {
+        let call = CowShedCall::new(Address::ZERO, vec![1, 2, 3]);
+        assert_eq!(call.calldata_ref(), &[1, 2, 3]);
+    }
+
+    #[test]
+    fn cow_shed_hook_params_new() {
+        let nonce = B256::repeat_byte(0xAA);
+        let deadline = U256::from(9999u64);
+        let params = CowShedHookParams::new(vec![], nonce, deadline);
+        assert!(params.is_empty());
+        assert_eq!(params.call_count(), 0);
+        assert_eq!(*params.nonce_ref(), nonce);
+    }
+
+    #[test]
+    fn cow_shed_hook_params_with_calls() {
+        let call = CowShedCall::new(Address::ZERO, vec![]);
+        let params = CowShedHookParams::new(vec![call], B256::ZERO, U256::ZERO);
+        assert!(!params.is_empty());
+        assert_eq!(params.call_count(), 1);
+    }
+}

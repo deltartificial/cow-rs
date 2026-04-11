@@ -889,3 +889,436 @@ async fn rate_limiter_serialises_concurrent_get_version() {
         "rate limiter should space 4 requests over >=50 ms, got {elapsed:?}"
     );
 }
+
+// ── get_order_multi_env fallback on 404 ─────────────────────────────────────
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn get_order_multi_env_falls_back_on_404() {
+    let server = MockServer::start().await;
+    let uid = "0x".to_owned() + &"ab".repeat(56);
+    // First call returns 404.
+    Mock::given(matchers::method("GET"))
+        .and(matchers::path_regex(r"/api/v1/orders/.*"))
+        .respond_with(ResponseTemplate::new(404).set_body_string("not found"))
+        .up_to_n_times(1)
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    // The fallback will hit the OTHER env's real URL, which we can't mock
+    // here. Instead, test that the first 404 is consumed and the error from
+    // the second environment is propagated (since the fallback URL is not
+    // our mock server).
+    let api = make_api(&server);
+    let result = api.get_order_multi_env(&uid).await;
+    // The fallback call goes to the real prod/staging URL which will fail.
+    assert!(result.is_err());
+}
+
+// ── get_order_multi_env non-404 error is propagated ─────────────────────────
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn get_order_multi_env_propagates_non_404_error() {
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("GET"))
+        .and(matchers::path_regex(r"/api/v1/orders/.*"))
+        .respond_with(ResponseTemplate::new(500).set_body_string("internal error"))
+        .mount(&server)
+        .await;
+
+    let api = OrderBookApi::new_with_url(SupportedChainId::Mainnet, Env::Prod, server.uri())
+        .with_retry_policy(RetryPolicy::no_retry());
+    let result = api.get_order_multi_env("0xtest").await;
+    match result {
+        Err(cow_rs::CowError::Api { status, .. }) => assert_eq!(status, 500),
+        other => panic!("expected Api error 500, got {other:?}"),
+    }
+}
+
+// ── upload_app_data_auto error path ─────────────────────────────────────────
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn upload_app_data_auto_400_returns_api_error() {
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("PUT"))
+        .and(matchers::path("/api/v1/app_data"))
+        .respond_with(ResponseTemplate::new(400).set_body_string("bad request"))
+        .mount(&server)
+        .await;
+    let result = make_api(&server).upload_app_data_auto("bad data").await;
+    match result {
+        Err(cow_rs::CowError::Api { status, .. }) => assert_eq!(status, 400),
+        other => panic!("expected Api error, got {other:?}"),
+    }
+}
+
+// ── get_trades_with_request with order_uid filter ───────────────────────────
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn get_trades_with_request_with_order_uid() {
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("GET"))
+        .and(matchers::path("/api/v2/trades"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!([])))
+        .mount(&server)
+        .await;
+    let req = cow_rs::GetTradesRequest {
+        owner: None,
+        order_uid: Some("0xmyuid".to_owned()),
+        offset: None,
+        limit: None,
+    };
+    let trades: Vec<Trade> = make_api(&server).get_trades_with_request(&req).await.unwrap();
+    assert!(trades.is_empty());
+}
+
+// ── get_trades_with_request with both owner and order_uid ───────────────────
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn get_trades_with_request_both_filters() {
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("GET"))
+        .and(matchers::path("/api/v2/trades"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!([])))
+        .mount(&server)
+        .await;
+    let req = cow_rs::GetTradesRequest {
+        owner: Some(alloy_primitives::address!("1111111111111111111111111111111111111111")),
+        order_uid: Some("0xmyuid".to_owned()),
+        offset: Some(5),
+        limit: Some(20),
+    };
+    let trades: Vec<Trade> = make_api(&server).get_trades_with_request(&req).await.unwrap();
+    assert!(trades.is_empty());
+}
+
+// ── get_orders_for_account with explicit limit ──────────────────────────────
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn get_orders_for_account_with_limit() {
+    let server = MockServer::start().await;
+    let address = alloy_primitives::address!("4444444444444444444444444444444444444444");
+    Mock::given(matchers::method("GET"))
+        .and(matchers::path_regex(r"/api/v1/account/.*/orders"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!([])))
+        .mount(&server)
+        .await;
+    let orders = make_api(&server).get_orders_for_account(address, Some(5)).await.unwrap();
+    assert!(orders.is_empty());
+}
+
+// ── get_trades_for_account with explicit limit ──────────────────────────────
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn get_trades_for_account_with_limit() {
+    let server = MockServer::start().await;
+    let address = alloy_primitives::address!("5555555555555555555555555555555555555555");
+    Mock::given(matchers::method("GET"))
+        .and(matchers::path("/api/v2/trades"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!([])))
+        .mount(&server)
+        .await;
+    let trades: Vec<Trade> =
+        make_api(&server).get_trades_for_account(address, Some(25)).await.unwrap();
+    assert!(trades.is_empty());
+}
+
+// ── request standalone function ─────────────────────────────────────────────
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn request_standalone_get() {
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("GET"))
+        .and(matchers::path("/api/v1/version"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!("2.0.0")))
+        .mount(&server)
+        .await;
+    let version: String = cow_rs::order_book::request(
+        &server.uri(),
+        "/api/v1/version",
+        reqwest::Method::GET,
+        None::<&()>,
+    )
+    .await
+    .unwrap();
+    assert_eq!(version, "2.0.0");
+}
+
+// ── request standalone function error path ──────────────────────────────────
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn request_standalone_404() {
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("GET"))
+        .and(matchers::path("/api/v1/version"))
+        .respond_with(ResponseTemplate::new(404).set_body_string("not found"))
+        .mount(&server)
+        .await;
+    let result: Result<String, _> = cow_rs::order_book::request(
+        &server.uri(),
+        "/api/v1/version",
+        reqwest::Method::GET,
+        None::<&()>,
+    )
+    .await;
+    assert!(result.is_err());
+}
+
+// ── request standalone function with POST body ──────────────────────────────
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn request_standalone_post_with_body() {
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("POST"))
+        .and(matchers::path("/api/v1/quote"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(make_quote_response_json()))
+        .mount(&server)
+        .await;
+
+    let body = serde_json::json!({"test": true});
+    let result: cow_rs::order_book::OrderQuoteResponse = cow_rs::order_book::request(
+        &server.uri(),
+        "/api/v1/quote",
+        reqwest::Method::POST,
+        Some(&body),
+    )
+    .await
+    .unwrap();
+    assert!(!result.quote.sell_amount.is_empty());
+}
+
+// ── mock_get_order ──────────────────────────────────────────────────────────
+
+#[test]
+fn mock_get_order_returns_valid_order() {
+    let uid = "0xtest123";
+    let order = cow_rs::order_book::mock_get_order(uid);
+    assert_eq!(order.uid, uid);
+    assert_eq!(order.kind, OrderKind::Sell);
+    assert!(!order.invalidated);
+    assert_eq!(order.signing_scheme, SigningScheme::Eip712);
+}
+
+// ── 5xx on GET /api/v1/auction ──────────────────────────────────────────────
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn get_auction_500_returns_error() {
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("GET"))
+        .and(matchers::path("/api/v1/auction"))
+        .respond_with(ResponseTemplate::new(500).set_body_string("internal error"))
+        .mount(&server)
+        .await;
+    let api = OrderBookApi::new_with_url(SupportedChainId::Mainnet, Env::Prod, server.uri())
+        .with_retry_policy(RetryPolicy::no_retry());
+    let result = api.get_auction().await;
+    match result {
+        Err(cow_rs::CowError::Api { status, .. }) => assert_eq!(status, 500),
+        other => panic!("expected Api error 500, got {other:?}"),
+    }
+}
+
+// ── 5xx on POST /api/v1/quote ───────────────────────────────────────────────
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn get_quote_500_returns_error() {
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("POST"))
+        .and(matchers::path("/api/v1/quote"))
+        .respond_with(ResponseTemplate::new(500).set_body_string("server error"))
+        .mount(&server)
+        .await;
+
+    let api = OrderBookApi::new_with_url(SupportedChainId::Mainnet, Env::Prod, server.uri())
+        .with_retry_policy(RetryPolicy::no_retry());
+    let req = OrderQuoteRequest::new(
+        alloy_primitives::Address::ZERO,
+        alloy_primitives::Address::ZERO,
+        alloy_primitives::Address::ZERO,
+        QuoteSide::sell("1000000"),
+    );
+    let result = api.get_quote(&req).await;
+    match result {
+        Err(cow_rs::CowError::Api { status, .. }) => assert_eq!(status, 500),
+        other => panic!("expected Api error 500, got {other:?}"),
+    }
+}
+
+// ── 5xx on POST /api/v1/orders ──────────────────────────────────────────────
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn send_order_500_returns_error() {
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("POST"))
+        .and(matchers::path("/api/v1/orders"))
+        .respond_with(ResponseTemplate::new(500).set_body_string("server error"))
+        .mount(&server)
+        .await;
+
+    let api = OrderBookApi::new_with_url(SupportedChainId::Mainnet, Env::Prod, server.uri())
+        .with_retry_policy(RetryPolicy::no_retry());
+    let order = OrderCreation {
+        sell_token: alloy_primitives::Address::ZERO,
+        buy_token: alloy_primitives::Address::ZERO,
+        receiver: alloy_primitives::Address::ZERO,
+        sell_amount: "1000".to_owned(),
+        buy_amount: "900".to_owned(),
+        valid_to: 9999,
+        app_data: "0x0000000000000000000000000000000000000000000000000000000000000000".to_owned(),
+        fee_amount: "0".to_owned(),
+        kind: OrderKind::Sell,
+        partially_fillable: false,
+        sell_token_balance: TokenBalance::Erc20,
+        buy_token_balance: TokenBalance::Erc20,
+        signing_scheme: SigningScheme::Eip712,
+        signature: "0xabcd".into(),
+        from: alloy_primitives::Address::ZERO,
+        quote_id: None,
+    };
+    let result = api.send_order(&order).await;
+    match result {
+        Err(cow_rs::CowError::Api { status, .. }) => assert_eq!(status, 500),
+        other => panic!("expected Api error 500, got {other:?}"),
+    }
+}
+
+// ── 404 on GET native_price ─────────────────────────────────────────────────
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn get_native_price_404_returns_error() {
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("GET"))
+        .and(matchers::path_regex(r"/api/v1/token/.*/native_price"))
+        .respond_with(ResponseTemplate::new(404).set_body_string("token not found"))
+        .mount(&server)
+        .await;
+    let token = alloy_primitives::address!("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48");
+    let result = make_api(&server).get_native_price(token).await;
+    match result {
+        Err(cow_rs::CowError::Api { status, .. }) => assert_eq!(status, 404),
+        other => panic!("expected Api error 404, got {other:?}"),
+    }
+}
+
+// ── 404 on GET total_surplus ────────────────────────────────────────────────
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn get_total_surplus_404_returns_error() {
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("GET"))
+        .and(matchers::path_regex(r"/api/v1/users/.*/total_surplus"))
+        .respond_with(ResponseTemplate::new(404).set_body_string("not found"))
+        .mount(&server)
+        .await;
+    let addr = alloy_primitives::address!("1111111111111111111111111111111111111111");
+    let result = make_api(&server).get_total_surplus(addr).await;
+    assert!(result.is_err());
+}
+
+// ── 404 on GET solver_competition ───────────────────────────────────────────
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn get_solver_competition_404_returns_error() {
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("GET"))
+        .and(matchers::path_regex(r"/api/v1/solver_competition/\d+"))
+        .respond_with(ResponseTemplate::new(404).set_body_string("not found"))
+        .mount(&server)
+        .await;
+    let result = make_api(&server).get_solver_competition(99999).await;
+    assert!(result.is_err());
+}
+
+// ── 404 on GET order_status ─────────────────────────────────────────────────
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn get_order_status_404_returns_error() {
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("GET"))
+        .and(matchers::path_regex(r"/api/v1/orders/.*/status"))
+        .respond_with(ResponseTemplate::new(404).set_body_string("not found"))
+        .mount(&server)
+        .await;
+    let result = make_api(&server).get_order_status("0xnonexistent").await;
+    assert!(result.is_err());
+}
+
+// ── 404 on GET orders_by_tx ─────────────────────────────────────────────────
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn get_orders_by_tx_404_returns_error() {
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("GET"))
+        .and(matchers::path_regex(r"/api/v1/transactions/.*/orders"))
+        .respond_with(ResponseTemplate::new(404).set_body_string("not found"))
+        .mount(&server)
+        .await;
+    let result = make_api(&server).get_orders_by_tx("0xnonexistent").await;
+    assert!(result.is_err());
+}
+
+// ── 404 on GET app_data ─────────────────────────────────────────────────────
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn get_app_data_404_returns_error() {
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("GET"))
+        .and(matchers::path_regex(r"/api/v1/app_data/.*"))
+        .respond_with(ResponseTemplate::new(404).set_body_string("not found"))
+        .mount(&server)
+        .await;
+    let result = make_api(&server).get_app_data("0xnonexistent").await;
+    assert!(result.is_err());
+}
+
+// ── GetOrdersRequest with defaults ──────────────────────────────────────────
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn get_orders_with_defaults() {
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("GET"))
+        .and(matchers::path_regex(r"/api/v1/account/.*/orders"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!([])))
+        .mount(&server)
+        .await;
+    let req = cow_rs::GetOrdersRequest {
+        owner: alloy_primitives::address!("1111111111111111111111111111111111111111"),
+        limit: None,
+        offset: None,
+    };
+    let orders = make_api(&server).get_orders(&req).await.unwrap();
+    assert!(orders.is_empty());
+}
+
+// ── with_rate_limiter and with_retry_policy ─────────────────────────────────
+
+#[test]
+fn with_rate_limiter_and_retry_policy() {
+    let limiter = Arc::new(RateLimiter::new(100.0, 10.0));
+    let policy = RetryPolicy::no_retry();
+    let api = OrderBookApi::new(SupportedChainId::Mainnet, Env::Prod)
+        .with_rate_limiter(limiter)
+        .with_retry_policy(policy);
+    // Smoke test: just verify the builder methods chain without panicking.
+    let _link = api.get_order_link("0xtest");
+}

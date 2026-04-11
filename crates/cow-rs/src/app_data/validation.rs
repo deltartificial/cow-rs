@@ -288,3 +288,173 @@ fn validate_replaced_order_uid(uid: &str, errors: &mut Vec<ValidationError>) {
 fn is_eth_address(s: &str) -> bool {
     s.len() == 42 && s.starts_with("0x") && s[2..].chars().all(|c| c.is_ascii_hexdigit())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::app_data::types::{OrderClass, OrderClassKind, PartnerFeeEntry, ReplacedOrder};
+
+    #[test]
+    fn validate_app_code_empty() {
+        let mut errors = Vec::new();
+        validate_app_code(Some(""), &mut errors);
+        assert!(!errors.is_empty());
+        assert!(matches!(errors[0], ValidationError::InvalidAppCode(_)));
+    }
+
+    #[test]
+    fn validate_app_code_too_long() {
+        let mut errors = Vec::new();
+        let long = "A".repeat(51);
+        validate_app_code(Some(&long), &mut errors);
+        assert!(!errors.is_empty());
+        assert!(matches!(errors[0], ValidationError::InvalidAppCode(_)));
+    }
+
+    #[test]
+    fn validate_app_code_none_is_ok() {
+        let mut errors = Vec::new();
+        validate_app_code(None, &mut errors);
+        assert!(errors.is_empty());
+    }
+
+    #[test]
+    fn validate_app_code_valid() {
+        let mut errors = Vec::new();
+        validate_app_code(Some("MyApp"), &mut errors);
+        assert!(errors.is_empty());
+    }
+
+    #[test]
+    fn validate_hook_invalid_target() {
+        let mut errors = Vec::new();
+        let hook = CowHook {
+            target: "not-an-address".to_owned(),
+            call_data: "0x".to_owned(),
+            gas_limit: "100000".to_owned(),
+            dapp_id: None,
+        };
+        validate_single_hook(&hook, &mut errors);
+        assert!(errors.iter().any(|e| matches!(e, ValidationError::InvalidHookTarget { .. })));
+    }
+
+    #[test]
+    fn validate_hook_invalid_gas_limit() {
+        let mut errors = Vec::new();
+        let hook = CowHook {
+            target: "0x1111111111111111111111111111111111111111".to_owned(),
+            call_data: "0x".to_owned(),
+            gas_limit: "not-a-number".to_owned(),
+            dapp_id: None,
+        };
+        validate_single_hook(&hook, &mut errors);
+        assert!(errors.iter().any(|e| matches!(e, ValidationError::InvalidHookGasLimit { .. })));
+    }
+
+    #[test]
+    fn validate_hook_valid() {
+        let mut errors = Vec::new();
+        let hook = CowHook {
+            target: "0x1111111111111111111111111111111111111111".to_owned(),
+            call_data: "0x".to_owned(),
+            gas_limit: "100000".to_owned(),
+            dapp_id: None,
+        };
+        validate_single_hook(&hook, &mut errors);
+        assert!(errors.is_empty());
+    }
+
+    #[test]
+    fn validate_partner_fee_bps_too_high() {
+        let mut errors = Vec::new();
+        let fee = PartnerFee::Single(PartnerFeeEntry {
+            recipient: "0x1111111111111111111111111111111111111111".to_owned(),
+            volume_bps: Some(10_001),
+            surplus_bps: None,
+            price_improvement_bps: None,
+            max_volume_bps: None,
+        });
+        validate_partner_fee(&fee, &mut errors);
+        assert!(errors.iter().any(|e| matches!(e, ValidationError::PartnerFeeBpsTooHigh(10_001))));
+    }
+
+    #[test]
+    fn validate_partner_fee_valid() {
+        let mut errors = Vec::new();
+        let fee = PartnerFee::Single(PartnerFeeEntry {
+            recipient: "0x1111111111111111111111111111111111111111".to_owned(),
+            volume_bps: Some(500),
+            surplus_bps: None,
+            price_improvement_bps: None,
+            max_volume_bps: None,
+        });
+        validate_partner_fee(&fee, &mut errors);
+        assert!(errors.is_empty());
+    }
+
+    #[test]
+    fn validate_replaced_order_uid_valid() {
+        let mut errors = Vec::new();
+        let uid = format!("0x{}", "ab".repeat(56));
+        validate_replaced_order_uid(&uid, &mut errors);
+        assert!(errors.is_empty());
+    }
+
+    #[test]
+    fn validate_replaced_order_uid_invalid() {
+        let mut errors = Vec::new();
+        validate_replaced_order_uid("0xshort", &mut errors);
+        assert!(errors.iter().any(|e| matches!(e, ValidationError::InvalidReplacedOrderUid(_))));
+    }
+
+    #[test]
+    fn validation_error_display_all_variants() {
+        let err = ValidationError::InvalidAppCode("test".into());
+        assert!(err.to_string().contains("test"));
+
+        let err = ValidationError::InvalidVersion("bad".into());
+        assert!(err.to_string().contains("bad"));
+
+        let err = ValidationError::InvalidHookTarget { hook: "foo".into(), reason: "bar".into() };
+        assert!(err.to_string().contains("foo"));
+
+        let err = ValidationError::InvalidHookGasLimit { gas_limit: "xyz".into() };
+        assert!(err.to_string().contains("xyz"));
+
+        let err = ValidationError::PartnerFeeBpsTooHigh(20_000);
+        assert!(err.to_string().contains("20000"));
+
+        let err = ValidationError::UnknownOrderClass("unknown".into());
+        assert!(err.to_string().contains("unknown"));
+
+        let err = ValidationError::InvalidReplacedOrderUid("0xshort".into());
+        assert!(err.to_string().contains("0xshort"));
+
+        let err = ValidationError::SchemaViolation { path: "/foo".into(), message: "bad".into() };
+        assert!(err.to_string().contains("/foo"));
+
+        let err = ValidationError::SchemaViolation { path: String::new(), message: "root".into() };
+        assert!(err.to_string().contains("root"));
+        assert!(!err.to_string().contains(" at "));
+    }
+
+    #[test]
+    fn validate_metadata_with_order_class() {
+        let mut errors = Vec::new();
+        let meta = Metadata {
+            order_class: Some(OrderClass { order_class: OrderClassKind::Market }),
+            ..Metadata::default()
+        };
+        validate_metadata(&meta, &mut errors);
+        assert!(errors.is_empty());
+    }
+
+    #[test]
+    fn validate_metadata_with_replaced_order() {
+        let mut errors = Vec::new();
+        let uid = format!("0x{}", "ab".repeat(56));
+        let meta = Metadata { replaced_order: Some(ReplacedOrder { uid }), ..Metadata::default() };
+        validate_metadata(&meta, &mut errors);
+        assert!(errors.is_empty());
+    }
+}
