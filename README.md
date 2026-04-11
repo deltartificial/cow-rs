@@ -5,6 +5,7 @@
 [![bench](https://img.shields.io/github/actions/workflow/status/deltartificial/cow-rs/bench.yml?branch=main&label=bench&logo=github)](https://github.com/deltartificial/cow-rs/actions/workflows/bench.yml)
 [![codecov](https://codecov.io/gh/deltartificial/cow-rs/graph/badge.svg)](https://codecov.io/gh/deltartificial/cow-rs)
 [![license](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue)](#license)
+
 Rust SDK for the [CoW Protocol](https://cow.fi).
 
 A complete, type-safe Rust port of the CoW Protocol TypeScript SDK — covering order placement, signing, quoting, composable orders (TWAP, stop-loss), on-chain reading, subgraph queries, and more.
