@@ -482,3 +482,193 @@ impl fmt::Display for CowSwapConfig {
         write!(f, "config({}, {}, sell={:#x})", self.chain_id, self.env, self.sell_token)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── TokenRegistry ───────────────────────────────────────────────────
+
+    #[test]
+    fn token_registry_new_defaults_to_18_decimals() {
+        let reg = TokenRegistry::new([("WETH", Address::ZERO)]);
+        assert_eq!(reg.get_decimals("WETH"), Some(18));
+    }
+
+    #[test]
+    fn token_registry_new_with_decimals() {
+        let reg = TokenRegistry::new_with_decimals([("USDC", Address::ZERO, 6u8)]);
+        assert_eq!(reg.get_decimals("USDC"), Some(6));
+        assert_eq!(reg.get("USDC"), Some(Address::ZERO));
+    }
+
+    #[test]
+    fn token_registry_insert_and_contains() {
+        let mut reg = TokenRegistry::new(std::iter::empty::<(&str, Address)>());
+        assert!(reg.is_empty());
+        assert_eq!(reg.len(), 0);
+        assert!(!reg.contains("DAI"));
+
+        reg.insert("DAI", Address::ZERO);
+        assert!(reg.contains("DAI"));
+        assert_eq!(reg.len(), 1);
+        assert!(!reg.is_empty());
+    }
+
+    #[test]
+    fn token_registry_insert_with_decimals() {
+        let mut reg = TokenRegistry::new(std::iter::empty::<(&str, Address)>());
+        reg.insert_with_decimals("WBTC", Address::ZERO, 8);
+        assert_eq!(reg.get_decimals("WBTC"), Some(8));
+    }
+
+    #[test]
+    fn token_registry_get_entry() {
+        let reg = TokenRegistry::new_with_decimals([("USDC", Address::ZERO, 6u8)]);
+        assert_eq!(reg.get_entry("USDC"), Some((Address::ZERO, 6)));
+        assert_eq!(reg.get_entry("NONEXISTENT"), None);
+    }
+
+    #[test]
+    fn token_registry_remove() {
+        let mut reg = TokenRegistry::new([("WETH", Address::ZERO)]);
+        assert!(reg.contains("WETH"));
+        let removed = reg.remove("WETH");
+        assert!(removed.is_some());
+        assert!(!reg.contains("WETH"));
+        assert!(reg.is_empty());
+    }
+
+    #[test]
+    fn token_registry_remove_nonexistent() {
+        let mut reg = TokenRegistry::new(std::iter::empty::<(&str, Address)>());
+        assert!(reg.remove("WETH").is_none());
+    }
+
+    #[test]
+    fn token_registry_get_missing_returns_none() {
+        let reg = TokenRegistry::new(std::iter::empty::<(&str, Address)>());
+        assert_eq!(reg.get("WETH"), None);
+        assert_eq!(reg.get_decimals("WETH"), None);
+    }
+
+    #[test]
+    fn token_registry_display() {
+        let reg = TokenRegistry::new([("A", Address::ZERO), ("B", Address::ZERO)]);
+        let s = format!("{reg}");
+        assert!(s.contains("2 tokens"));
+    }
+
+    // ── CowSwapConfig ───────────────────────────────────────────────────
+
+    fn empty_registry() -> TokenRegistry {
+        TokenRegistry::new(std::iter::empty::<(&str, Address)>())
+    }
+
+    #[test]
+    fn config_prod_defaults() {
+        let cfg = CowSwapConfig::prod(
+            SupportedChainId::Mainnet,
+            Address::ZERO,
+            empty_registry(),
+            50,
+            1800,
+        );
+        assert!(cfg.env.is_prod());
+        assert_eq!(cfg.slippage_bps, 50);
+        assert_eq!(cfg.order_valid_secs, 1800);
+        assert_eq!(cfg.sell_token_decimals, 18);
+        assert!(!cfg.has_custom_receiver());
+    }
+
+    #[test]
+    fn config_staging_defaults() {
+        let cfg = CowSwapConfig::staging(
+            SupportedChainId::Sepolia,
+            Address::ZERO,
+            empty_registry(),
+            100,
+            900,
+        );
+        assert!(cfg.env.is_staging());
+        assert_eq!(cfg.slippage_bps, 100);
+    }
+
+    #[test]
+    fn config_builder_methods() {
+        let cfg = CowSwapConfig::prod(
+            SupportedChainId::Mainnet,
+            Address::ZERO,
+            empty_registry(),
+            50,
+            1800,
+        )
+        .with_slippage_bps(100)
+        .with_order_valid_secs(600)
+        .with_sell_token_decimals(6)
+        .with_chain_id(SupportedChainId::Sepolia)
+        .with_env(Env::Staging);
+
+        assert_eq!(cfg.slippage_bps, 100);
+        assert_eq!(cfg.order_valid_secs, 600);
+        assert_eq!(cfg.sell_token_decimals, 6);
+        assert_eq!(cfg.chain_id, SupportedChainId::Sepolia);
+        assert!(cfg.env.is_staging());
+    }
+
+    #[test]
+    fn config_with_receiver() {
+        let recv = Address::new([0x01; 20]);
+        let wallet = Address::new([0x02; 20]);
+        let cfg = CowSwapConfig::prod(
+            SupportedChainId::Mainnet,
+            Address::ZERO,
+            empty_registry(),
+            50,
+            1800,
+        )
+        .with_receiver(recv);
+        assert!(cfg.has_custom_receiver());
+        assert_eq!(cfg.effective_receiver(wallet), recv);
+    }
+
+    #[test]
+    fn config_effective_receiver_defaults_to_wallet() {
+        let wallet = Address::new([0x02; 20]);
+        let cfg = CowSwapConfig::prod(
+            SupportedChainId::Mainnet,
+            Address::ZERO,
+            empty_registry(),
+            50,
+            1800,
+        );
+        assert_eq!(cfg.effective_receiver(wallet), wallet);
+    }
+
+    #[test]
+    fn config_with_sell_token() {
+        let token = Address::new([0xaa; 20]);
+        let cfg = CowSwapConfig::prod(
+            SupportedChainId::Mainnet,
+            Address::ZERO,
+            empty_registry(),
+            50,
+            1800,
+        )
+        .with_sell_token(token);
+        assert_eq!(cfg.sell_token, token);
+    }
+
+    #[test]
+    fn config_display() {
+        let cfg = CowSwapConfig::prod(
+            SupportedChainId::Mainnet,
+            Address::ZERO,
+            empty_registry(),
+            50,
+            1800,
+        );
+        let s = format!("{cfg}");
+        assert!(s.contains("config("));
+    }
+}

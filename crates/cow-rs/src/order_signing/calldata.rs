@@ -195,3 +195,78 @@ fn decode_uid(uid: &str) -> Result<Vec<u8>, CowError> {
 const fn padded32(n: usize) -> usize {
     if n.is_multiple_of(32) { n } else { n + (32 - n % 32) }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn dummy_uid_56() -> String {
+        "0x".to_owned() + &"ab".repeat(56)
+    }
+
+    #[test]
+    fn set_pre_signature_calldata_valid() {
+        let uid = dummy_uid_56();
+        let data = set_pre_signature_calldata(&uid, true).unwrap_or_default();
+        // 4 (selector) + 32 (offset) + 32 (bool) + 32 (length) + 64 (56 bytes padded to 64)
+        assert_eq!(data.len(), 164);
+        // First 4 bytes are the selector for setPreSignature(bytes,bool)
+        assert_eq!(&data[..4], &selector("setPreSignature(bytes,bool)"));
+    }
+
+    #[test]
+    fn set_pre_signature_calldata_false() {
+        let uid = dummy_uid_56();
+        let data = set_pre_signature_calldata(&uid, false).unwrap_or_default();
+        assert_eq!(data.len(), 164);
+        // bool = false → last byte of second word is 0
+        assert_eq!(data[4 + 32 + 31], 0);
+    }
+
+    #[test]
+    fn set_pre_signature_calldata_true() {
+        let uid = dummy_uid_56();
+        let data = set_pre_signature_calldata(&uid, true).unwrap_or_default();
+        // bool = true → last byte of second word is 1
+        assert_eq!(data[4 + 32 + 31], 1);
+    }
+
+    #[test]
+    fn invalidate_order_calldata_valid() {
+        let uid = dummy_uid_56();
+        let data = invalidate_order_calldata(&uid).unwrap_or_default();
+        // 4 (selector) + 32 (offset) + 32 (length) + 64 (56 bytes padded to 64)
+        assert_eq!(data.len(), 132);
+        assert_eq!(&data[..4], &selector("invalidateOrder(bytes)"));
+    }
+
+    #[test]
+    fn calldata_rejects_invalid_hex() {
+        assert!(set_pre_signature_calldata("not_hex", true).is_err());
+        assert!(invalidate_order_calldata("0xZZZZ").is_err());
+    }
+
+    #[test]
+    fn calldata_works_without_0x_prefix() {
+        let uid = "ab".repeat(56);
+        assert!(set_pre_signature_calldata(&uid, true).is_ok());
+        assert!(invalidate_order_calldata(&uid).is_ok());
+    }
+
+    #[test]
+    fn calldata_empty_uid() {
+        let data = invalidate_order_calldata("0x").unwrap_or_default();
+        // 4 (selector) + 32 (offset) + 32 (length=0) = 68
+        assert_eq!(data.len(), 68);
+    }
+
+    #[test]
+    fn padded32_rounds_up() {
+        assert_eq!(padded32(0), 0);
+        assert_eq!(padded32(1), 32);
+        assert_eq!(padded32(31), 32);
+        assert_eq!(padded32(32), 32);
+        assert_eq!(padded32(33), 64);
+        assert_eq!(padded32(64), 64);
+    }
+}
