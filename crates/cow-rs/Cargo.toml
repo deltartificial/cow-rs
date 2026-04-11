@@ -20,6 +20,7 @@ default = ["native", "schema-validation"]
 native = ["dep:tokio", "reqwest/rustls", "tokio/rt-multi-thread"]
 wasm = [
   "getrandom/js",
+  "dep:js-sys",
   "dep:wasm-bindgen",
   "dep:wasm-bindgen-futures",
   "dep:serde-wasm-bindgen",
@@ -37,6 +38,7 @@ chrono.workspace = true
 foldhash.workspace = true
 futures.workspace = true
 getrandom = { workspace = true, optional = true }
+js-sys = { version = "0.3", optional = true }
 jsonschema = { workspace = true, optional = true }
 progenitor-client.workspace = true
 reqwest.workspace = true
