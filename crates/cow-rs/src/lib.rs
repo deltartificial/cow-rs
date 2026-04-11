@@ -65,6 +65,7 @@ pub mod permit;
 pub mod settlement;
 pub mod subgraph;
 pub mod trading;
+pub mod traits;
 pub mod types;
 pub mod weiroll;
 
@@ -218,6 +219,7 @@ pub use trading::{
     resolve_signer, resolve_slippage_suggestion, suggest_slippage_bps, suggest_slippage_from_fee,
     suggest_slippage_from_volume, swap_params_to_limit_order_params, unsigned_order_for_signing,
 };
+pub use traits::{CowSigner, OrderbookClient, RpcProvider};
 pub use types::{
     ATTESTATION_PREFIX_CONST, ATTESTATOR_ADDRESS, ATTESTION_VERSION_BYTE, EcdsaSigningScheme,
     HUNDRED_THOUSANDS, LIMIT_CONCURRENT_REQUESTS, MAX_UINT32, MAX_UINT256, ONE, ONE_HUNDRED_BPS,
