@@ -126,6 +126,35 @@ jobs:
           RUSTFLAGS: -Zsanitizer=address
           RUSTDOCFLAGS: -Zsanitizer=address
 
+  coverage:
+    name: coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: llvm-tools
+      - uses: rui314/setup-mold@v1
+      - uses: mozilla-actions/sccache-action@v0.0.9
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+      - uses: taiki-e/install-action@cargo-llvm-cov
+      - uses: taiki-e/install-action@nextest
+      - name: Generate coverage
+        run: cargo +nightly llvm-cov nextest --workspace --all-features --codecov --output-path codecov.json
+        env:
+          RUSTC_WRAPPER: sccache
+      - uses: codecov/codecov-action@v5
+        with:
+          files: codecov.json
+          fail_ci_if_error: false
+
   test-success:
     name: test success
     runs-on: ubuntu-latest
@@ -134,6 +163,7 @@ jobs:
       - test
       - doctest
       - msrv
+      - coverage
       - valgrind
       - asan
     timeout-minutes: 5
