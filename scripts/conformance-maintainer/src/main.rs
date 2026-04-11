@@ -88,7 +88,7 @@ struct SourceRef {
 // ---------------------------------------------------------------------------
 
 /// Walk up from the tool's own directory to find the workspace root
-/// (the directory that contains `conformance/source-lock.yaml`).
+/// (the directory that contains `scripts/conformance/source-lock.yaml`).
 fn find_workspace_root() -> anyhow::Result<PathBuf> {
     // Start from CARGO_MANIFEST_DIR if available, else current dir.
     let start = std::env::var("CARGO_MANIFEST_DIR")
@@ -96,7 +96,7 @@ fn find_workspace_root() -> anyhow::Result<PathBuf> {
         .unwrap_or_else(|_| std::env::current_dir().expect("cannot determine cwd"));
     let mut dir = start.as_path();
     loop {
-        if dir.join("conformance/source-lock.yaml").exists() {
+        if dir.join("scripts/conformance/source-lock.yaml").exists() {
             return Ok(dir.to_path_buf());
         }
         dir = dir
@@ -106,13 +106,13 @@ fn find_workspace_root() -> anyhow::Result<PathBuf> {
 }
 
 fn load_source_lock(ws: &Path) -> anyhow::Result<SourceLock> {
-    let path = ws.join("conformance/source-lock.yaml");
+    let path = ws.join("scripts/conformance/source-lock.yaml");
     let text = fs::read_to_string(&path).context("reading source-lock.yaml")?;
     serde_yaml::from_str(&text).context("parsing source-lock.yaml")
 }
 
 fn save_source_lock(ws: &Path, lock: &SourceLock) -> anyhow::Result<()> {
-    let path = ws.join("conformance/source-lock.yaml");
+    let path = ws.join("scripts/conformance/source-lock.yaml");
     // Preserve the header comment.
     let header = "\
 # Pinned upstream source contract for parity fixtures.
@@ -203,7 +203,7 @@ fn cmd_validate() -> anyhow::Result<()> {
     let ws = find_workspace_root()?;
     let lock = load_source_lock(&ws)?;
 
-    let fixtures_dir = ws.join("conformance/fixtures");
+    let fixtures_dir = ws.join("scripts/conformance/fixtures");
     let mut errors: u32 = 0;
     let mut warnings: u32 = 0;
 
