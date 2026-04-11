@@ -754,3 +754,354 @@ impl fmt::Display for SignOrderCancellationsParams {
         write!(f, "cancel-signs(chain={}, count={})", self.chain_id, self.order_uids.len())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use alloy_primitives::address;
+
+    use super::*;
+    use crate::types::EcdsaSigningScheme;
+
+    fn default_order() -> UnsignedOrder {
+        UnsignedOrder::sell(Address::ZERO, Address::ZERO, U256::ZERO, U256::ZERO)
+    }
+
+    // ── UnsignedOrder constructors ──────────────────────────────────────
+
+    #[test]
+    fn sell_order_has_sell_kind() {
+        let o = UnsignedOrder::sell(Address::ZERO, Address::ZERO, U256::from(100u64), U256::from(50u64));
+        assert_eq!(o.kind, OrderKind::Sell);
+        assert!(o.is_sell());
+        assert!(!o.is_buy());
+        assert_eq!(o.sell_amount, U256::from(100u64));
+        assert_eq!(o.buy_amount, U256::from(50u64));
+    }
+
+    #[test]
+    fn buy_order_has_buy_kind() {
+        let o = UnsignedOrder::buy(Address::ZERO, Address::ZERO, U256::from(100u64), U256::from(50u64));
+        assert_eq!(o.kind, OrderKind::Buy);
+        assert!(o.is_buy());
+        assert!(!o.is_sell());
+    }
+
+    #[test]
+    fn sell_order_defaults() {
+        let o = default_order();
+        assert_eq!(o.receiver, Address::ZERO);
+        assert_eq!(o.valid_to, 0);
+        assert_eq!(o.app_data, B256::ZERO);
+        assert_eq!(o.fee_amount, U256::ZERO);
+        assert!(!o.partially_fillable);
+        assert_eq!(o.sell_token_balance, TokenBalance::Erc20);
+        assert_eq!(o.buy_token_balance, TokenBalance::Erc20);
+    }
+
+    // ── Builder methods ─────────────────────────────────────────────────
+
+    #[test]
+    fn with_receiver() {
+        let addr = address!("0000000000000000000000000000000000000001");
+        let o = default_order().with_receiver(addr);
+        assert_eq!(o.receiver, addr);
+    }
+
+    #[test]
+    fn with_valid_to() {
+        let o = default_order().with_valid_to(1_700_000_000);
+        assert_eq!(o.valid_to, 1_700_000_000);
+    }
+
+    #[test]
+    fn with_app_data() {
+        let data = B256::from([0xab; 32]);
+        let o = default_order().with_app_data(data);
+        assert_eq!(o.app_data, data);
+    }
+
+    #[test]
+    fn with_fee_amount() {
+        let o = default_order().with_fee_amount(U256::from(42u64));
+        assert_eq!(o.fee_amount, U256::from(42u64));
+    }
+
+    #[test]
+    fn with_partially_fillable() {
+        let o = default_order().with_partially_fillable();
+        assert!(o.partially_fillable);
+        assert!(o.is_partially_fillable());
+    }
+
+    #[test]
+    fn with_sell_token_balance() {
+        let o = default_order().with_sell_token_balance(TokenBalance::External);
+        assert_eq!(o.sell_token_balance, TokenBalance::External);
+    }
+
+    #[test]
+    fn with_buy_token_balance() {
+        let o = default_order().with_buy_token_balance(TokenBalance::Internal);
+        assert_eq!(o.buy_token_balance, TokenBalance::Internal);
+    }
+
+    // ── Query methods ───────────────────────────────────────────────────
+
+    #[test]
+    fn is_expired_boundary() {
+        let o = default_order().with_valid_to(1_000_000);
+        assert!(!o.is_expired(999_999));
+        assert!(!o.is_expired(1_000_000));
+        assert!(o.is_expired(1_000_001));
+    }
+
+    #[test]
+    fn has_custom_receiver_false_for_zero() {
+        assert!(!default_order().has_custom_receiver());
+    }
+
+    #[test]
+    fn has_custom_receiver_true_for_nonzero() {
+        let o = default_order().with_receiver(address!("0000000000000000000000000000000000000001"));
+        assert!(o.has_custom_receiver());
+    }
+
+    #[test]
+    fn has_app_data_false_for_zero() {
+        assert!(!default_order().has_app_data());
+    }
+
+    #[test]
+    fn has_app_data_true_for_nonzero() {
+        let o = default_order().with_app_data(B256::from([1u8; 32]));
+        assert!(o.has_app_data());
+    }
+
+    #[test]
+    fn has_fee_false_for_zero() {
+        assert!(!default_order().has_fee());
+    }
+
+    #[test]
+    fn has_fee_true_for_nonzero() {
+        let o = default_order().with_fee_amount(U256::from(1u64));
+        assert!(o.has_fee());
+    }
+
+    #[test]
+    fn is_partially_fillable_default_false() {
+        assert!(!default_order().is_partially_fillable());
+    }
+
+    #[test]
+    fn total_amount_sums_sell_and_buy() {
+        let o = UnsignedOrder::sell(
+            Address::ZERO,
+            Address::ZERO,
+            U256::from(100u64),
+            U256::from(50u64),
+        );
+        assert_eq!(o.total_amount(), U256::from(150u64));
+    }
+
+    #[test]
+    fn total_amount_saturates_on_overflow() {
+        let o = UnsignedOrder::sell(Address::ZERO, Address::ZERO, U256::MAX, U256::from(1u64));
+        assert_eq!(o.total_amount(), U256::MAX);
+    }
+
+    #[test]
+    fn order_hash_is_deterministic() {
+        let o = default_order();
+        assert_eq!(o.hash(), o.hash());
+        assert_ne!(o.hash(), B256::ZERO);
+    }
+
+    // ── OrderDomain ─────────────────────────────────────────────────────
+
+    #[test]
+    fn order_domain_for_chain() {
+        let d = OrderDomain::for_chain(1);
+        assert_eq!(d.name, "Gnosis Protocol v2");
+        assert_eq!(d.version, "v2");
+        assert_eq!(d.chain_id, 1);
+    }
+
+    #[test]
+    fn domain_separator_is_deterministic() {
+        let d = OrderDomain::for_chain(1);
+        let sep1 = d.domain_separator();
+        let sep2 = d.domain_separator();
+        assert_eq!(sep1, sep2);
+        assert_ne!(sep1, B256::ZERO);
+    }
+
+    #[test]
+    fn different_chains_different_separators() {
+        let s1 = OrderDomain::for_chain(1).domain_separator();
+        let s2 = OrderDomain::for_chain(100).domain_separator();
+        assert_ne!(s1, s2);
+    }
+
+    // ── OrderTypedData ──────────────────────────────────────────────────
+
+    #[test]
+    fn order_typed_data_primary_type() {
+        let td = OrderTypedData::new(OrderDomain::for_chain(1), default_order());
+        assert_eq!(td.primary_type, "GPv2Order.Data");
+    }
+
+    #[test]
+    fn order_typed_data_refs() {
+        let order = default_order();
+        let td = OrderTypedData::new(OrderDomain::for_chain(1), order.clone());
+        assert_eq!(td.order_ref().kind, order.kind);
+        assert_eq!(td.domain_ref().chain_id, 1);
+    }
+
+    #[test]
+    fn signing_digest_is_deterministic_and_nonzero() {
+        let td = OrderTypedData::new(OrderDomain::for_chain(1), default_order());
+        let d1 = td.signing_digest();
+        let d2 = td.signing_digest();
+        assert_eq!(d1, d2);
+        assert_ne!(d1, B256::ZERO);
+    }
+
+    // ── SigningResult ───────────────────────────────────────────────────
+
+    #[test]
+    fn signing_result_new() {
+        let r = SigningResult::new("0xdeadbeef", SigningScheme::Eip712);
+        assert_eq!(r.signature, "0xdeadbeef");
+        assert_eq!(r.signing_scheme, SigningScheme::Eip712);
+    }
+
+    #[test]
+    fn signing_result_scheme_checks() {
+        assert!(SigningResult::new("0x", SigningScheme::Eip712).is_eip712());
+        assert!(SigningResult::new("0x", SigningScheme::EthSign).is_eth_sign());
+        assert!(SigningResult::new("0x", SigningScheme::Eip1271).is_eip1271());
+        assert!(SigningResult::new("0x", SigningScheme::PreSign).is_presign());
+    }
+
+    #[test]
+    fn signing_result_scheme_exclusivity() {
+        let r = SigningResult::new("0x", SigningScheme::Eip712);
+        assert!(r.is_eip712());
+        assert!(!r.is_eth_sign());
+        assert!(!r.is_eip1271());
+        assert!(!r.is_presign());
+    }
+
+    #[test]
+    fn signing_result_len_and_ref() {
+        let r = SigningResult::new("0xdeadbeef", SigningScheme::Eip712);
+        assert_eq!(r.signature_len(), 10);
+        assert_eq!(r.signature_ref(), "0xdeadbeef");
+    }
+
+    // ── SignOrderParams ─────────────────────────────────────────────────
+
+    #[test]
+    fn sign_order_params_new() {
+        let p = SignOrderParams::new(1, default_order(), EcdsaSigningScheme::Eip712);
+        assert_eq!(p.chain_id, 1);
+        assert_eq!(p.signing_scheme, EcdsaSigningScheme::Eip712);
+    }
+
+    // ── SignOrderCancellationParams ─────────────────────────────────────
+
+    #[test]
+    fn sign_order_cancellation_params_new() {
+        let p = SignOrderCancellationParams::new(1, "0xabc123", EcdsaSigningScheme::EthSign);
+        assert_eq!(p.chain_id, 1);
+        assert_eq!(p.order_uid, "0xabc123");
+        assert_eq!(p.signing_scheme, EcdsaSigningScheme::EthSign);
+    }
+
+    // ── SignOrderCancellationsParams ────────────────────────────────────
+
+    #[test]
+    fn sign_order_cancellations_params_count() {
+        let p = SignOrderCancellationsParams::new(
+            1,
+            vec!["a".into(), "b".into(), "c".into()],
+            EcdsaSigningScheme::Eip712,
+        );
+        assert_eq!(p.count(), 3);
+    }
+
+    #[test]
+    fn sign_order_cancellations_params_empty() {
+        let p = SignOrderCancellationsParams::new(1, vec![], EcdsaSigningScheme::Eip712);
+        assert_eq!(p.count(), 0);
+    }
+
+    // ── Display impls ───────────────────────────────────────────────────
+
+    #[test]
+    fn unsigned_order_display() {
+        let o = default_order();
+        let s = o.to_string();
+        assert!(s.contains("sell"), "expected 'sell' in: {s}");
+    }
+
+    #[test]
+    fn order_domain_display() {
+        let d = OrderDomain::for_chain(42);
+        let s = d.to_string();
+        assert!(s.contains("chain=42"), "expected chain=42 in: {s}");
+    }
+
+    #[test]
+    fn order_typed_data_display() {
+        let td = OrderTypedData::new(OrderDomain::for_chain(1), default_order());
+        let s = td.to_string();
+        assert!(s.contains("typed-data"), "expected typed-data in: {s}");
+        assert!(s.contains("chain=1"), "expected chain=1 in: {s}");
+    }
+
+    #[test]
+    fn signing_result_display_truncates() {
+        let r = SigningResult::new("0xdeadbeefcafe1234567890", SigningScheme::Eip712);
+        let s = r.to_string();
+        assert!(s.contains("sig("), "expected sig( in: {s}");
+        assert!(s.contains("0xdeadbee"), "expected truncated sig in: {s}");
+    }
+
+    #[test]
+    fn signing_result_display_short_sig() {
+        let r = SigningResult::new("0xab", SigningScheme::PreSign);
+        let s = r.to_string();
+        assert!(s.contains("0xab"), "expected full short sig in: {s}");
+    }
+
+    #[test]
+    fn sign_order_params_display() {
+        let p = SignOrderParams::new(100, default_order(), EcdsaSigningScheme::Eip712);
+        let s = p.to_string();
+        assert!(s.contains("sign-order"), "expected sign-order in: {s}");
+        assert!(s.contains("chain=100"), "expected chain=100 in: {s}");
+    }
+
+    #[test]
+    fn sign_order_cancellation_params_display() {
+        let p = SignOrderCancellationParams::new(1, "0x1234567890ab", EcdsaSigningScheme::Eip712);
+        let s = p.to_string();
+        assert!(s.contains("cancel-sign"), "expected cancel-sign in: {s}");
+        assert!(s.contains("chain=1"), "expected chain=1 in: {s}");
+    }
+
+    #[test]
+    fn sign_order_cancellations_params_display() {
+        let p = SignOrderCancellationsParams::new(
+            5,
+            vec!["a".into(), "b".into()],
+            EcdsaSigningScheme::Eip712,
+        );
+        let s = p.to_string();
+        assert!(s.contains("cancel-signs"), "expected cancel-signs in: {s}");
+        assert!(s.contains("count=2"), "expected count=2 in: {s}");
+    }
+}

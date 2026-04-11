@@ -393,3 +393,384 @@ const fn nibble(c: u8) -> u8 {
         _ => 0,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── Constants ────────────────────────────────────────────────────────
+
+    #[test]
+    fn native_currency_address_is_all_ee() {
+        assert_eq!(NATIVE_CURRENCY_ADDRESS, Address::new([0xee; 20]));
+    }
+
+    #[test]
+    fn evm_native_currency_address_equals_native() {
+        assert_eq!(EVM_NATIVE_CURRENCY_ADDRESS, NATIVE_CURRENCY_ADDRESS);
+    }
+
+    #[test]
+    fn sol_native_currency_address_is_all_ones() {
+        assert_eq!(SOL_NATIVE_CURRENCY_ADDRESS, "11111111111111111111111111111111");
+    }
+
+    #[test]
+    fn btc_currency_address_is_genesis() {
+        assert_eq!(BTC_CURRENCY_ADDRESS, "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa");
+    }
+
+    // ── TokenInfo::new ───────────────────────────────────────────────────
+
+    #[test]
+    fn new_sets_fields_and_defaults() {
+        let token = TokenInfo::new(Address::ZERO, 18, "WETH");
+        assert_eq!(token.address, Address::ZERO);
+        assert_eq!(token.decimals, 18);
+        assert_eq!(token.symbol, "WETH");
+        assert!(token.name.is_none());
+        assert!(token.logo_url.is_none());
+    }
+
+    // ── with_name / with_logo_url ────────────────────────────────────────
+
+    #[test]
+    fn with_name_sets_name() {
+        let token = TokenInfo::new(Address::ZERO, 18, "WETH").with_name("Wrapped Ether");
+        assert_eq!(token.name, Some("Wrapped Ether"));
+    }
+
+    #[test]
+    fn with_logo_url_sets_url() {
+        let token = TokenInfo::new(Address::ZERO, 18, "WETH")
+            .with_logo_url("https://example.com/weth.png");
+        assert_eq!(token.logo_url, Some("https://example.com/weth.png"));
+    }
+
+    #[test]
+    fn chaining_with_name_and_logo() {
+        let token = TokenInfo::new(Address::ZERO, 6, "USDC")
+            .with_name("USD Coin")
+            .with_logo_url("https://example.com/usdc.png");
+        assert_eq!(token.name, Some("USD Coin"));
+        assert_eq!(token.logo_url, Some("https://example.com/usdc.png"));
+    }
+
+    // ── has_name / has_logo_url ──────────────────────────────────────────
+
+    #[test]
+    fn has_name_false_when_none() {
+        let token = TokenInfo::new(Address::ZERO, 18, "WETH");
+        assert!(!token.has_name());
+    }
+
+    #[test]
+    fn has_name_true_when_set() {
+        let token = TokenInfo::new(Address::ZERO, 18, "WETH").with_name("Wrapped Ether");
+        assert!(token.has_name());
+    }
+
+    #[test]
+    fn has_logo_url_false_when_none() {
+        let token = TokenInfo::new(Address::ZERO, 18, "WETH");
+        assert!(!token.has_logo_url());
+    }
+
+    #[test]
+    fn has_logo_url_true_when_set() {
+        let token =
+            TokenInfo::new(Address::ZERO, 18, "WETH").with_logo_url("https://example.com/w.png");
+        assert!(token.has_logo_url());
+    }
+
+    // ── is_native_currency ───────────────────────────────────────────────
+
+    #[test]
+    fn is_native_currency_true_for_sentinel() {
+        let token = TokenInfo::new(NATIVE_CURRENCY_ADDRESS, 18, "ETH");
+        assert!(token.is_native_currency());
+    }
+
+    #[test]
+    fn is_native_currency_false_for_regular() {
+        let token = TokenInfo::new(Address::ZERO, 18, "WETH");
+        assert!(!token.is_native_currency());
+    }
+
+    // ── decimals_multiplier ──────────────────────────────────────────────
+
+    #[test]
+    fn decimals_multiplier_18() {
+        let token = TokenInfo::new(Address::ZERO, 18, "WETH");
+        assert_eq!(token.decimals_multiplier(), 1_000_000_000_000_000_000u128);
+    }
+
+    #[test]
+    fn decimals_multiplier_6() {
+        let token = TokenInfo::new(Address::ZERO, 6, "USDC");
+        assert_eq!(token.decimals_multiplier(), 1_000_000u128);
+    }
+
+    #[test]
+    fn decimals_multiplier_0() {
+        let token = TokenInfo::new(Address::ZERO, 0, "NFT");
+        assert_eq!(token.decimals_multiplier(), 1u128);
+    }
+
+    #[test]
+    fn decimals_multiplier_8() {
+        let token = TokenInfo::new(Address::ZERO, 8, "WBTC");
+        assert_eq!(token.decimals_multiplier(), 100_000_000u128);
+    }
+
+    // ── decimals_u64 ─────────────────────────────────────────────────────
+
+    #[test]
+    fn decimals_u64_returns_widened_value() {
+        let token = TokenInfo::new(Address::ZERO, 6, "USDC");
+        assert_eq!(token.decimals_u64(), 6u64);
+    }
+
+    #[test]
+    fn decimals_u64_zero() {
+        let token = TokenInfo::new(Address::ZERO, 0, "NFT");
+        assert_eq!(token.decimals_u64(), 0u64);
+    }
+
+    // ── is_zero_decimals ─────────────────────────────────────────────────
+
+    #[test]
+    fn is_zero_decimals_true() {
+        let token = TokenInfo::new(Address::ZERO, 0, "NFT");
+        assert!(token.is_zero_decimals());
+    }
+
+    #[test]
+    fn is_zero_decimals_false() {
+        let token = TokenInfo::new(Address::ZERO, 18, "WETH");
+        assert!(!token.is_zero_decimals());
+    }
+
+    // ── Display ──────────────────────────────────────────────────────────
+
+    #[test]
+    fn display_format() {
+        let token = TokenInfo::new(Address::ZERO, 18, "WETH");
+        let s = format!("{token}");
+        assert!(s.contains("WETH"));
+        assert!(s.contains("0x"));
+    }
+
+    // ── From<TokenInfo> ──────────────────────────────────────────────────
+
+    #[test]
+    fn from_token_info_to_address() {
+        let addr = Address::new([0x11; 20]);
+        let token = TokenInfo::new(addr, 18, "TKN");
+        let converted: Address = token.into();
+        assert_eq!(converted, addr);
+    }
+
+    #[test]
+    fn from_token_info_to_u8() {
+        let token = TokenInfo::new(Address::ZERO, 6, "USDC");
+        let decimals: u8 = token.into();
+        assert_eq!(decimals, 6);
+    }
+
+    // ── get_wrapped_token_for_chain ──────────────────────────────────────
+
+    #[test]
+    fn get_wrapped_token_for_chain_mainnet() {
+        let token = get_wrapped_token_for_chain(SupportedChainId::Mainnet);
+        assert!(token.is_some());
+        let token = token.unwrap();
+        assert_eq!(token.symbol, "WETH");
+        assert_eq!(token.decimals, 18);
+        assert!(token.has_name());
+    }
+
+    #[test]
+    fn get_wrapped_token_for_chain_gnosis() {
+        let token = get_wrapped_token_for_chain(SupportedChainId::GnosisChain).unwrap();
+        assert_eq!(token.symbol, "WXDAI");
+        assert_eq!(token.name, Some("Wrapped XDAI"));
+    }
+
+    // ── wrapped_native_currency ──────────────────────────────────────────
+
+    #[test]
+    fn wrapped_native_currency_mainnet() {
+        let weth = wrapped_native_currency(SupportedChainId::Mainnet);
+        assert_eq!(weth.symbol, "WETH");
+        assert_eq!(weth.decimals, 18);
+        assert_eq!(weth.name, Some("Wrapped Ether"));
+        assert!(!weth.is_native_currency());
+    }
+
+    #[test]
+    fn wrapped_native_currency_gnosis() {
+        let wxdai = wrapped_native_currency(SupportedChainId::GnosisChain);
+        assert_eq!(wxdai.symbol, "WXDAI");
+        assert_eq!(wxdai.decimals, 18);
+    }
+
+    #[test]
+    fn wrapped_native_currency_arbitrum() {
+        let weth = wrapped_native_currency(SupportedChainId::ArbitrumOne);
+        assert_eq!(weth.symbol, "WETH");
+    }
+
+    #[test]
+    fn wrapped_native_currency_base() {
+        let weth = wrapped_native_currency(SupportedChainId::Base);
+        assert_eq!(weth.symbol, "WETH");
+    }
+
+    #[test]
+    fn wrapped_native_currency_ink_same_as_base() {
+        let base = wrapped_native_currency(SupportedChainId::Base);
+        let ink = wrapped_native_currency(SupportedChainId::Ink);
+        assert_eq!(base.address, ink.address);
+        assert_eq!(base.symbol, ink.symbol);
+    }
+
+    #[test]
+    fn wrapped_native_currency_sepolia() {
+        let weth = wrapped_native_currency(SupportedChainId::Sepolia);
+        assert_eq!(weth.symbol, "WETH");
+        assert_eq!(weth.name, Some("Wrapped Ether"));
+    }
+
+    #[test]
+    fn wrapped_native_currency_polygon() {
+        let wpol = wrapped_native_currency(SupportedChainId::Polygon);
+        assert_eq!(wpol.symbol, "WPOL");
+        assert_eq!(wpol.name, Some("Wrapped POL"));
+    }
+
+    #[test]
+    fn wrapped_native_currency_avalanche() {
+        let wavax = wrapped_native_currency(SupportedChainId::Avalanche);
+        assert_eq!(wavax.symbol, "WAVAX");
+        assert_eq!(wavax.name, Some("Wrapped AVAX"));
+    }
+
+    #[test]
+    fn wrapped_native_currency_bnb() {
+        let wbnb = wrapped_native_currency(SupportedChainId::BnbChain);
+        assert_eq!(wbnb.symbol, "WBNB");
+        assert_eq!(wbnb.name, Some("Wrapped BNB"));
+    }
+
+    #[test]
+    fn wrapped_native_currency_linea() {
+        let weth = wrapped_native_currency(SupportedChainId::Linea);
+        assert_eq!(weth.symbol, "WETH");
+    }
+
+    #[test]
+    fn wrapped_native_currency_lens() {
+        let wgho = wrapped_native_currency(SupportedChainId::Lens);
+        assert_eq!(wgho.symbol, "WGHO");
+        assert_eq!(wgho.name, Some("Wrapped GHO"));
+    }
+
+    #[test]
+    fn wrapped_native_currency_plasma() {
+        let wxpl = wrapped_native_currency(SupportedChainId::Plasma);
+        assert_eq!(wxpl.symbol, "WXPL");
+        assert_eq!(wxpl.name, Some("Wrapped XPL"));
+    }
+
+    #[test]
+    fn all_wrapped_tokens_have_18_decimals() {
+        let chains = [
+            SupportedChainId::Mainnet,
+            SupportedChainId::GnosisChain,
+            SupportedChainId::ArbitrumOne,
+            SupportedChainId::Base,
+            SupportedChainId::Sepolia,
+            SupportedChainId::Polygon,
+            SupportedChainId::Avalanche,
+            SupportedChainId::BnbChain,
+            SupportedChainId::Linea,
+            SupportedChainId::Lens,
+            SupportedChainId::Plasma,
+            SupportedChainId::Ink,
+        ];
+        for chain in chains {
+            let token = wrapped_native_currency(chain);
+            assert_eq!(token.decimals, 18, "Expected 18 decimals for {chain:?}");
+        }
+    }
+
+    #[test]
+    fn all_wrapped_tokens_have_name() {
+        let chains = [
+            SupportedChainId::Mainnet,
+            SupportedChainId::GnosisChain,
+            SupportedChainId::ArbitrumOne,
+            SupportedChainId::Base,
+            SupportedChainId::Sepolia,
+            SupportedChainId::Polygon,
+            SupportedChainId::Avalanche,
+            SupportedChainId::BnbChain,
+            SupportedChainId::Linea,
+            SupportedChainId::Lens,
+            SupportedChainId::Plasma,
+            SupportedChainId::Ink,
+        ];
+        for chain in chains {
+            let token = wrapped_native_currency(chain);
+            assert!(token.has_name(), "Expected name for {chain:?}");
+        }
+    }
+
+    #[test]
+    fn all_wrapped_tokens_are_not_native_currency() {
+        let chains = [
+            SupportedChainId::Mainnet,
+            SupportedChainId::GnosisChain,
+            SupportedChainId::ArbitrumOne,
+            SupportedChainId::Base,
+            SupportedChainId::Sepolia,
+            SupportedChainId::Polygon,
+            SupportedChainId::Avalanche,
+            SupportedChainId::BnbChain,
+            SupportedChainId::Linea,
+            SupportedChainId::Lens,
+            SupportedChainId::Plasma,
+            SupportedChainId::Ink,
+        ];
+        for chain in chains {
+            let token = wrapped_native_currency(chain);
+            assert!(
+                !token.is_native_currency(),
+                "Wrapped token should not be native for {chain:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn all_wrapped_tokens_have_nonzero_address() {
+        let chains = [
+            SupportedChainId::Mainnet,
+            SupportedChainId::GnosisChain,
+            SupportedChainId::ArbitrumOne,
+            SupportedChainId::Base,
+            SupportedChainId::Sepolia,
+            SupportedChainId::Polygon,
+            SupportedChainId::Avalanche,
+            SupportedChainId::BnbChain,
+            SupportedChainId::Linea,
+            SupportedChainId::Lens,
+            SupportedChainId::Plasma,
+            SupportedChainId::Ink,
+        ];
+        for chain in chains {
+            let token = wrapped_native_currency(chain);
+            assert!(!token.address.is_zero(), "Expected non-zero address for {chain:?}");
+        }
+    }
+}

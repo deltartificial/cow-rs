@@ -230,3 +230,195 @@ pub fn apply_percentage(value: U256, percentage: Decimal) -> U256 {
     let bps = percentage_to_bps(percentage);
     value * U256::from(bps) / U256::from(100u32)
 }
+
+#[cfg(test)]
+mod tests {
+    use alloy_primitives::U256;
+    use rust_decimal::Decimal;
+
+    use super::*;
+    use crate::trading::types::{
+        Amounts, NetworkFee, PartnerFeeCost, ProtocolFeeCost, QuoteAmountsAndCosts,
+    };
+
+    // ── suggest_slippage_from_fee ────────────────────────────────────────────
+
+    #[test]
+    fn slippage_from_fee_50_percent() {
+        assert_eq!(
+            suggest_slippage_from_fee(U256::from(1_000u32), 50),
+            U256::from(500u32)
+        );
+    }
+
+    #[test]
+    fn slippage_from_fee_zero_factor() {
+        assert_eq!(
+            suggest_slippage_from_fee(U256::from(1_000u32), 0),
+            U256::ZERO
+        );
+    }
+
+    #[test]
+    fn slippage_from_fee_100_percent() {
+        assert_eq!(
+            suggest_slippage_from_fee(U256::from(1_000u32), 100),
+            U256::from(1_000u32)
+        );
+    }
+
+    // ── suggest_slippage_from_volume ─────────────────────────────────────────
+
+    #[test]
+    fn slippage_from_volume_sell_order() {
+        // Sell order uses sell_after (net). 10_000 * 50 / 10_000 = 50
+        let result = suggest_slippage_from_volume(
+            U256::from(10_000u32),
+            U256::from(9_000u32),
+            true,
+            50,
+        );
+        assert_eq!(result, U256::from(45u32)); // 9_000 * 50 / 10_000
+    }
+
+    #[test]
+    fn slippage_from_volume_buy_order() {
+        // Buy order uses sell_before (gross). 10_000 * 50 / 10_000 = 50
+        let result = suggest_slippage_from_volume(
+            U256::from(10_000u32),
+            U256::from(9_000u32),
+            false,
+            50,
+        );
+        assert_eq!(result, U256::from(50u32));
+    }
+
+    #[test]
+    fn slippage_from_volume_zero_base() {
+        let result = suggest_slippage_from_volume(U256::ZERO, U256::ZERO, true, 50);
+        assert_eq!(result, U256::ZERO);
+    }
+
+    // ── suggest_slippage_bps ─────────────────────────────────────────────────
+
+    fn make_costs(
+        sell_before: u64,
+        sell_after: u64,
+        fee: u64,
+        is_sell: bool,
+    ) -> QuoteAmountsAndCosts {
+        QuoteAmountsAndCosts {
+            is_sell,
+            before_all_fees: Amounts {
+                sell_amount: U256::from(sell_before),
+                buy_amount: U256::from(100u64),
+            },
+            before_network_costs: Amounts {
+                sell_amount: U256::from(sell_before),
+                buy_amount: U256::from(100u64),
+            },
+            after_network_costs: Amounts {
+                sell_amount: U256::from(sell_after),
+                buy_amount: U256::from(100u64),
+            },
+            after_partner_fees: Amounts {
+                sell_amount: U256::from(sell_after),
+                buy_amount: U256::from(100u64),
+            },
+            after_slippage: Amounts {
+                sell_amount: U256::from(sell_after),
+                buy_amount: U256::from(100u64),
+            },
+            network_fee: NetworkFee {
+                amount_in_sell_currency: U256::from(fee),
+                amount_in_buy_currency: U256::ZERO,
+            },
+            partner_fee: PartnerFeeCost { amount: U256::ZERO, bps: 0 },
+            protocol_fee: ProtocolFeeCost { amount: U256::ZERO, bps: 0 },
+        }
+    }
+
+    #[test]
+    fn suggest_slippage_bps_basic() {
+        let costs = make_costs(10_000, 9_000, 1_000, true);
+        let bps = suggest_slippage_bps(&costs, 50, 50, 0);
+        assert!(bps > 0);
+    }
+
+    #[test]
+    fn suggest_slippage_bps_zero_sell_returns_min() {
+        let costs = make_costs(0, 0, 0, true);
+        let bps = suggest_slippage_bps(&costs, 50, 50, 42);
+        assert_eq!(bps, 42);
+    }
+
+    #[test]
+    fn suggest_slippage_bps_respects_min() {
+        let costs = make_costs(1_000_000, 999_000, 1_000, true);
+        let bps = suggest_slippage_bps(&costs, 50, 50, 200);
+        assert!(bps >= 200);
+    }
+
+    // ── percentage_to_bps ────────────────────────────────────────────────────
+
+    #[test]
+    fn percentage_to_bps_half_percent() {
+        assert_eq!(percentage_to_bps(Decimal::new(5, 1)), 50);
+    }
+
+    #[test]
+    fn percentage_to_bps_one_percent() {
+        assert_eq!(percentage_to_bps(Decimal::new(1, 0)), 100);
+    }
+
+    #[test]
+    fn percentage_to_bps_zero() {
+        assert_eq!(percentage_to_bps(Decimal::ZERO), 0);
+    }
+
+    // ── bps_to_percentage ────────────────────────────────────────────────────
+
+    #[test]
+    fn bps_to_percentage_50() {
+        assert_eq!(bps_to_percentage(50), Decimal::new(5, 1));
+    }
+
+    #[test]
+    fn bps_to_percentage_100() {
+        assert_eq!(bps_to_percentage(100), Decimal::new(1, 0));
+    }
+
+    #[test]
+    fn bps_to_percentage_zero() {
+        assert_eq!(bps_to_percentage(0), Decimal::ZERO);
+    }
+
+    // ── apply_percentage ─────────────────────────────────────────────────────
+
+    #[test]
+    fn apply_percentage_half_percent() {
+        // 0.5% -> 50 bps -> 200 * 50 / 100 = 100
+        assert_eq!(
+            apply_percentage(U256::from(200u32), Decimal::new(5, 1)),
+            U256::from(100u32)
+        );
+    }
+
+    #[test]
+    fn apply_percentage_zero() {
+        assert_eq!(
+            apply_percentage(U256::from(1_000u32), Decimal::ZERO),
+            U256::ZERO
+        );
+    }
+
+    // ── Roundtrip conversion ─────────────────────────────────────────────────
+
+    #[test]
+    fn bps_percentage_roundtrip() {
+        for bps in [0, 1, 25, 50, 100, 500, 10_000] {
+            let pct = bps_to_percentage(bps);
+            assert_eq!(percentage_to_bps(pct), bps);
+        }
+    }
+}

@@ -2006,3 +2006,849 @@ impl fmt::Display for SlippageToleranceResponse {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use alloy_primitives::B256;
+
+    use crate::{
+        app_data::types::{OrderClassKind, PartnerFee, PartnerFeeEntry},
+        types::{SigningScheme, TokenBalance},
+    };
+
+    // ── Amounts ─────────────────────────────────────────────────────────────
+
+    #[test]
+    fn amounts_new_stores_fields() {
+        let a = Amounts::new(U256::from(100u32), U256::from(200u32));
+        assert_eq!(a.sell_amount, U256::from(100u32));
+        assert_eq!(a.buy_amount, U256::from(200u32));
+    }
+
+    #[test]
+    fn amounts_is_zero() {
+        assert!(Amounts::default().is_zero());
+        assert!(Amounts::new(U256::ZERO, U256::ZERO).is_zero());
+        assert!(!Amounts::new(U256::from(1u32), U256::ZERO).is_zero());
+        assert!(!Amounts::new(U256::ZERO, U256::from(1u32)).is_zero());
+    }
+
+    #[test]
+    fn amounts_total() {
+        let a = Amounts::new(U256::from(100u32), U256::from(90u32));
+        assert_eq!(a.total(), U256::from(190u32));
+    }
+
+    #[test]
+    fn amounts_total_saturates() {
+        let a = Amounts::new(U256::MAX, U256::from(1u32));
+        assert_eq!(a.total(), U256::MAX);
+    }
+
+    #[test]
+    fn amounts_display() {
+        let a = Amounts::new(U256::from(42u32), U256::from(7u32));
+        let s = format!("{a}");
+        assert!(s.contains("sell"));
+        assert!(s.contains("buy"));
+        assert!(s.contains("42"));
+        assert!(s.contains("7"));
+    }
+
+    #[test]
+    fn amounts_default() {
+        let a = Amounts::default();
+        assert_eq!(a.sell_amount, U256::ZERO);
+        assert_eq!(a.buy_amount, U256::ZERO);
+    }
+
+    // ── NetworkFee ──────────────────────────────────────────────────────────
+
+    #[test]
+    fn network_fee_new_stores_fields() {
+        let nf = NetworkFee::new(U256::from(10u32), U256::from(20u32));
+        assert_eq!(nf.amount_in_sell_currency, U256::from(10u32));
+        assert_eq!(nf.amount_in_buy_currency, U256::from(20u32));
+    }
+
+    #[test]
+    fn network_fee_is_zero() {
+        assert!(NetworkFee::default().is_zero());
+        assert!(!NetworkFee::new(U256::from(1u32), U256::ZERO).is_zero());
+        assert!(!NetworkFee::new(U256::ZERO, U256::from(1u32)).is_zero());
+    }
+
+    #[test]
+    fn network_fee_total_atoms() {
+        let nf = NetworkFee::new(U256::from(5u32), U256::from(3u32));
+        assert_eq!(nf.total_atoms(), U256::from(8u32));
+    }
+
+    #[test]
+    fn network_fee_total_atoms_saturates() {
+        let nf = NetworkFee::new(U256::MAX, U256::from(1u32));
+        assert_eq!(nf.total_atoms(), U256::MAX);
+    }
+
+    #[test]
+    fn network_fee_display() {
+        let nf = NetworkFee::new(U256::from(10u32), U256::from(20u32));
+        let s = format!("{nf}");
+        assert!(s.contains("network-fee"));
+        assert!(s.contains("10"));
+        assert!(s.contains("20"));
+    }
+
+    #[test]
+    fn network_fee_default() {
+        let nf = NetworkFee::default();
+        assert_eq!(nf.amount_in_sell_currency, U256::ZERO);
+        assert_eq!(nf.amount_in_buy_currency, U256::ZERO);
+    }
+
+    // ── PartnerFeeCost ──────────────────────────────────────────────────────
+
+    #[test]
+    fn partner_fee_cost_new() {
+        let pf = PartnerFeeCost::new(U256::from(500u32), 50);
+        assert_eq!(pf.amount, U256::from(500u32));
+        assert_eq!(pf.bps, 50);
+    }
+
+    #[test]
+    fn partner_fee_cost_is_zero() {
+        assert!(PartnerFeeCost::default().is_zero());
+        assert!(!PartnerFeeCost::new(U256::from(1u32), 0).is_zero());
+        assert!(!PartnerFeeCost::new(U256::ZERO, 1).is_zero());
+    }
+
+    #[test]
+    fn partner_fee_cost_has_bps() {
+        assert!(!PartnerFeeCost::default().has_bps());
+        assert!(PartnerFeeCost::new(U256::ZERO, 10).has_bps());
+    }
+
+    #[test]
+    fn partner_fee_cost_display() {
+        let pf = PartnerFeeCost::new(U256::from(99u32), 25);
+        let s = format!("{pf}");
+        assert!(s.contains("partner-fee"));
+        assert!(s.contains("25bps"));
+    }
+
+    #[test]
+    fn partner_fee_cost_default() {
+        let pf = PartnerFeeCost::default();
+        assert_eq!(pf.amount, U256::ZERO);
+        assert_eq!(pf.bps, 0);
+    }
+
+    // ── ProtocolFeeCost ─────────────────────────────────────────────────────
+
+    #[test]
+    fn protocol_fee_cost_new() {
+        let pf = ProtocolFeeCost::new(U256::from(300u32), 15);
+        assert_eq!(pf.amount, U256::from(300u32));
+        assert_eq!(pf.bps, 15);
+    }
+
+    #[test]
+    fn protocol_fee_cost_is_zero() {
+        assert!(ProtocolFeeCost::default().is_zero());
+        assert!(!ProtocolFeeCost::new(U256::from(1u32), 0).is_zero());
+        assert!(!ProtocolFeeCost::new(U256::ZERO, 1).is_zero());
+    }
+
+    #[test]
+    fn protocol_fee_cost_has_bps() {
+        assert!(!ProtocolFeeCost::default().has_bps());
+        assert!(ProtocolFeeCost::new(U256::ZERO, 5).has_bps());
+    }
+
+    #[test]
+    fn protocol_fee_cost_display() {
+        let pf = ProtocolFeeCost::new(U256::from(77u32), 10);
+        let s = format!("{pf}");
+        assert!(s.contains("protocol-fee"));
+        assert!(s.contains("10bps"));
+    }
+
+    #[test]
+    fn protocol_fee_cost_default() {
+        let pf = ProtocolFeeCost::default();
+        assert_eq!(pf.amount, U256::ZERO);
+        assert_eq!(pf.bps, 0);
+    }
+
+    // ── TradingAppDataInfo ──────────────────────────────────────────────────
+
+    #[test]
+    fn trading_app_data_info_new() {
+        let info = TradingAppDataInfo::new("{\"v\":1}", "0xabc");
+        assert_eq!(info.full_app_data, "{\"v\":1}");
+        assert_eq!(info.app_data_keccak256, "0xabc");
+    }
+
+    #[test]
+    fn trading_app_data_info_has_full_app_data() {
+        let with = TradingAppDataInfo::new("{}", "0x1");
+        assert!(with.has_full_app_data());
+
+        let without = TradingAppDataInfo::new("", "0x1");
+        assert!(!without.has_full_app_data());
+    }
+
+    #[test]
+    fn trading_app_data_info_refs() {
+        let info = TradingAppDataInfo::new("doc", "0xhash");
+        assert_eq!(info.full_app_data_ref(), "doc");
+        assert_eq!(info.keccak256_ref(), "0xhash");
+    }
+
+    #[test]
+    fn trading_app_data_info_display() {
+        let info = TradingAppDataInfo::new("{}", "0xdeadbeef");
+        let s = format!("{info}");
+        assert!(s.contains("app-data"));
+        assert!(s.contains("0xdeadbeef"));
+    }
+
+    // ── TradingTransactionParams ────────────────────────────────────────────
+
+    #[test]
+    fn trading_tx_params_new() {
+        let data = vec![0xAA, 0xBB];
+        let to = Address::ZERO;
+        let tx = TradingTransactionParams::new(data.clone(), to, 21_000, U256::from(1u32));
+        assert_eq!(tx.data, data);
+        assert_eq!(tx.to, to);
+        assert_eq!(tx.gas_limit, 21_000);
+        assert_eq!(tx.value, U256::from(1u32));
+    }
+
+    #[test]
+    fn trading_tx_params_builders() {
+        let tx = TradingTransactionParams::new(vec![], Address::ZERO, 0, U256::ZERO)
+            .with_data(vec![1, 2, 3])
+            .with_to(Address::with_last_byte(0x01))
+            .with_gas_limit(50_000)
+            .with_value(U256::from(999u32));
+
+        assert_eq!(tx.data, vec![1, 2, 3]);
+        assert_eq!(tx.to, Address::with_last_byte(0x01));
+        assert_eq!(tx.gas_limit, 50_000);
+        assert_eq!(tx.value, U256::from(999u32));
+    }
+
+    #[test]
+    fn trading_tx_params_data_len() {
+        let tx = TradingTransactionParams::new(vec![0; 64], Address::ZERO, 0, U256::ZERO);
+        assert_eq!(tx.data_len(), 64);
+    }
+
+    #[test]
+    fn trading_tx_params_has_value() {
+        let no_val = TradingTransactionParams::new(vec![], Address::ZERO, 0, U256::ZERO);
+        assert!(!no_val.has_value());
+
+        let with_val = no_val.with_value(U256::from(1u32));
+        assert!(with_val.has_value());
+    }
+
+    #[test]
+    fn trading_tx_params_display() {
+        let tx = TradingTransactionParams::new(vec![], Address::ZERO, 21_000, U256::ZERO);
+        let s = format!("{tx}");
+        assert!(s.contains("tx"));
+        assert!(s.contains("21000"));
+    }
+
+    // ── PostTradeAdditionalParams ───────────────────────────────────────────
+
+    #[test]
+    fn post_trade_default() {
+        let p = PostTradeAdditionalParams::default();
+        assert!(!p.has_signing_scheme());
+        assert!(!p.has_network_costs());
+        assert!(!p.should_apply_costs());
+    }
+
+    #[test]
+    fn post_trade_with_signing_scheme() {
+        let p = PostTradeAdditionalParams::default().with_signing_scheme(SigningScheme::PreSign);
+        assert!(p.has_signing_scheme());
+        assert!(matches!(p.signing_scheme, Some(SigningScheme::PreSign)));
+    }
+
+    #[test]
+    fn post_trade_with_network_costs_amount() {
+        let p = PostTradeAdditionalParams::default().with_network_costs_amount("12345");
+        assert!(p.has_network_costs());
+        assert_eq!(p.network_costs_amount.as_deref(), Some("12345"));
+    }
+
+    #[test]
+    fn post_trade_with_apply_costs() {
+        let p = PostTradeAdditionalParams::default().with_apply_costs_slippage_and_fees(true);
+        assert!(p.should_apply_costs());
+
+        let p2 = PostTradeAdditionalParams::default().with_apply_costs_slippage_and_fees(false);
+        assert!(!p2.should_apply_costs());
+    }
+
+    #[test]
+    fn post_trade_display() {
+        let p = PostTradeAdditionalParams::default();
+        assert_eq!(format!("{p}"), "post-trade-params");
+    }
+
+    // ── SwapAdvancedSettings ────────────────────────────────────────────────
+
+    #[test]
+    fn swap_settings_default() {
+        let s = SwapAdvancedSettings::default();
+        assert!(!s.has_app_data());
+        assert!(!s.has_slippage_bps());
+        assert!(!s.has_partner_fee());
+    }
+
+    #[test]
+    fn swap_settings_with_app_data() {
+        let s = SwapAdvancedSettings::default().with_app_data(serde_json::json!({"k": "v"}));
+        assert!(s.has_app_data());
+    }
+
+    #[test]
+    fn swap_settings_with_slippage_bps() {
+        let s = SwapAdvancedSettings::default().with_slippage_bps(100);
+        assert!(s.has_slippage_bps());
+        assert_eq!(s.slippage_bps, Some(100));
+    }
+
+    #[test]
+    fn swap_settings_with_partner_fee() {
+        let fee = PartnerFee::single(PartnerFeeEntry::volume(50, "0xRecipient"));
+        let s = SwapAdvancedSettings::default().with_partner_fee(fee);
+        assert!(s.has_partner_fee());
+    }
+
+    #[test]
+    fn swap_settings_display() {
+        let s = SwapAdvancedSettings::default();
+        assert_eq!(format!("{s}"), "swap-settings");
+    }
+
+    // ── LimitOrderAdvancedSettings ──────────────────────────────────────────
+
+    #[test]
+    fn limit_settings_default() {
+        let s = LimitOrderAdvancedSettings::default();
+        assert!(!s.has_receiver());
+        assert!(!s.has_valid_to());
+        assert!(!s.has_partner_fee());
+        assert!(!s.has_partially_fillable());
+        assert!(!s.has_app_data());
+    }
+
+    #[test]
+    fn limit_settings_with_receiver() {
+        let addr = Address::with_last_byte(0x42);
+        let s = LimitOrderAdvancedSettings::default().with_receiver(addr);
+        assert!(s.has_receiver());
+        assert_eq!(s.receiver, Some(addr));
+    }
+
+    #[test]
+    fn limit_settings_with_valid_to() {
+        let s = LimitOrderAdvancedSettings::default().with_valid_to(1_700_000_000);
+        assert!(s.has_valid_to());
+        assert_eq!(s.valid_to, Some(1_700_000_000));
+    }
+
+    #[test]
+    fn limit_settings_with_partner_fee() {
+        let fee = PartnerFee::single(PartnerFeeEntry::volume(25, "0xAddr"));
+        let s = LimitOrderAdvancedSettings::default().with_partner_fee(fee);
+        assert!(s.has_partner_fee());
+    }
+
+    #[test]
+    fn limit_settings_with_partially_fillable() {
+        let s = LimitOrderAdvancedSettings::default().with_partially_fillable(true);
+        assert!(s.has_partially_fillable());
+        assert_eq!(s.partially_fillable, Some(true));
+    }
+
+    #[test]
+    fn limit_settings_with_app_data() {
+        let s = LimitOrderAdvancedSettings::default().with_app_data("0xabc123");
+        assert!(s.has_app_data());
+        assert_eq!(s.app_data.as_deref(), Some("0xabc123"));
+    }
+
+    #[test]
+    fn limit_settings_display() {
+        let s = LimitOrderAdvancedSettings::default();
+        assert_eq!(format!("{s}"), "limit-settings");
+    }
+
+    // ── apply_settings_to_limit_trade_parameters ────────────────────────────
+
+    #[test]
+    fn apply_settings_none_returns_unchanged() {
+        let params = LimitTradeParameters::sell(
+            Address::ZERO,
+            Address::ZERO,
+            U256::from(1000u32),
+            U256::from(900u32),
+        );
+        let result = apply_settings_to_limit_trade_parameters(params.clone(), None);
+        assert_eq!(result.sell_amount, U256::from(1000u32));
+        assert!(!result.partially_fillable);
+    }
+
+    #[test]
+    fn apply_settings_overrides_fields() {
+        let params = LimitTradeParameters::sell(
+            Address::ZERO,
+            Address::ZERO,
+            U256::from(1000u32),
+            U256::from(900u32),
+        );
+        let settings = LimitOrderAdvancedSettings::default()
+            .with_receiver(Address::with_last_byte(0x01))
+            .with_valid_to(9999)
+            .with_partially_fillable(true)
+            .with_app_data("0xbeef");
+
+        let result = apply_settings_to_limit_trade_parameters(params, Some(&settings));
+        assert_eq!(result.receiver, Some(Address::with_last_byte(0x01)));
+        assert_eq!(result.valid_to, Some(9999));
+        assert!(result.partially_fillable);
+        assert_eq!(result.app_data.as_deref(), Some("0xbeef"));
+    }
+
+    // ── LimitTradeParametersFromQuote ───────────────────────────────────────
+
+    #[test]
+    fn limit_from_quote_new() {
+        let p = LimitTradeParametersFromQuote::new(
+            Address::ZERO,
+            Address::with_last_byte(1),
+            U256::from(100u32),
+            U256::from(90u32),
+        );
+        assert_eq!(p.sell_token, Address::ZERO);
+        assert_eq!(p.buy_token, Address::with_last_byte(1));
+        assert_eq!(p.sell_amount, U256::from(100u32));
+        assert_eq!(p.buy_amount, U256::from(90u32));
+        assert!(!p.has_quote_id());
+    }
+
+    #[test]
+    fn limit_from_quote_with_quote_id() {
+        let p = LimitTradeParametersFromQuote::new(
+            Address::ZERO,
+            Address::ZERO,
+            U256::from(1u32),
+            U256::from(1u32),
+        )
+        .with_quote_id(42);
+        assert!(p.has_quote_id());
+        assert_eq!(p.quote_id, Some(42));
+    }
+
+    #[test]
+    fn limit_from_quote_display() {
+        let p = LimitTradeParametersFromQuote::new(
+            Address::ZERO,
+            Address::ZERO,
+            U256::from(100u32),
+            U256::from(90u32),
+        );
+        let s = format!("{p}");
+        assert!(s.contains("limit-from-quote"));
+    }
+
+    // ── TradeParameters ─────────────────────────────────────────────────────
+
+    #[test]
+    fn trade_params_sell() {
+        let p = TradeParameters::sell(
+            Address::ZERO,
+            18,
+            Address::with_last_byte(1),
+            6,
+            U256::from(1000u32),
+        );
+        assert!(p.is_sell());
+        assert!(!p.is_buy());
+        assert_eq!(p.sell_token_decimals, 18);
+        assert_eq!(p.buy_token_decimals, 6);
+        assert_eq!(p.amount, U256::from(1000u32));
+        assert!(!p.has_slippage_bps());
+        assert!(!p.has_receiver());
+        assert!(!p.has_partner_fee());
+    }
+
+    #[test]
+    fn trade_params_buy() {
+        let p = TradeParameters::buy(
+            Address::ZERO,
+            18,
+            Address::with_last_byte(1),
+            6,
+            U256::from(500u32),
+        );
+        assert!(p.is_buy());
+        assert!(!p.is_sell());
+    }
+
+    #[test]
+    fn trade_params_builders() {
+        let recv = Address::with_last_byte(0x99);
+        let p = TradeParameters::sell(Address::ZERO, 18, Address::ZERO, 18, U256::from(1u32))
+            .with_slippage_bps(50)
+            .with_receiver(recv)
+            .with_valid_for(600)
+            .with_valid_to(1_700_000_000)
+            .with_partially_fillable();
+
+        assert!(p.has_slippage_bps());
+        assert_eq!(p.slippage_bps, Some(50));
+        assert!(p.has_receiver());
+        assert_eq!(p.receiver, Some(recv));
+        assert_eq!(p.valid_for, Some(600));
+        assert_eq!(p.valid_to, Some(1_700_000_000));
+        assert_eq!(p.partially_fillable, Some(true));
+    }
+
+    #[test]
+    fn trade_params_display() {
+        let p = TradeParameters::sell(Address::ZERO, 18, Address::ZERO, 18, U256::from(1u32));
+        let s = format!("{p}");
+        assert!(s.contains("sell"));
+    }
+
+    // ── LimitTradeParameters ────────────────────────────────────────────────
+
+    #[test]
+    fn limit_trade_params_sell_and_buy() {
+        let sell = LimitTradeParameters::sell(
+            Address::ZERO,
+            Address::with_last_byte(1),
+            U256::from(100u32),
+            U256::from(90u32),
+        );
+        assert!(sell.is_sell());
+        assert!(!sell.is_buy());
+        assert!(!sell.partially_fillable);
+
+        let buy = LimitTradeParameters::buy(
+            Address::ZERO,
+            Address::with_last_byte(1),
+            U256::from(100u32),
+            U256::from(90u32),
+        );
+        assert!(buy.is_buy());
+        assert!(!buy.is_sell());
+    }
+
+    #[test]
+    fn limit_trade_params_builders() {
+        let recv = Address::with_last_byte(0x42);
+        let p = LimitTradeParameters::sell(
+            Address::ZERO,
+            Address::ZERO,
+            U256::from(1u32),
+            U256::from(1u32),
+        )
+        .with_receiver(recv)
+        .with_valid_for(300)
+        .with_valid_to(9999)
+        .with_partially_fillable();
+
+        assert!(p.has_receiver());
+        assert_eq!(p.receiver, Some(recv));
+        assert!(p.has_valid_for());
+        assert_eq!(p.valid_for, Some(300));
+        assert!(p.has_valid_to());
+        assert_eq!(p.valid_to, Some(9999));
+        assert!(p.partially_fillable);
+    }
+
+    #[test]
+    fn limit_trade_params_has_app_data_and_partner_fee() {
+        let p = LimitTradeParameters::sell(
+            Address::ZERO,
+            Address::ZERO,
+            U256::from(1u32),
+            U256::from(1u32),
+        );
+        assert!(!p.has_app_data());
+        assert!(!p.has_partner_fee());
+    }
+
+    #[test]
+    fn limit_trade_params_display() {
+        let p = LimitTradeParameters::sell(
+            Address::ZERO,
+            Address::ZERO,
+            U256::from(100u32),
+            U256::from(90u32),
+        );
+        let s = format!("{p}");
+        assert!(s.contains("limit"));
+        assert!(s.contains("sell"));
+    }
+
+    // ── QuoteAmountsAndCosts ────────────────────────────────────────────────
+
+    fn sample_quote_costs() -> QuoteAmountsAndCosts {
+        QuoteAmountsAndCosts {
+            is_sell: true,
+            before_all_fees: Amounts::new(U256::from(200u32), U256::from(110u32)),
+            before_network_costs: Amounts::new(U256::from(200u32), U256::from(100u32)),
+            after_network_costs: Amounts::new(U256::from(190u32), U256::from(100u32)),
+            after_partner_fees: Amounts::new(U256::from(190u32), U256::from(95u32)),
+            after_slippage: Amounts::new(U256::from(190u32), U256::from(90u32)),
+            network_fee: NetworkFee::new(U256::from(10u32), U256::ZERO),
+            partner_fee: PartnerFeeCost::new(U256::from(5u32), 50),
+            protocol_fee: ProtocolFeeCost::new(U256::from(3u32), 30),
+        }
+    }
+
+    #[test]
+    fn quote_costs_is_buy() {
+        let sell = sample_quote_costs();
+        assert!(!sell.is_buy());
+
+        let mut buy = sample_quote_costs();
+        buy.is_sell = false;
+        assert!(buy.is_buy());
+    }
+
+    #[test]
+    fn quote_costs_max_slippage_atoms() {
+        let q = sample_quote_costs();
+        // after_partner_fees.buy = 95, after_slippage.buy = 90 => slippage = 5
+        assert_eq!(q.max_slippage_atoms(), U256::from(5u32));
+    }
+
+    #[test]
+    fn quote_costs_total_fees_atoms() {
+        let q = sample_quote_costs();
+        // network_fee.sell=10 + partner_fee.amount=5 + protocol_fee.amount=3 = 18
+        assert_eq!(q.total_fees_atoms(), U256::from(18u32));
+    }
+
+    #[test]
+    fn quote_costs_has_fees() {
+        let q = sample_quote_costs();
+        assert!(q.has_network_fee());
+        assert!(q.has_partner_fee());
+        assert!(q.has_protocol_fee());
+
+        let zero_q = QuoteAmountsAndCosts {
+            is_sell: true,
+            before_all_fees: Amounts::default(),
+            before_network_costs: Amounts::default(),
+            after_network_costs: Amounts::default(),
+            after_partner_fees: Amounts::default(),
+            after_slippage: Amounts::default(),
+            network_fee: NetworkFee::default(),
+            partner_fee: PartnerFeeCost::default(),
+            protocol_fee: ProtocolFeeCost::default(),
+        };
+        assert!(!zero_q.has_network_fee());
+        assert!(!zero_q.has_partner_fee());
+        assert!(!zero_q.has_protocol_fee());
+    }
+
+    #[test]
+    fn quote_costs_display() {
+        let q = sample_quote_costs();
+        let s = format!("{q}");
+        assert!(s.contains("sell"));
+        assert!(s.contains("network-fee"));
+        assert!(s.contains("partner-fee"));
+        assert!(s.contains("protocol-fee"));
+    }
+
+    // ── map_quote_amounts_and_costs ─────────────────────────────────────────
+
+    #[test]
+    fn map_doubles_amounts_preserves_bps() {
+        let q = sample_quote_costs();
+        let doubled = map_quote_amounts_and_costs(&q, |a| a * U256::from(2u32));
+
+        assert_eq!(doubled.before_all_fees.sell_amount, U256::from(400u32));
+        assert_eq!(doubled.network_fee.amount_in_sell_currency, U256::from(20u32));
+        assert_eq!(doubled.partner_fee.amount, U256::from(10u32));
+        assert_eq!(doubled.protocol_fee.amount, U256::from(6u32));
+        // bps preserved
+        assert_eq!(doubled.partner_fee.bps, 50);
+        assert_eq!(doubled.protocol_fee.bps, 30);
+        assert_eq!(doubled.is_sell, true);
+    }
+
+    // ── OrderPostingResult ──────────────────────────────────────────────────
+
+    fn sample_unsigned_order() -> UnsignedOrder {
+        UnsignedOrder {
+            sell_token: Address::ZERO,
+            buy_token: Address::ZERO,
+            receiver: Address::ZERO,
+            sell_amount: U256::from(100u32),
+            buy_amount: U256::from(90u32),
+            valid_to: 0,
+            app_data: B256::ZERO,
+            fee_amount: U256::ZERO,
+            kind: OrderKind::Sell,
+            partially_fillable: false,
+            sell_token_balance: TokenBalance::Erc20,
+            buy_token_balance: TokenBalance::Erc20,
+        }
+    }
+
+    #[test]
+    fn order_posting_result_new() {
+        let r = OrderPostingResult::new(
+            "uid123",
+            SigningScheme::Eip712,
+            "0xsig",
+            sample_unsigned_order(),
+        );
+        assert_eq!(r.order_id_ref(), "uid123");
+        assert_eq!(r.signature_ref(), "0xsig");
+    }
+
+    #[test]
+    fn order_posting_result_signing_scheme_predicates() {
+        let eip712 = OrderPostingResult::new(
+            "a",
+            SigningScheme::Eip712,
+            "",
+            sample_unsigned_order(),
+        );
+        assert!(eip712.is_eip712());
+        assert!(!eip712.is_eth_sign());
+        assert!(!eip712.is_eip1271());
+        assert!(!eip712.is_presign());
+
+        let eth_sign = OrderPostingResult::new(
+            "b",
+            SigningScheme::EthSign,
+            "",
+            sample_unsigned_order(),
+        );
+        assert!(eth_sign.is_eth_sign());
+
+        let eip1271 = OrderPostingResult::new(
+            "c",
+            SigningScheme::Eip1271,
+            "",
+            sample_unsigned_order(),
+        );
+        assert!(eip1271.is_eip1271());
+
+        let presign = OrderPostingResult::new(
+            "d",
+            SigningScheme::PreSign,
+            "",
+            sample_unsigned_order(),
+        );
+        assert!(presign.is_presign());
+    }
+
+    #[test]
+    fn order_posting_result_display() {
+        let r = OrderPostingResult::new(
+            "uid-xyz",
+            SigningScheme::Eip712,
+            "",
+            sample_unsigned_order(),
+        );
+        let s = format!("{r}");
+        assert!(s.contains("order"));
+        assert!(s.contains("uid-xyz"));
+    }
+
+    // ── BuildAppDataParams ──────────────────────────────────────────────────
+
+    #[test]
+    fn build_app_data_params_new() {
+        let p = BuildAppDataParams::new("CoW Swap", 50, OrderClassKind::Market);
+        assert_eq!(p.app_code, "CoW Swap");
+        assert_eq!(p.slippage_bps, 50);
+        assert!(!p.has_partner_fee());
+    }
+
+    #[test]
+    fn build_app_data_params_with_partner_fee() {
+        let fee = PartnerFee::single(PartnerFeeEntry::volume(50, "0xRecip"));
+        let p = BuildAppDataParams::new("App", 25, OrderClassKind::Limit).with_partner_fee(fee);
+        assert!(p.has_partner_fee());
+    }
+
+    #[test]
+    fn build_app_data_params_display() {
+        let p = BuildAppDataParams::new("MyApp", 100, OrderClassKind::Market);
+        let s = format!("{p}");
+        assert!(s.contains("build-app-data"));
+        assert!(s.contains("MyApp"));
+        assert!(s.contains("100bps"));
+    }
+
+    // ── SlippageToleranceRequest ────────────────────────────────────────────
+
+    #[test]
+    fn slippage_request_new() {
+        let r = SlippageToleranceRequest::new(1, Address::ZERO, Address::with_last_byte(1));
+        assert_eq!(r.chain_id, 1);
+        assert_eq!(r.sell_token, Address::ZERO);
+        assert_eq!(r.buy_token, Address::with_last_byte(1));
+        assert!(r.sell_amount.is_none());
+        assert!(r.buy_amount.is_none());
+    }
+
+    #[test]
+    fn slippage_request_with_amounts() {
+        let r = SlippageToleranceRequest::new(1, Address::ZERO, Address::ZERO)
+            .with_sell_amount(U256::from(100u32))
+            .with_buy_amount(U256::from(90u32));
+        assert_eq!(r.sell_amount, Some(U256::from(100u32)));
+        assert_eq!(r.buy_amount, Some(U256::from(90u32)));
+    }
+
+    #[test]
+    fn slippage_request_display() {
+        let r = SlippageToleranceRequest::new(1, Address::ZERO, Address::ZERO);
+        let s = format!("{r}");
+        assert!(s.contains("slippage-req"));
+        assert!(s.contains("chain=1"));
+    }
+
+    // ── SlippageToleranceResponse ───────────────────────────────────────────
+
+    #[test]
+    fn slippage_response_new() {
+        let with = SlippageToleranceResponse::new(Some(50));
+        assert!(with.has_suggestion());
+        assert_eq!(with.slippage_bps, Some(50));
+
+        let without = SlippageToleranceResponse::new(None);
+        assert!(!without.has_suggestion());
+    }
+
+    #[test]
+    fn slippage_response_display() {
+        let with = SlippageToleranceResponse::new(Some(100));
+        assert_eq!(format!("{with}"), "slippage-resp(100bps)");
+
+        let without = SlippageToleranceResponse::new(None);
+        assert_eq!(format!("{without}"), "slippage-resp(none)");
+    }
+}

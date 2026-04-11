@@ -2295,3 +2295,952 @@ impl fmt::Display for UserConsent {
         write!(f, "consent({}, {})", self.terms, self.accepted_date)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── Constants ──
+
+    #[test]
+    fn constants_are_expected_values() {
+        assert_eq!(LATEST_APP_DATA_VERSION, "1.14.0");
+        assert_eq!(LATEST_QUOTE_METADATA_VERSION, "1.1.0");
+        assert_eq!(LATEST_REFERRER_METADATA_VERSION, "1.0.0");
+        assert_eq!(LATEST_ORDER_CLASS_METADATA_VERSION, "0.3.0");
+        assert_eq!(LATEST_UTM_METADATA_VERSION, "0.3.0");
+        assert_eq!(LATEST_HOOKS_METADATA_VERSION, "0.2.0");
+        assert_eq!(LATEST_SIGNER_METADATA_VERSION, "0.1.0");
+        assert_eq!(LATEST_WIDGET_METADATA_VERSION, "0.1.0");
+        assert_eq!(LATEST_PARTNER_FEE_METADATA_VERSION, "1.0.0");
+        assert_eq!(LATEST_REPLACED_ORDER_METADATA_VERSION, "0.1.0");
+        assert_eq!(LATEST_WRAPPERS_METADATA_VERSION, "0.2.0");
+        assert_eq!(LATEST_USER_CONSENTS_METADATA_VERSION, "0.1.0");
+    }
+
+    // ── AppDataDoc ──
+
+    #[test]
+    fn app_data_doc_new() {
+        let doc = AppDataDoc::new("TestApp");
+        assert_eq!(doc.version, LATEST_APP_DATA_VERSION);
+        assert_eq!(doc.app_code.as_deref(), Some("TestApp"));
+        assert!(doc.environment.is_none());
+        assert!(!doc.metadata.has_referrer());
+    }
+
+    #[test]
+    fn app_data_doc_default() {
+        let doc = AppDataDoc::default();
+        assert!(doc.version.is_empty());
+        assert!(doc.app_code.is_none());
+        assert!(doc.environment.is_none());
+    }
+
+    #[test]
+    fn app_data_doc_with_environment() {
+        let doc = AppDataDoc::new("App").with_environment("staging");
+        assert_eq!(doc.environment.as_deref(), Some("staging"));
+    }
+
+    #[test]
+    fn app_data_doc_with_referrer() {
+        let doc = AppDataDoc::new("App").with_referrer(Referrer::code("COWRS"));
+        assert!(doc.metadata.has_referrer());
+        assert_eq!(doc.metadata.referrer.unwrap().as_code(), Some("COWRS"));
+    }
+
+    #[test]
+    fn app_data_doc_with_utm() {
+        let utm = Utm::new().with_source("twitter");
+        let doc = AppDataDoc::new("App").with_utm(utm);
+        assert!(doc.metadata.has_utm());
+    }
+
+    #[test]
+    fn app_data_doc_with_hooks() {
+        let hook = CowHook::new("0xTarget", "0xData", "50000");
+        let hooks = OrderInteractionHooks::new(vec![hook], vec![]);
+        let doc = AppDataDoc::new("App").with_hooks(hooks);
+        assert!(doc.metadata.has_hooks());
+    }
+
+    #[test]
+    fn app_data_doc_with_partner_fee() {
+        let fee = PartnerFee::single(PartnerFeeEntry::volume(50, "0xAddr"));
+        let doc = AppDataDoc::new("App").with_partner_fee(fee);
+        assert!(doc.metadata.has_partner_fee());
+    }
+
+    #[test]
+    fn app_data_doc_with_replaced_order() {
+        let uid = format!("0x{}", "ab".repeat(56));
+        let doc = AppDataDoc::new("App").with_replaced_order(&uid);
+        assert!(doc.metadata.has_replaced_order());
+        assert_eq!(doc.metadata.replaced_order.unwrap().uid, uid);
+    }
+
+    #[test]
+    fn app_data_doc_with_signer() {
+        let doc = AppDataDoc::new("App").with_signer("0xSignerAddr");
+        assert!(doc.metadata.has_signer());
+        assert_eq!(doc.metadata.signer.as_deref(), Some("0xSignerAddr"));
+    }
+
+    #[test]
+    fn app_data_doc_with_order_class() {
+        let doc = AppDataDoc::new("App").with_order_class(OrderClassKind::Limit);
+        assert!(doc.metadata.has_order_class());
+        assert_eq!(doc.metadata.order_class.unwrap().order_class, OrderClassKind::Limit);
+    }
+
+    #[test]
+    fn app_data_doc_with_bridging() {
+        let b = Bridging::new("across", "42161", "0xToken");
+        let doc = AppDataDoc::new("App").with_bridging(b);
+        assert!(doc.metadata.has_bridging());
+    }
+
+    #[test]
+    fn app_data_doc_with_flashloan() {
+        let fl = Flashloan::new("1000", "0xPool", "0xToken");
+        let doc = AppDataDoc::new("App").with_flashloan(fl);
+        assert!(doc.metadata.has_flashloan());
+    }
+
+    #[test]
+    fn app_data_doc_with_wrappers() {
+        let w = WrapperEntry::new("0xWrapper");
+        let doc = AppDataDoc::new("App").with_wrappers(vec![w]);
+        assert!(doc.metadata.has_wrappers());
+    }
+
+    #[test]
+    fn app_data_doc_with_user_consents() {
+        let c = UserConsent::new("https://cow.fi/tos", "2025-04-07");
+        let doc = AppDataDoc::new("App").with_user_consents(vec![c]);
+        assert!(doc.metadata.has_user_consents());
+    }
+
+    #[test]
+    fn app_data_doc_display() {
+        let doc = AppDataDoc::new("MyApp");
+        assert_eq!(doc.to_string(), "app-data(v1.14.0, code=MyApp)");
+
+        let doc_no_code = AppDataDoc::default();
+        assert_eq!(doc_no_code.to_string(), "app-data(v, code=none)");
+    }
+
+    // ── Metadata ──
+
+    #[test]
+    fn metadata_default_all_none() {
+        let m = Metadata::default();
+        assert!(!m.has_referrer());
+        assert!(!m.has_utm());
+        assert!(!m.has_quote());
+        assert!(!m.has_order_class());
+        assert!(!m.has_hooks());
+        assert!(!m.has_widget());
+        assert!(!m.has_partner_fee());
+        assert!(!m.has_replaced_order());
+        assert!(!m.has_signer());
+        assert!(!m.has_bridging());
+        assert!(!m.has_flashloan());
+        assert!(!m.has_wrappers());
+        assert!(!m.has_user_consents());
+    }
+
+    #[test]
+    fn metadata_with_referrer() {
+        let m = Metadata::default().with_referrer(Referrer::address("0xAddr"));
+        assert!(m.has_referrer());
+    }
+
+    #[test]
+    fn metadata_with_utm() {
+        let m = Metadata::default().with_utm(Utm::new());
+        assert!(m.has_utm());
+    }
+
+    #[test]
+    fn metadata_with_quote() {
+        let m = Metadata::default().with_quote(Quote::new(50));
+        assert!(m.has_quote());
+    }
+
+    #[test]
+    fn metadata_with_order_class() {
+        let oc = OrderClass::new(OrderClassKind::Market);
+        let m = Metadata::default().with_order_class(oc);
+        assert!(m.has_order_class());
+    }
+
+    #[test]
+    fn metadata_with_hooks() {
+        let hooks = OrderInteractionHooks::new(vec![], vec![]);
+        let m = Metadata::default().with_hooks(hooks);
+        assert!(m.has_hooks());
+    }
+
+    #[test]
+    fn metadata_with_widget() {
+        let w = Widget::new("Host");
+        let m = Metadata::default().with_widget(w);
+        assert!(m.has_widget());
+    }
+
+    #[test]
+    fn metadata_with_partner_fee() {
+        let fee = PartnerFee::single(PartnerFeeEntry::volume(10, "0x1"));
+        let m = Metadata::default().with_partner_fee(fee);
+        assert!(m.has_partner_fee());
+    }
+
+    #[test]
+    fn metadata_with_replaced_order() {
+        let ro = ReplacedOrder::new("0xUID");
+        let m = Metadata::default().with_replaced_order(ro);
+        assert!(m.has_replaced_order());
+    }
+
+    #[test]
+    fn metadata_with_signer() {
+        let m = Metadata::default().with_signer("0xSigner");
+        assert!(m.has_signer());
+    }
+
+    #[test]
+    fn metadata_with_bridging() {
+        let b = Bridging::new("across", "1", "0xToken");
+        let m = Metadata::default().with_bridging(b);
+        assert!(m.has_bridging());
+    }
+
+    #[test]
+    fn metadata_with_flashloan() {
+        let fl = Flashloan::new("100", "0xPool", "0xToken");
+        let m = Metadata::default().with_flashloan(fl);
+        assert!(m.has_flashloan());
+    }
+
+    #[test]
+    fn metadata_with_wrappers() {
+        let m = Metadata::default().with_wrappers(vec![WrapperEntry::new("0xW")]);
+        assert!(m.has_wrappers());
+    }
+
+    #[test]
+    fn metadata_with_wrappers_empty_is_false() {
+        let m = Metadata::default().with_wrappers(vec![]);
+        // has_wrappers checks is_some_and(!is_empty)
+        assert!(!m.has_wrappers());
+    }
+
+    #[test]
+    fn metadata_with_user_consents() {
+        let c = UserConsent::new("tos", "2025-01-01");
+        let m = Metadata::default().with_user_consents(vec![c]);
+        assert!(m.has_user_consents());
+    }
+
+    #[test]
+    fn metadata_with_user_consents_empty_is_false() {
+        let m = Metadata::default().with_user_consents(vec![]);
+        assert!(!m.has_user_consents());
+    }
+
+    #[test]
+    fn metadata_display() {
+        assert_eq!(Metadata::default().to_string(), "metadata");
+    }
+
+    // ── Referrer ──
+
+    #[test]
+    fn referrer_address_variant() {
+        let r = Referrer::address("0xb6BAd41ae76A11D10f7b0E664C5007b908bC77C9");
+        assert_eq!(r.as_address(), Some("0xb6BAd41ae76A11D10f7b0E664C5007b908bC77C9"));
+        assert_eq!(r.as_code(), None);
+    }
+
+    #[test]
+    fn referrer_code_variant() {
+        let r = Referrer::code("COWRS-PARTNER");
+        assert_eq!(r.as_code(), Some("COWRS-PARTNER"));
+        assert_eq!(r.as_address(), None);
+    }
+
+    #[test]
+    #[allow(deprecated)]
+    fn referrer_new_deprecated_alias() {
+        let r = Referrer::new("0xAddr");
+        assert_eq!(r.as_address(), Some("0xAddr"));
+    }
+
+    #[test]
+    fn referrer_display_address() {
+        let r = Referrer::address("0xABC");
+        assert_eq!(r.to_string(), "referrer(address=0xABC)");
+    }
+
+    #[test]
+    fn referrer_display_code() {
+        let r = Referrer::code("COWRS");
+        assert_eq!(r.to_string(), "referrer(code=COWRS)");
+    }
+
+    #[test]
+    fn referrer_serde_address_roundtrip() {
+        let r = Referrer::address("0xb6BAd41ae76A11D10f7b0E664C5007b908bC77C9");
+        let json = serde_json::to_string(&r).unwrap();
+        assert!(json.contains("\"address\""));
+        let r2: Referrer = serde_json::from_str(&json).unwrap();
+        assert_eq!(r2.as_address(), Some("0xb6BAd41ae76A11D10f7b0E664C5007b908bC77C9"));
+    }
+
+    #[test]
+    fn referrer_serde_code_roundtrip() {
+        let r = Referrer::code("COWRS");
+        let json = serde_json::to_string(&r).unwrap();
+        assert!(json.contains("\"code\""));
+        let r2: Referrer = serde_json::from_str(&json).unwrap();
+        assert_eq!(r2.as_code(), Some("COWRS"));
+    }
+
+    // ── Utm ──
+
+    #[test]
+    fn utm_new_all_none() {
+        let utm = Utm::new();
+        assert!(!utm.has_source());
+        assert!(!utm.has_medium());
+        assert!(!utm.has_campaign());
+        assert!(!utm.has_content());
+        assert!(!utm.has_term());
+    }
+
+    #[test]
+    fn utm_with_all_fields() {
+        let utm = Utm::new()
+            .with_source("google")
+            .with_medium("cpc")
+            .with_campaign("launch")
+            .with_content("banner")
+            .with_term("cow protocol");
+        assert!(utm.has_source());
+        assert!(utm.has_medium());
+        assert!(utm.has_campaign());
+        assert!(utm.has_content());
+        assert!(utm.has_term());
+        assert_eq!(utm.utm_source.as_deref(), Some("google"));
+        assert_eq!(utm.utm_medium.as_deref(), Some("cpc"));
+        assert_eq!(utm.utm_campaign.as_deref(), Some("launch"));
+        assert_eq!(utm.utm_content.as_deref(), Some("banner"));
+        assert_eq!(utm.utm_term.as_deref(), Some("cow protocol"));
+    }
+
+    #[test]
+    fn utm_display() {
+        let utm = Utm::new().with_source("twitter");
+        assert_eq!(utm.to_string(), "utm(source=twitter)");
+
+        let utm_none = Utm::new();
+        assert_eq!(utm_none.to_string(), "utm(source=none)");
+    }
+
+    #[test]
+    fn utm_serde_roundtrip() {
+        let utm = Utm::new().with_source("google").with_campaign("test");
+        let json = serde_json::to_string(&utm).unwrap();
+        let utm2: Utm = serde_json::from_str(&json).unwrap();
+        assert_eq!(utm2.utm_source.as_deref(), Some("google"));
+        assert_eq!(utm2.utm_campaign.as_deref(), Some("test"));
+        assert!(utm2.utm_medium.is_none());
+    }
+
+    // ── Quote ──
+
+    #[test]
+    fn quote_new() {
+        let q = Quote::new(50);
+        assert_eq!(q.slippage_bips, 50);
+        assert_eq!(q.smart_slippage, None);
+    }
+
+    #[test]
+    fn quote_with_smart_slippage() {
+        let q = Quote::new(100).with_smart_slippage();
+        assert_eq!(q.slippage_bips, 100);
+        assert_eq!(q.smart_slippage, Some(true));
+    }
+
+    #[test]
+    fn quote_display() {
+        assert_eq!(Quote::new(50).to_string(), "quote(50bips)");
+    }
+
+    #[test]
+    fn quote_serde_roundtrip() {
+        let q = Quote::new(75).with_smart_slippage();
+        let json = serde_json::to_string(&q).unwrap();
+        let q2: Quote = serde_json::from_str(&json).unwrap();
+        assert_eq!(q2.slippage_bips, 75);
+        assert_eq!(q2.smart_slippage, Some(true));
+    }
+
+    // ── OrderClassKind ──
+
+    #[test]
+    fn order_class_kind_as_str() {
+        assert_eq!(OrderClassKind::Market.as_str(), "market");
+        assert_eq!(OrderClassKind::Limit.as_str(), "limit");
+        assert_eq!(OrderClassKind::Liquidity.as_str(), "liquidity");
+        assert_eq!(OrderClassKind::Twap.as_str(), "twap");
+    }
+
+    #[test]
+    fn order_class_kind_is_predicates() {
+        assert!(OrderClassKind::Market.is_market());
+        assert!(!OrderClassKind::Market.is_limit());
+        assert!(!OrderClassKind::Market.is_liquidity());
+        assert!(!OrderClassKind::Market.is_twap());
+
+        assert!(OrderClassKind::Limit.is_limit());
+        assert!(OrderClassKind::Liquidity.is_liquidity());
+        assert!(OrderClassKind::Twap.is_twap());
+    }
+
+    #[test]
+    fn order_class_kind_display() {
+        assert_eq!(OrderClassKind::Twap.to_string(), "twap");
+    }
+
+    #[test]
+    fn order_class_kind_try_from_valid() {
+        assert_eq!(OrderClassKind::try_from("market").unwrap(), OrderClassKind::Market);
+        assert_eq!(OrderClassKind::try_from("limit").unwrap(), OrderClassKind::Limit);
+        assert_eq!(OrderClassKind::try_from("liquidity").unwrap(), OrderClassKind::Liquidity);
+        assert_eq!(OrderClassKind::try_from("twap").unwrap(), OrderClassKind::Twap);
+    }
+
+    #[test]
+    fn order_class_kind_try_from_invalid() {
+        assert!(OrderClassKind::try_from("unknown").is_err());
+    }
+
+    #[test]
+    fn order_class_kind_serde_roundtrip() {
+        let kind = OrderClassKind::Limit;
+        let json = serde_json::to_string(&kind).unwrap();
+        assert_eq!(json, "\"limit\"");
+        let kind2: OrderClassKind = serde_json::from_str(&json).unwrap();
+        assert_eq!(kind2, OrderClassKind::Limit);
+    }
+
+    // ── OrderClass ──
+
+    #[test]
+    fn order_class_new() {
+        let oc = OrderClass::new(OrderClassKind::Twap);
+        assert_eq!(oc.order_class, OrderClassKind::Twap);
+    }
+
+    #[test]
+    fn order_class_display() {
+        let oc = OrderClass::new(OrderClassKind::Market);
+        assert_eq!(oc.to_string(), "market");
+    }
+
+    // ── OrderInteractionHooks ──
+
+    #[test]
+    fn hooks_new_empty_vecs_become_none() {
+        let hooks = OrderInteractionHooks::new(vec![], vec![]);
+        assert!(!hooks.has_pre());
+        assert!(!hooks.has_post());
+        assert!(hooks.pre.is_none());
+        assert!(hooks.post.is_none());
+    }
+
+    #[test]
+    fn hooks_new_with_entries() {
+        let pre = CowHook::new("0xTarget", "0xData", "50000");
+        let post = CowHook::new("0xTarget2", "0xData2", "60000");
+        let hooks = OrderInteractionHooks::new(vec![pre], vec![post]);
+        assert!(hooks.has_pre());
+        assert!(hooks.has_post());
+    }
+
+    #[test]
+    fn hooks_with_version() {
+        let hooks = OrderInteractionHooks::new(vec![], vec![]).with_version("0.2.0");
+        assert_eq!(hooks.version.as_deref(), Some("0.2.0"));
+    }
+
+    // ── CowHook ──
+
+    #[test]
+    fn cow_hook_new() {
+        let hook = CowHook::new("0xTarget", "0xCallData", "100000");
+        assert_eq!(hook.target, "0xTarget");
+        assert_eq!(hook.call_data, "0xCallData");
+        assert_eq!(hook.gas_limit, "100000");
+        assert!(!hook.has_dapp_id());
+    }
+
+    #[test]
+    fn cow_hook_with_dapp_id() {
+        let hook = CowHook::new("0xTarget", "0xData", "50000").with_dapp_id("my-dapp");
+        assert!(hook.has_dapp_id());
+        assert_eq!(hook.dapp_id.as_deref(), Some("my-dapp"));
+    }
+
+    #[test]
+    fn cow_hook_display() {
+        let hook = CowHook::new("0xTarget", "0xData", "50000");
+        assert_eq!(hook.to_string(), "hook(target=0xTarget, gas=50000)");
+    }
+
+    // ── Widget ──
+
+    #[test]
+    fn widget_new() {
+        let w = Widget::new("WidgetHost");
+        assert_eq!(w.app_code, "WidgetHost");
+        assert!(!w.has_environment());
+    }
+
+    #[test]
+    fn widget_with_environment() {
+        let w = Widget::new("Host").with_environment("production");
+        assert!(w.has_environment());
+        assert_eq!(w.environment.as_deref(), Some("production"));
+    }
+
+    #[test]
+    fn widget_display() {
+        assert_eq!(Widget::new("Host").to_string(), "widget(Host)");
+    }
+
+    // ── PartnerFeeEntry ──
+
+    #[test]
+    fn partner_fee_entry_volume() {
+        let fee = PartnerFeeEntry::volume(50, "0xRecipient");
+        assert_eq!(fee.volume_bps(), Some(50));
+        assert_eq!(fee.surplus_bps(), None);
+        assert_eq!(fee.price_improvement_bps(), None);
+        assert_eq!(fee.max_volume_bps(), None);
+        assert_eq!(fee.recipient, "0xRecipient");
+    }
+
+    #[test]
+    fn partner_fee_entry_surplus() {
+        let fee = PartnerFeeEntry::surplus(30, 100, "0xRecipient");
+        assert_eq!(fee.volume_bps(), None);
+        assert_eq!(fee.surplus_bps(), Some(30));
+        assert_eq!(fee.price_improvement_bps(), None);
+        assert_eq!(fee.max_volume_bps(), Some(100));
+    }
+
+    #[test]
+    fn partner_fee_entry_price_improvement() {
+        let fee = PartnerFeeEntry::price_improvement(20, 80, "0xRecipient");
+        assert_eq!(fee.volume_bps(), None);
+        assert_eq!(fee.surplus_bps(), None);
+        assert_eq!(fee.price_improvement_bps(), Some(20));
+        assert_eq!(fee.max_volume_bps(), Some(80));
+    }
+
+    #[test]
+    fn partner_fee_entry_display_volume() {
+        let fee = PartnerFeeEntry::volume(50, "0xAddr");
+        assert_eq!(fee.to_string(), "volume-fee(50bps, 0xAddr)");
+    }
+
+    #[test]
+    fn partner_fee_entry_display_surplus() {
+        let fee = PartnerFeeEntry::surplus(30, 100, "0xAddr");
+        assert_eq!(fee.to_string(), "surplus-fee(30bps, 0xAddr)");
+    }
+
+    #[test]
+    fn partner_fee_entry_display_price_improvement() {
+        let fee = PartnerFeeEntry::price_improvement(20, 80, "0xAddr");
+        assert_eq!(fee.to_string(), "price-improvement-fee(20bps, 0xAddr)");
+    }
+
+    // ── PartnerFee ──
+
+    #[test]
+    fn partner_fee_single() {
+        let fee = PartnerFee::single(PartnerFeeEntry::volume(50, "0xAddr"));
+        assert!(fee.is_single());
+        assert!(!fee.is_multiple());
+        assert_eq!(fee.count(), 1);
+    }
+
+    #[test]
+    fn partner_fee_multiple() {
+        let fee = PartnerFee::Multiple(vec![
+            PartnerFeeEntry::volume(50, "0x1"),
+            PartnerFeeEntry::surplus(30, 100, "0x2"),
+        ]);
+        assert!(!fee.is_single());
+        assert!(fee.is_multiple());
+        assert_eq!(fee.count(), 2);
+    }
+
+    #[test]
+    fn partner_fee_entries_iterator() {
+        let fee = PartnerFee::single(PartnerFeeEntry::volume(50, "0xAddr"));
+        let entries: Vec<_> = fee.entries().collect();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].volume_bps(), Some(50));
+
+        let multi = PartnerFee::Multiple(vec![
+            PartnerFeeEntry::volume(10, "0x1"),
+            PartnerFeeEntry::surplus(20, 50, "0x2"),
+        ]);
+        let entries: Vec<_> = multi.entries().collect();
+        assert_eq!(entries.len(), 2);
+    }
+
+    #[test]
+    fn partner_fee_display_single() {
+        let fee = PartnerFee::single(PartnerFeeEntry::volume(50, "0xAddr"));
+        assert_eq!(fee.to_string(), "volume-fee(50bps, 0xAddr)");
+    }
+
+    #[test]
+    fn partner_fee_display_multiple() {
+        let fee = PartnerFee::Multiple(vec![
+            PartnerFeeEntry::volume(10, "0x1"),
+            PartnerFeeEntry::surplus(20, 50, "0x2"),
+        ]);
+        assert_eq!(fee.to_string(), "fees(2)");
+    }
+
+    // ── get_partner_fee_bps ──
+
+    #[test]
+    fn get_partner_fee_bps_some() {
+        let fee = PartnerFee::single(PartnerFeeEntry::volume(50, "0xAddr"));
+        assert_eq!(get_partner_fee_bps(Some(&fee)), Some(50));
+    }
+
+    #[test]
+    fn get_partner_fee_bps_none() {
+        assert_eq!(get_partner_fee_bps(None), None);
+    }
+
+    #[test]
+    fn get_partner_fee_bps_no_volume() {
+        let fee = PartnerFee::single(PartnerFeeEntry::surplus(30, 100, "0xAddr"));
+        assert_eq!(get_partner_fee_bps(Some(&fee)), None);
+    }
+
+    #[test]
+    fn get_partner_fee_bps_multiple_finds_first_volume() {
+        let fee = PartnerFee::Multiple(vec![
+            PartnerFeeEntry::surplus(30, 100, "0x1"),
+            PartnerFeeEntry::volume(50, "0x2"),
+        ]);
+        assert_eq!(get_partner_fee_bps(Some(&fee)), Some(50));
+    }
+
+    // ── ReplacedOrder ──
+
+    #[test]
+    fn replaced_order_new() {
+        let uid = format!("0x{}", "ab".repeat(56));
+        let ro = ReplacedOrder::new(&uid);
+        assert_eq!(ro.uid, uid);
+        assert_eq!(ro.uid.len(), 114);
+    }
+
+    #[test]
+    fn replaced_order_display() {
+        let ro = ReplacedOrder::new("0xUID");
+        assert_eq!(ro.to_string(), "replaced(0xUID)");
+    }
+
+    // ── Bridging ──
+
+    #[test]
+    fn bridging_new() {
+        let b = Bridging::new("across", "42161", "0xToken");
+        assert_eq!(b.provider, "across");
+        assert_eq!(b.destination_chain_id, "42161");
+        assert_eq!(b.destination_token_address, "0xToken");
+        assert!(!b.has_quote_id());
+        assert!(!b.has_quote_signature());
+        assert!(!b.has_attestation_signature());
+        assert!(!b.has_quote_body());
+    }
+
+    #[test]
+    fn bridging_with_all_optional_fields() {
+        let b = Bridging::new("bungee", "10", "0xToken")
+            .with_quote_id("q-123")
+            .with_quote_signature("0xSig")
+            .with_attestation_signature("0xAttest")
+            .with_quote_body("body-data");
+        assert!(b.has_quote_id());
+        assert!(b.has_quote_signature());
+        assert!(b.has_attestation_signature());
+        assert!(b.has_quote_body());
+        assert_eq!(b.quote_id.as_deref(), Some("q-123"));
+        assert_eq!(b.quote_signature.as_deref(), Some("0xSig"));
+        assert_eq!(b.attestation_signature.as_deref(), Some("0xAttest"));
+        assert_eq!(b.quote_body.as_deref(), Some("body-data"));
+    }
+
+    #[test]
+    fn bridging_display() {
+        let b = Bridging::new("across", "42161", "0xToken");
+        assert_eq!(b.to_string(), "bridge(across, chain=42161)");
+    }
+
+    // ── Flashloan ──
+
+    #[test]
+    fn flashloan_new() {
+        let fl = Flashloan::new("1000000", "0xPool", "0xToken");
+        assert_eq!(fl.loan_amount, "1000000");
+        assert_eq!(fl.liquidity_provider_address, "0xPool");
+        assert_eq!(fl.token_address, "0xToken");
+        assert!(fl.protocol_adapter_address.is_empty());
+        assert!(fl.receiver_address.is_empty());
+    }
+
+    #[test]
+    fn flashloan_with_builders() {
+        let fl = Flashloan::new("1000", "0xPool", "0xToken")
+            .with_protocol_adapter("0xAdapter")
+            .with_receiver("0xReceiver");
+        assert_eq!(fl.protocol_adapter_address, "0xAdapter");
+        assert_eq!(fl.receiver_address, "0xReceiver");
+    }
+
+    #[test]
+    fn flashloan_display() {
+        let fl = Flashloan::new("1000", "0xPool", "0xToken");
+        assert_eq!(fl.to_string(), "flashloan(0xToken, amount=1000)");
+    }
+
+    // ── WrapperEntry ──
+
+    #[test]
+    fn wrapper_entry_new() {
+        let w = WrapperEntry::new("0xWrapper");
+        assert_eq!(w.wrapper_address, "0xWrapper");
+        assert!(!w.has_wrapper_data());
+        assert!(!w.has_is_omittable());
+        assert!(!w.is_omittable());
+    }
+
+    #[test]
+    fn wrapper_entry_with_wrapper_data() {
+        let w = WrapperEntry::new("0xW").with_wrapper_data("0xABI");
+        assert!(w.has_wrapper_data());
+        assert_eq!(w.wrapper_data.as_deref(), Some("0xABI"));
+    }
+
+    #[test]
+    fn wrapper_entry_with_is_omittable_true() {
+        let w = WrapperEntry::new("0xW").with_is_omittable(true);
+        assert!(w.has_is_omittable());
+        assert!(w.is_omittable());
+    }
+
+    #[test]
+    fn wrapper_entry_with_is_omittable_false() {
+        let w = WrapperEntry::new("0xW").with_is_omittable(false);
+        assert!(w.has_is_omittable());
+        assert!(!w.is_omittable());
+    }
+
+    #[test]
+    fn wrapper_entry_display() {
+        assert_eq!(WrapperEntry::new("0xW").to_string(), "wrapper(0xW)");
+    }
+
+    // ── UserConsent ──
+
+    #[test]
+    fn user_consent_new() {
+        let c = UserConsent::new("https://cow.fi/tos", "2025-04-07");
+        assert_eq!(c.terms, "https://cow.fi/tos");
+        assert_eq!(c.accepted_date, "2025-04-07");
+    }
+
+    #[test]
+    fn user_consent_display() {
+        let c = UserConsent::new("tos", "2025-01-01");
+        assert_eq!(c.to_string(), "consent(tos, 2025-01-01)");
+    }
+
+    // ── Serde roundtrips ──
+
+    #[test]
+    fn app_data_doc_serde_roundtrip() {
+        let doc = AppDataDoc::new("TestApp")
+            .with_environment("production")
+            .with_referrer(Referrer::code("COWRS"))
+            .with_order_class(OrderClassKind::Limit);
+        let json = serde_json::to_string(&doc).unwrap();
+        let doc2: AppDataDoc = serde_json::from_str(&json).unwrap();
+        assert_eq!(doc2.version, LATEST_APP_DATA_VERSION);
+        assert_eq!(doc2.app_code.as_deref(), Some("TestApp"));
+        assert_eq!(doc2.environment.as_deref(), Some("production"));
+        assert!(doc2.metadata.has_referrer());
+        assert!(doc2.metadata.has_order_class());
+    }
+
+    #[test]
+    fn app_data_doc_serde_camel_case() {
+        let doc = AppDataDoc::new("App").with_environment("prod");
+        let json = serde_json::to_string(&doc).unwrap();
+        assert!(json.contains("\"appCode\""));
+        assert!(!json.contains("\"app_code\""));
+    }
+
+    #[test]
+    fn app_data_doc_serde_skip_none_fields() {
+        let doc = AppDataDoc::new("App");
+        let json = serde_json::to_string(&doc).unwrap();
+        assert!(!json.contains("\"environment\""));
+        assert!(!json.contains("\"referrer\""));
+    }
+
+    #[test]
+    fn bridging_serde_roundtrip() {
+        let b = Bridging::new("across", "42161", "0xToken").with_quote_id("q-1");
+        let json = serde_json::to_string(&b).unwrap();
+        let b2: Bridging = serde_json::from_str(&json).unwrap();
+        assert_eq!(b2.provider, "across");
+        assert_eq!(b2.quote_id.as_deref(), Some("q-1"));
+    }
+
+    #[test]
+    fn flashloan_serde_roundtrip() {
+        let fl = Flashloan::new("999", "0xPool", "0xToken")
+            .with_protocol_adapter("0xA")
+            .with_receiver("0xR");
+        let json = serde_json::to_string(&fl).unwrap();
+        let fl2: Flashloan = serde_json::from_str(&json).unwrap();
+        assert_eq!(fl2.loan_amount, "999");
+        assert_eq!(fl2.protocol_adapter_address, "0xA");
+        assert_eq!(fl2.receiver_address, "0xR");
+    }
+
+    #[test]
+    fn partner_fee_serde_single_roundtrip() {
+        let fee = PartnerFee::single(PartnerFeeEntry::volume(50, "0xAddr"));
+        let json = serde_json::to_string(&fee).unwrap();
+        let fee2: PartnerFee = serde_json::from_str(&json).unwrap();
+        assert!(fee2.is_single());
+        assert_eq!(fee2.entries().next().unwrap().volume_bps(), Some(50));
+    }
+
+    #[test]
+    fn partner_fee_serde_multiple_roundtrip() {
+        let fee = PartnerFee::Multiple(vec![
+            PartnerFeeEntry::volume(10, "0x1"),
+            PartnerFeeEntry::surplus(20, 50, "0x2"),
+        ]);
+        let json = serde_json::to_string(&fee).unwrap();
+        let fee2: PartnerFee = serde_json::from_str(&json).unwrap();
+        assert!(fee2.is_multiple());
+        assert_eq!(fee2.count(), 2);
+    }
+
+    #[test]
+    fn cow_hook_serde_roundtrip() {
+        let hook = CowHook::new("0xTarget", "0xData", "100000").with_dapp_id("my-dapp");
+        let json = serde_json::to_string(&hook).unwrap();
+        let hook2: CowHook = serde_json::from_str(&json).unwrap();
+        assert_eq!(hook2.target, "0xTarget");
+        assert_eq!(hook2.call_data, "0xData");
+        assert_eq!(hook2.gas_limit, "100000");
+        assert_eq!(hook2.dapp_id.as_deref(), Some("my-dapp"));
+    }
+
+    #[test]
+    fn wrapper_entry_serde_roundtrip() {
+        let w = WrapperEntry::new("0xW").with_wrapper_data("0xABI").with_is_omittable(true);
+        let json = serde_json::to_string(&w).unwrap();
+        let w2: WrapperEntry = serde_json::from_str(&json).unwrap();
+        assert_eq!(w2.wrapper_address, "0xW");
+        assert_eq!(w2.wrapper_data.as_deref(), Some("0xABI"));
+        assert!(w2.is_omittable());
+    }
+
+    #[test]
+    fn user_consent_serde_roundtrip() {
+        let c = UserConsent::new("tos-url", "2025-04-07");
+        let json = serde_json::to_string(&c).unwrap();
+        let c2: UserConsent = serde_json::from_str(&json).unwrap();
+        assert_eq!(c2.terms, "tos-url");
+        assert_eq!(c2.accepted_date, "2025-04-07");
+    }
+
+    #[test]
+    fn order_interaction_hooks_serde_roundtrip() {
+        let pre = CowHook::new("0xA", "0xB", "1000");
+        let hooks = OrderInteractionHooks::new(vec![pre], vec![]).with_version("0.2.0");
+        let json = serde_json::to_string(&hooks).unwrap();
+        let hooks2: OrderInteractionHooks = serde_json::from_str(&json).unwrap();
+        assert!(hooks2.has_pre());
+        assert!(!hooks2.has_post());
+        assert_eq!(hooks2.version.as_deref(), Some("0.2.0"));
+    }
+
+    // ── Full builder chain ──
+
+    #[test]
+    fn app_data_doc_full_builder_chain() {
+        let doc = AppDataDoc::new("FullApp")
+            .with_environment("production")
+            .with_referrer(Referrer::code("PARTNER"))
+            .with_utm(Utm::new().with_source("test"))
+            .with_hooks(OrderInteractionHooks::new(
+                vec![CowHook::new("0xT", "0xD", "1000")],
+                vec![],
+            ))
+            .with_partner_fee(PartnerFee::single(PartnerFeeEntry::volume(50, "0xFee")))
+            .with_replaced_order("0xUID")
+            .with_signer("0xSigner")
+            .with_order_class(OrderClassKind::Market)
+            .with_bridging(Bridging::new("across", "42161", "0xToken"))
+            .with_flashloan(Flashloan::new("1000", "0xPool", "0xToken"))
+            .with_wrappers(vec![WrapperEntry::new("0xW")])
+            .with_user_consents(vec![UserConsent::new("tos", "2025-01-01")]);
+
+        assert_eq!(doc.app_code.as_deref(), Some("FullApp"));
+        assert_eq!(doc.environment.as_deref(), Some("production"));
+
+        let m = &doc.metadata;
+        assert!(m.has_referrer());
+        assert!(m.has_utm());
+        assert!(m.has_hooks());
+        assert!(m.has_partner_fee());
+        assert!(m.has_replaced_order());
+        assert!(m.has_signer());
+        assert!(m.has_order_class());
+        assert!(m.has_bridging());
+        assert!(m.has_flashloan());
+        assert!(m.has_wrappers());
+        assert!(m.has_user_consents());
+
+        // Roundtrip the whole thing through serde.
+        let json = serde_json::to_string(&doc).unwrap();
+        let doc2: AppDataDoc = serde_json::from_str(&json).unwrap();
+        assert_eq!(doc2.version, LATEST_APP_DATA_VERSION);
+        assert!(doc2.metadata.has_referrer());
+        assert!(doc2.metadata.has_flashloan());
+        assert!(doc2.metadata.has_user_consents());
+    }
+}

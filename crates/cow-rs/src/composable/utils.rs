@@ -394,3 +394,406 @@ pub fn is_valid_abi(hex: &str) -> bool {
     let min_total = 128usize.saturating_add(data_len_usize);
     bytes.len() >= min_total
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── is_composable_cow ────────────────────────────────────────────────
+
+    #[test]
+    fn is_composable_cow_with_correct_address() {
+        assert!(is_composable_cow(COMPOSABLE_COW_ADDRESS));
+    }
+
+    #[test]
+    fn is_composable_cow_with_zero_address() {
+        assert!(!is_composable_cow(Address::ZERO));
+    }
+
+    #[test]
+    fn is_composable_cow_with_random_address() {
+        let addr = Address::new([0xAB; 20]);
+        assert!(!is_composable_cow(addr));
+    }
+
+    // ── is_extensible_fallback_handler ───────────────────────────────────
+
+    #[test]
+    fn is_extensible_fallback_handler_with_correct_address() {
+        assert!(is_extensible_fallback_handler(EXTENSIBLE_FALLBACK_HANDLER));
+    }
+
+    #[test]
+    fn is_extensible_fallback_handler_with_zero_address() {
+        assert!(!is_extensible_fallback_handler(Address::ZERO));
+    }
+
+    #[test]
+    fn is_extensible_fallback_handler_with_random_address() {
+        let addr = Address::new([0x12; 20]);
+        assert!(!is_extensible_fallback_handler(addr));
+    }
+
+    // ── balance_to_string ────────────────────────────────────────────────
+
+    #[test]
+    fn balance_to_string_erc20() {
+        let hash = TokenBalance::Erc20.eip712_hash();
+        assert_eq!(balance_to_string(hash), Some("erc20"));
+    }
+
+    #[test]
+    fn balance_to_string_external() {
+        let hash = TokenBalance::External.eip712_hash();
+        assert_eq!(balance_to_string(hash), Some("external"));
+    }
+
+    #[test]
+    fn balance_to_string_internal() {
+        let hash = TokenBalance::Internal.eip712_hash();
+        assert_eq!(balance_to_string(hash), Some("internal"));
+    }
+
+    #[test]
+    fn balance_to_string_unknown() {
+        assert_eq!(balance_to_string(B256::ZERO), None);
+    }
+
+    // ── kind_to_string ───────────────────────────────────────────────────
+
+    #[test]
+    fn kind_to_string_sell() {
+        let hash = keccak256(b"sell");
+        assert_eq!(kind_to_string(hash), Some("sell"));
+    }
+
+    #[test]
+    fn kind_to_string_buy() {
+        let hash = keccak256(b"buy");
+        assert_eq!(kind_to_string(hash), Some("buy"));
+    }
+
+    #[test]
+    fn kind_to_string_unknown() {
+        assert_eq!(kind_to_string(B256::ZERO), None);
+        assert_eq!(kind_to_string(keccak256(b"limit")), None);
+    }
+
+    // ── from_struct_to_order ─────────────────────────────────────────────
+
+    fn make_gpv2_struct(kind: &[u8], sell_bal: &[u8], buy_bal: &[u8]) -> GpV2OrderStruct {
+        GpV2OrderStruct {
+            sell_token: Address::new([0x11; 20]),
+            buy_token: Address::new([0x22; 20]),
+            receiver: Address::new([0x33; 20]),
+            sell_amount: U256::from(1000u64),
+            buy_amount: U256::from(500u64),
+            valid_to: 1_700_000_000,
+            app_data: B256::ZERO,
+            fee_amount: U256::from(10u64),
+            kind: keccak256(kind),
+            partially_fillable: false,
+            sell_token_balance: keccak256(sell_bal),
+            buy_token_balance: keccak256(buy_bal),
+        }
+    }
+
+    #[test]
+    fn from_struct_to_order_sell_erc20() {
+        let s = make_gpv2_struct(b"sell", b"erc20", b"erc20");
+        let order = from_struct_to_order(&s).unwrap();
+        assert_eq!(order.kind, OrderKind::Sell);
+        assert_eq!(order.sell_token_balance, TokenBalance::Erc20);
+        assert_eq!(order.buy_token_balance, TokenBalance::Erc20);
+        assert_eq!(order.sell_token, s.sell_token);
+        assert_eq!(order.buy_token, s.buy_token);
+        assert_eq!(order.receiver, s.receiver);
+        assert_eq!(order.sell_amount, s.sell_amount);
+        assert_eq!(order.buy_amount, s.buy_amount);
+        assert_eq!(order.valid_to, s.valid_to);
+        assert_eq!(order.fee_amount, s.fee_amount);
+        assert!(!order.partially_fillable);
+    }
+
+    #[test]
+    fn from_struct_to_order_buy_external_internal() {
+        let s = make_gpv2_struct(b"buy", b"external", b"internal");
+        let order = from_struct_to_order(&s).unwrap();
+        assert_eq!(order.kind, OrderKind::Buy);
+        assert_eq!(order.sell_token_balance, TokenBalance::External);
+        assert_eq!(order.buy_token_balance, TokenBalance::Internal);
+    }
+
+    #[test]
+    fn from_struct_to_order_unknown_kind() {
+        let s = make_gpv2_struct(b"limit", b"erc20", b"erc20");
+        let err = from_struct_to_order(&s).unwrap_err();
+        assert!(err.to_string().contains("unknown order kind hash"));
+    }
+
+    #[test]
+    fn from_struct_to_order_unknown_sell_balance() {
+        let mut s = make_gpv2_struct(b"sell", b"erc20", b"erc20");
+        s.sell_token_balance = B256::ZERO;
+        let err = from_struct_to_order(&s).unwrap_err();
+        assert!(err.to_string().contains("unknown token-balance hash"));
+    }
+
+    #[test]
+    fn from_struct_to_order_unknown_buy_balance() {
+        let mut s = make_gpv2_struct(b"sell", b"erc20", b"erc20");
+        s.buy_token_balance = B256::ZERO;
+        let err = from_struct_to_order(&s).unwrap_err();
+        assert!(err.to_string().contains("unknown token-balance hash"));
+    }
+
+    // ── default_token_formatter ──────────────────────────────────────────
+
+    #[test]
+    fn default_token_formatter_basic() {
+        let addr = Address::ZERO;
+        let amount = U256::from(42u64);
+        let result = default_token_formatter(addr, amount);
+        assert_eq!(result, "42@0x0000000000000000000000000000000000000000");
+    }
+
+    #[test]
+    fn default_token_formatter_large_amount() {
+        let addr = Address::new([0xff; 20]);
+        let amount = U256::from(10u64).pow(U256::from(18u64));
+        let result = default_token_formatter(addr, amount);
+        assert!(result.starts_with("1000000000000000000@0x"));
+    }
+
+    // ── get_is_valid_result ──────────────────────────────────────────────
+
+    #[test]
+    fn get_is_valid_result_valid() {
+        assert!(get_is_valid_result(&IsValidResult::Valid));
+    }
+
+    #[test]
+    fn get_is_valid_result_invalid() {
+        let invalid = IsValidResult::Invalid { reason: "order expired".to_owned() };
+        assert!(!get_is_valid_result(&invalid));
+    }
+
+    #[test]
+    fn get_is_valid_result_invalid_empty_reason() {
+        let invalid = IsValidResult::Invalid { reason: String::new() };
+        assert!(!get_is_valid_result(&invalid));
+    }
+
+    // ── get_block_info ───────────────────────────────────────────────────
+
+    #[test]
+    fn get_block_info_basic() {
+        let info = get_block_info(12345, 1_700_000_000);
+        assert_eq!(info.block_number, 12345);
+        assert_eq!(info.block_timestamp, 1_700_000_000);
+    }
+
+    #[test]
+    fn get_block_info_zero() {
+        let info = get_block_info(0, 0);
+        assert_eq!(info.block_number, 0);
+        assert_eq!(info.block_timestamp, 0);
+    }
+
+    // ── transform_data_to_struct ─────────────────────────────────────────
+
+    /// Build a valid ABI-encoded blob for `ConditionalOrderParams`.
+    fn build_abi_encoded_params(handler: Address, salt: B256, static_input: &[u8]) -> Vec<u8> {
+        let mut data = Vec::new();
+        // handler (left-padded to 32 bytes)
+        data.extend_from_slice(&[0u8; 12]);
+        data.extend_from_slice(handler.as_slice());
+        // salt (32 bytes)
+        data.extend_from_slice(salt.as_slice());
+        // offset to dynamic data (points to byte 96)
+        let offset = U256::from(96u64);
+        data.extend_from_slice(&offset.to_be_bytes::<32>());
+        // length of static_input
+        let len = U256::from(static_input.len());
+        data.extend_from_slice(&len.to_be_bytes::<32>());
+        // static_input bytes
+        data.extend_from_slice(static_input);
+        data
+    }
+
+    #[test]
+    fn transform_data_to_struct_roundtrip() {
+        let handler = Address::new([0xAA; 20]);
+        let salt = B256::new([0xBB; 32]);
+        let static_input = vec![1u8, 2, 3, 4, 5];
+        let encoded = build_abi_encoded_params(handler, salt, &static_input);
+
+        let params = transform_data_to_struct(&encoded).unwrap();
+        assert_eq!(params.handler, handler);
+        assert_eq!(params.salt, salt);
+        assert_eq!(params.static_input, static_input);
+    }
+
+    #[test]
+    fn transform_data_to_struct_empty_static_input() {
+        let handler = Address::ZERO;
+        let salt = B256::ZERO;
+        let encoded = build_abi_encoded_params(handler, salt, &[]);
+
+        let params = transform_data_to_struct(&encoded).unwrap();
+        assert_eq!(params.handler, handler);
+        assert_eq!(params.salt, salt);
+        assert!(params.static_input.is_empty());
+    }
+
+    #[test]
+    fn transform_data_to_struct_too_short() {
+        let data = vec![0u8; 64];
+        let err = transform_data_to_struct(&data).unwrap_err();
+        assert!(err.to_string().contains("too short"));
+    }
+
+    // ── transform_struct_to_data ─────────────────────────────────────────
+
+    #[test]
+    fn transform_struct_to_data_produces_hex() {
+        let params = ConditionalOrderParams {
+            handler: Address::ZERO,
+            salt: B256::ZERO,
+            static_input: vec![],
+        };
+        let hex = transform_struct_to_data(&params);
+        assert!(hex.starts_with("0x"));
+        // Should be valid hex after the prefix
+        let stripped = hex.trim_start_matches("0x");
+        assert!(alloy_primitives::hex::decode(stripped).is_ok());
+    }
+
+    // ── is_valid_abi ─────────────────────────────────────────────────────
+
+    #[test]
+    fn is_valid_abi_with_valid_params() {
+        let params = ConditionalOrderParams {
+            handler: Address::ZERO,
+            salt: B256::ZERO,
+            static_input: vec![],
+        };
+        let hex = transform_struct_to_data(&params);
+        assert!(is_valid_abi(&hex));
+    }
+
+    #[test]
+    fn is_valid_abi_with_static_input() {
+        let params = ConditionalOrderParams {
+            handler: Address::new([0xAA; 20]),
+            salt: B256::new([0xBB; 32]),
+            static_input: vec![0xCC; 64],
+        };
+        let hex = transform_struct_to_data(&params);
+        assert!(is_valid_abi(&hex));
+    }
+
+    #[test]
+    fn is_valid_abi_too_short() {
+        assert!(!is_valid_abi("0xdeadbeef"));
+    }
+
+    #[test]
+    fn is_valid_abi_empty() {
+        assert!(!is_valid_abi(""));
+        assert!(!is_valid_abi("0x"));
+    }
+
+    #[test]
+    fn is_valid_abi_invalid_hex() {
+        assert!(!is_valid_abi("0xZZZZ"));
+    }
+
+    #[test]
+    fn is_valid_abi_without_0x_prefix() {
+        let params = ConditionalOrderParams {
+            handler: Address::ZERO,
+            salt: B256::ZERO,
+            static_input: vec![],
+        };
+        let hex = transform_struct_to_data(&params);
+        let stripped = hex.trim_start_matches("0x");
+        assert!(is_valid_abi(stripped));
+    }
+
+    // ── create_set_domain_verifier_tx ────────────────────────────────────
+
+    #[test]
+    fn create_set_domain_verifier_tx_length() {
+        let calldata = create_set_domain_verifier_tx(B256::ZERO, Address::ZERO);
+        // 4-byte selector + 32-byte domain + 32-byte address = 68 bytes
+        assert_eq!(calldata.len(), 68);
+    }
+
+    #[test]
+    fn create_set_domain_verifier_tx_selector() {
+        let calldata = create_set_domain_verifier_tx(B256::ZERO, Address::ZERO);
+        let expected_selector = &keccak256(b"setDomainVerifier(bytes32,address)")[..4];
+        assert_eq!(&calldata[..4], expected_selector);
+    }
+
+    #[test]
+    fn create_set_domain_verifier_tx_encodes_domain() {
+        let domain = B256::new([0xAA; 32]);
+        let calldata = create_set_domain_verifier_tx(domain, Address::ZERO);
+        assert_eq!(&calldata[4..36], domain.as_slice());
+    }
+
+    #[test]
+    fn create_set_domain_verifier_tx_encodes_verifier() {
+        let verifier = Address::new([0xBB; 20]);
+        let calldata = create_set_domain_verifier_tx(B256::ZERO, verifier);
+        // Address is left-padded with 12 zero bytes
+        assert_eq!(&calldata[36..48], &[0u8; 12]);
+        assert_eq!(&calldata[48..68], verifier.as_slice());
+    }
+
+    // ── get_domain_verifier_calldata ─────────────────────────────────────
+
+    #[test]
+    fn get_domain_verifier_calldata_length() {
+        let calldata = get_domain_verifier_calldata(Address::ZERO, B256::ZERO);
+        assert_eq!(calldata.len(), 68);
+    }
+
+    #[test]
+    fn get_domain_verifier_calldata_selector() {
+        let calldata = get_domain_verifier_calldata(Address::ZERO, B256::ZERO);
+        let expected_selector = &keccak256(b"domainVerifiers(address,bytes32)")[..4];
+        assert_eq!(&calldata[..4], expected_selector);
+    }
+
+    #[test]
+    fn get_domain_verifier_calldata_encodes_safe() {
+        let safe = Address::new([0xCC; 20]);
+        let calldata = get_domain_verifier_calldata(safe, B256::ZERO);
+        // Address is left-padded with 12 zero bytes
+        assert_eq!(&calldata[4..16], &[0u8; 12]);
+        assert_eq!(&calldata[16..36], safe.as_slice());
+    }
+
+    #[test]
+    fn get_domain_verifier_calldata_encodes_domain() {
+        let domain = B256::new([0xDD; 32]);
+        let calldata = get_domain_verifier_calldata(Address::ZERO, domain);
+        assert_eq!(&calldata[36..68], domain.as_slice());
+    }
+
+    // ── get_domain_verifier (alias) ──────────────────────────────────────
+
+    #[test]
+    fn get_domain_verifier_is_alias() {
+        let safe = Address::new([0x11; 20]);
+        let domain = B256::new([0x22; 32]);
+        assert_eq!(
+            get_domain_verifier(safe, domain),
+            get_domain_verifier_calldata(safe, domain)
+        );
+    }
+}
