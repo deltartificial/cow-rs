@@ -193,6 +193,8 @@ pub use permit::{
 pub use settlement::{
     encoder::{EncodedInteraction, InteractionStage, SettlementEncoder},
     reader::{AllowListReader, SettlementReader},
+    refunds::{OrderRefund, RefundType, ethflow_refund_calldata, settlement_refund_calldata},
+    simulator::{SimulationResult, TradeSimulator},
     vault::{
         VAULT_ACTIONS, grant_role_calldata, required_vault_role_calls,
         required_vault_role_selectors, revoke_role_calldata, vault_role_hash,
