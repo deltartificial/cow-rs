@@ -8,7 +8,9 @@ edition = "2024"
 cargo-fuzz = true
 
 [dependencies]
+alloy-primitives = "1"
 libfuzzer-sys = "0.4"
+serde_json = "1"
 
 [dependencies.cow-rs]
 path = "../crates/cow-rs"
@@ -45,6 +47,62 @@ bench = false
 [[bin]]
 name = "fuzz_appdata"
 path = "fuzz_targets/fuzz_appdata.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_eip712"
+path = "fuzz_targets/fuzz_eip712.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_permit"
+path = "fuzz_targets/fuzz_permit.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_bungee"
+path = "fuzz_targets/fuzz_bungee.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_address"
+path = "fuzz_targets/fuzz_address.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_multiplexer"
+path = "fuzz_targets/fuzz_multiplexer.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_encoding"
+path = "fuzz_targets/fuzz_encoding.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_weiroll"
+path = "fuzz_targets/fuzz_weiroll.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_serialize"
+path = "fuzz_targets/fuzz_serialize.rs"
 test = false
 doc = false
 bench = false

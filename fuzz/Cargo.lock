@@ -1060,8 +1060,10 @@ dependencies = [
 name = "cow-rs-fuzz"
 version = "0.0.0"
 dependencies = [
+ "alloy-primitives",
  "cow-rs",
  "libfuzzer-sys",
+ "serde_json",
 ]
 
 [[package]]
