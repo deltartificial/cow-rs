@@ -1,6 +1,6 @@
-//! Browser wallet integration via EIP-1193.
+//! Browser wallet integration via `EIP-1193`.
 //!
-//! Provides [`BrowserWallet`] which wraps a JavaScript signing function
+//! Provides [`BrowserWallet`] which wraps a `JavaScript` signing function
 //! and implements [`CowSigner`](crate::traits::CowSigner) for use with
 //! [`TradingSdk`](crate::trading::TradingSdk).
 //!
@@ -16,6 +16,10 @@
 //! [`MockBrowserWallet`], [`SignRequest`], [`SignRequestKind`]) are always
 //! available for testing and type-checking on any target.
 
+#[allow(
+    clippy::disallowed_types,
+    reason = "only used for interior mutability in MockBrowserWallet; no async or cross-thread contention"
+)]
 use std::sync::Mutex;
 
 use alloy_primitives::{Address, B256, keccak256};
@@ -46,7 +50,7 @@ pub struct WalletSession {
 impl WalletSession {
     /// Create a new wallet session.
     #[must_use]
-    pub fn new(address: Address, chain_id: u64, connected_at: u64) -> Self {
+    pub const fn new(address: Address, chain_id: u64, connected_at: u64) -> Self {
         Self { address, chain_id, connected_at }
     }
 
@@ -55,7 +59,7 @@ impl WalletSession {
     /// Returns `true` if `now >= connected_at + ttl_secs`, meaning the session
     /// has lived longer than the allowed time-to-live.
     #[must_use]
-    pub fn is_expired(&self, now: u64, ttl_secs: u64) -> bool {
+    pub const fn is_expired(&self, now: u64, ttl_secs: u64) -> bool {
         now >= self.connected_at.saturating_add(ttl_secs)
     }
 }
@@ -72,7 +76,7 @@ impl core::fmt::Display for WalletSession {
 
 // ── WalletEvent ─────────────────────────────────────────────────────────────
 
-/// Events emitted by an EIP-1193 provider.
+/// Events emitted by an `EIP-1193` provider.
 ///
 /// These mirror the standard events defined in
 /// [EIP-1193](https://eips.ethereum.org/EIPS/eip-1193#events):
@@ -94,7 +98,7 @@ pub enum WalletEvent {
     },
     /// The provider disconnected with an error.
     Disconnect {
-        /// The EIP-1193 error code.
+        /// The `EIP-1193` error code.
         code: u32,
         /// A human-readable disconnect reason.
         message: String,
@@ -104,25 +108,25 @@ pub enum WalletEvent {
 impl WalletEvent {
     /// Returns `true` if this is an [`AccountsChanged`](WalletEvent::AccountsChanged) event.
     #[must_use]
-    pub fn is_accounts_changed(&self) -> bool {
+    pub const fn is_accounts_changed(&self) -> bool {
         matches!(self, Self::AccountsChanged(_))
     }
 
     /// Returns `true` if this is a [`ChainChanged`](WalletEvent::ChainChanged) event.
     #[must_use]
-    pub fn is_chain_changed(&self) -> bool {
+    pub const fn is_chain_changed(&self) -> bool {
         matches!(self, Self::ChainChanged(_))
     }
 
     /// Returns `true` if this is a [`Connect`](WalletEvent::Connect) event.
     #[must_use]
-    pub fn is_connect(&self) -> bool {
+    pub const fn is_connect(&self) -> bool {
         matches!(self, Self::Connect { .. })
     }
 
     /// Returns `true` if this is a [`Disconnect`](WalletEvent::Disconnect) event.
     #[must_use]
-    pub fn is_disconnect(&self) -> bool {
+    pub const fn is_disconnect(&self) -> bool {
         matches!(self, Self::Disconnect { .. })
     }
 }
@@ -147,9 +151,9 @@ impl core::fmt::Display for WalletEvent {
 /// The kind of signing operation requested.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SignRequestKind {
-    /// An EIP-712 typed-data signing request.
+    /// An `EIP-712` typed-data signing request.
     TypedData,
-    /// A raw message (EIP-191 personal-sign) request.
+    /// A raw message (`EIP-191` personal-sign) request.
     Message,
 }
 
@@ -169,11 +173,11 @@ pub struct SignRequest {
 
 // ── BrowserWallet ────────────────────────────────────────────────────────────
 
-/// A browser wallet signer that delegates to a JavaScript EIP-1193 provider.
+/// A browser wallet signer that delegates to a `JavaScript` `EIP-1193` provider.
 ///
 /// Instead of holding a private key, this struct holds a JS callback function
-/// that is called with the EIP-712 digest and returns a signature via the
-/// browser wallet (MetaMask, etc.).
+/// that is called with the `EIP-712` digest and returns a signature via the
+/// browser wallet (`MetaMask`, etc.).
 ///
 /// # Construction
 ///
@@ -197,8 +201,8 @@ pub struct SignRequest {
 pub struct BrowserWallet {
     /// The Ethereum address associated with this browser wallet.
     address: Address,
-    /// A JavaScript function `(hex_string) => Promise<string>` that signs
-    /// via the browser wallet's EIP-1193 provider.
+    /// A `JavaScript` function `(hex_string) => Promise<string>` that signs
+    /// via the browser wallet's `EIP-1193` provider.
     signer_fn: js_sys::Function,
     /// The currently active session, if any.
     session: Option<WalletSession>,
@@ -248,38 +252,38 @@ impl BrowserWallet {
     ///
     /// This is a builder-style method for use during construction.
     #[must_use]
-    pub fn with_chain_id(mut self, chain_id: u64) -> Self {
+    pub const fn with_chain_id(mut self, chain_id: u64) -> Self {
         self.chain_id = chain_id;
         self
     }
 
     /// Return the Ethereum address associated with this wallet.
     #[must_use]
-    pub fn address(&self) -> Address {
+    pub const fn address(&self) -> Address {
         self.address
     }
 
     /// Return a reference to the inner JS signing function.
     #[must_use]
-    pub fn signer_fn(&self) -> &js_sys::Function {
+    pub const fn signer_fn(&self) -> &js_sys::Function {
         &self.signer_fn
     }
 
     /// Return the active session, if any.
     #[must_use]
-    pub fn session(&self) -> Option<&WalletSession> {
+    pub const fn session(&self) -> Option<&WalletSession> {
         self.session.as_ref()
     }
 
     /// Return `true` if a session is currently active.
     #[must_use]
-    pub fn is_connected(&self) -> bool {
+    pub const fn is_connected(&self) -> bool {
         self.session.is_some()
     }
 
     /// Return the chain ID this wallet is configured for.
     #[must_use]
-    pub fn chain_id(&self) -> u64 {
+    pub const fn chain_id(&self) -> u64 {
         self.chain_id
     }
 
@@ -287,22 +291,30 @@ impl BrowserWallet {
     ///
     /// The `now` parameter is the current Unix timestamp in seconds.
     /// Returns a reference to the newly created session.
+    #[allow(
+        clippy::missing_const_for_fn,
+        reason = "Option::as_ref and expect are not const-compatible"
+    )]
     pub fn connect(&mut self, now: u64) -> &WalletSession {
         let session = WalletSession::new(self.address, self.chain_id, now);
         self.session = Some(session);
         // SAFETY: we just assigned `Some` above, so unwrap is safe.
+        #[allow(
+            clippy::expect_used,
+            reason = "infallible: we just assigned Some on the previous line"
+        )]
         self.session.as_ref().expect("session was just set")
     }
 
     /// Clear the active session, disconnecting the wallet.
-    pub fn disconnect(&mut self) {
+    pub const fn disconnect(&mut self) {
         self.session = None;
     }
 
     /// Switch to a new chain ID and update the session if one is active.
     ///
     /// If a session is active, its `chain_id` is updated in place.
-    pub fn switch_chain(&mut self, chain_id: u64) {
+    pub const fn switch_chain(&mut self, chain_id: u64) {
         self.chain_id = chain_id;
         if let Some(ref mut session) = self.session {
             session.chain_id = chain_id;
@@ -343,7 +355,8 @@ impl CowSigner for BrowserWallet {
 
 // ── EIP-712 digest computation ───────────────────────────────────────────────
 
-/// Compute the EIP-712 signing digest: `keccak256("\x19\x01" || domain_separator || struct_hash)`.
+/// Compute the `EIP-712` signing digest: `keccak256("\x19\x01" || domain_separator ||
+/// struct_hash)`.
 ///
 /// This is a pure function with no JS dependencies, usable on any platform.
 #[must_use]
@@ -387,7 +400,7 @@ async fn call_signer_fn(
 /// Parse a `0x`-prefixed hex signature string into raw bytes.
 #[cfg(any(target_arch = "wasm32", test))]
 pub(crate) fn parse_hex_signature(hex_str: &str) -> Result<Vec<u8>, CowError> {
-    let stripped = hex_str.strip_prefix("0x").unwrap_or(hex_str);
+    let stripped = hex_str.strip_prefix("0x").unwrap_or_else(|| hex_str);
     alloy_primitives::hex::decode(stripped)
         .map_err(|e| CowError::Signing(format!("invalid hex signature: {e}")))
 }
@@ -397,7 +410,7 @@ pub(crate) fn parse_hex_signature(hex_str: &str) -> Result<Vec<u8>, CowError> {
 /// Check whether an injected `window.ethereum` provider exists.
 ///
 /// Returns `true` if `window.ethereum` is defined (i.e., a browser wallet
-/// such as MetaMask is installed), `false` otherwise.
+/// such as `MetaMask` is installed), `false` otherwise.
 ///
 /// This is safe to call in non-browser WASM environments; it will simply
 /// return `false` if `window` or `window.ethereum` is not present.
@@ -405,17 +418,17 @@ pub(crate) fn parse_hex_signature(hex_str: &str) -> Result<Vec<u8>, CowError> {
 #[must_use]
 pub fn detect_injected_wallet() -> bool {
     let global = js_sys::global();
-    let window =
-        js_sys::Reflect::get(&global, &JsValue::from_str("window")).unwrap_or(JsValue::UNDEFINED);
+    let window = js_sys::Reflect::get(&global, &JsValue::from_str("window"))
+        .unwrap_or_else(|_| JsValue::UNDEFINED);
     if window.is_undefined() || window.is_null() {
         return false;
     }
-    let ethereum =
-        js_sys::Reflect::get(&window, &JsValue::from_str("ethereum")).unwrap_or(JsValue::UNDEFINED);
+    let ethereum = js_sys::Reflect::get(&window, &JsValue::from_str("ethereum"))
+        .unwrap_or_else(|_| JsValue::UNDEFINED);
     !ethereum.is_undefined() && !ethereum.is_null()
 }
 
-/// Request account addresses from an EIP-1193 provider via `eth_requestAccounts`.
+/// Request account addresses from an `EIP-1193` provider via `eth_requestAccounts`.
 ///
 /// # Arguments
 ///
@@ -483,7 +496,7 @@ pub async fn request_accounts(ethereum: &JsValue) -> Result<Vec<String>, CowErro
 
 /// Request the wallet to switch to a different Ethereum chain.
 ///
-/// Calls `wallet_switchEthereumChain` on the EIP-1193 provider. The
+/// Calls `wallet_switchEthereumChain` on the `EIP-1193` provider. The
 /// `chain_id` is encoded as a `0x`-prefixed hex string per the spec.
 ///
 /// # Arguments
@@ -555,12 +568,12 @@ pub async fn request_switch_chain(ethereum: &JsValue, chain_id: u64) -> Result<(
 
 /// Create a [`BrowserWallet`] from a hex address string and a JS signing function.
 ///
-/// This is the primary constructor exposed to JavaScript consumers.
+/// This is the primary constructor exposed to `JavaScript` consumers.
 ///
 /// # Arguments
 ///
 /// * `address` - A `0x`-prefixed Ethereum address string.
-/// * `signer_fn` - A JavaScript function `(digest: string) => Promise<string>`.
+/// * `signer_fn` - A `JavaScript` function `(digest: string) => Promise<string>`.
 ///
 /// # Errors
 ///
@@ -577,7 +590,7 @@ pub fn new_from_js(
     Ok(JsBrowserWallet { inner: BrowserWallet::new(addr, signer_fn.clone()) })
 }
 
-/// Detect whether a browser wallet (e.g., MetaMask) is available.
+/// Detect whether a browser wallet (e.g., `MetaMask`) is available.
 ///
 /// Returns `true` if `window.ethereum` exists.
 #[cfg(feature = "wasm")]
@@ -589,7 +602,7 @@ pub fn detect_js() -> bool {
 
 /// JavaScript-facing wrapper around [`BrowserWallet`].
 ///
-/// Exposed via `wasm_bindgen` so JavaScript code can hold and interact
+/// Exposed via `wasm_bindgen` so `JavaScript` code can hold and interact
 /// with a `BrowserWallet` instance.
 #[cfg(feature = "wasm")]
 #[wasm_bindgen(js_name = "BrowserWallet")]
@@ -638,6 +651,10 @@ impl JsBrowserWallet {
 /// assert!(mock.is_connected());
 /// ```
 #[derive(Debug)]
+#[allow(
+    clippy::disallowed_types,
+    reason = "std::sync::Mutex is adequate for this test-only mock; no async or contention"
+)]
 pub struct MockBrowserWallet {
     /// The Ethereum address this mock wallet represents.
     address: Address,
@@ -663,6 +680,11 @@ impl MockBrowserWallet {
     /// The wallet starts in a disconnected state with no recorded events
     /// or signing requests.
     #[must_use]
+    #[allow(
+        clippy::disallowed_types,
+        reason = "std::sync::Mutex is adequate for this test-only mock"
+    )]
+    #[allow(clippy::missing_const_for_fn, reason = "Mutex::new is not const-stable")]
     pub fn new(address: Address, chain_id: u64) -> Self {
         Self {
             address,
@@ -707,18 +729,26 @@ impl MockBrowserWallet {
     /// [`CowSigner::sign_typed_data`](crate::traits::CowSigner::sign_typed_data)
     /// and [`CowSigner::sign_message`](crate::traits::CowSigner::sign_message) will return
     /// [`CowError::Signing`].
-    pub fn set_should_fail(&mut self, fail: bool) {
+    pub const fn set_should_fail(&mut self, fail: bool) {
         self.should_fail = fail;
     }
 
     /// Return the number of signing requests that have been recorded.
     #[must_use]
+    #[allow(
+        clippy::expect_used,
+        reason = "Mutex is never poisoned in single-threaded mock context"
+    )]
     pub fn sign_request_count(&self) -> usize {
         self.sign_requests.lock().expect("sign_requests lock").len()
     }
 
     /// Return a clone of the most recent signing request, if any.
     #[must_use]
+    #[allow(
+        clippy::expect_used,
+        reason = "Mutex is never poisoned in single-threaded mock context"
+    )]
     pub fn last_sign_request(&self) -> Option<SignRequest> {
         self.sign_requests.lock().expect("sign_requests lock").last().cloned()
     }
@@ -736,13 +766,13 @@ impl MockBrowserWallet {
 
     /// Return `true` if the mock wallet is currently connected.
     #[must_use]
-    pub fn is_connected(&self) -> bool {
+    pub const fn is_connected(&self) -> bool {
         self.connected
     }
 
     /// Return the chain ID the mock wallet is connected to.
     #[must_use]
-    pub fn chain_id(&self) -> u64 {
+    pub const fn chain_id(&self) -> u64 {
         self.chain_id
     }
 }
@@ -770,6 +800,10 @@ impl crate::traits::CowSigner for MockBrowserWallet {
         data.extend_from_slice(domain_separator.as_ref());
         data.extend_from_slice(struct_hash.as_ref());
 
+        #[allow(
+            clippy::expect_used,
+            reason = "Mutex is never poisoned in single-threaded mock context"
+        )]
         self.sign_requests.lock().expect("sign_requests lock").push(SignRequest {
             kind: SignRequestKind::TypedData,
             data,
@@ -784,6 +818,10 @@ impl crate::traits::CowSigner for MockBrowserWallet {
             return Err(CowError::Signing("mock wallet configured to fail".to_owned()));
         }
 
+        #[allow(
+            clippy::expect_used,
+            reason = "Mutex is never poisoned in single-threaded mock context"
+        )]
         self.sign_requests.lock().expect("sign_requests lock").push(SignRequest {
             kind: SignRequestKind::Message,
             data: message.to_vec(),
@@ -911,7 +949,7 @@ mod tests {
     #[test]
     fn test_address_roundtrip() {
         let addr = test_address();
-        let hex = format!("{:#x}", addr);
+        let hex = format!("{addr:#x}");
         let parsed: Address = hex.parse().expect("roundtrip parse");
         assert_eq!(addr, parsed);
     }
@@ -1133,9 +1171,9 @@ mod tests {
     #[tokio::test]
     async fn mock_wallet_multiple_sign_requests() {
         let mock = MockBrowserWallet::new(test_address(), 1);
-        let _ = crate::traits::CowSigner::sign_typed_data(&mock, B256::ZERO, B256::ZERO).await;
-        let _ = crate::traits::CowSigner::sign_message(&mock, b"msg1").await;
-        let _ = crate::traits::CowSigner::sign_message(&mock, b"msg2").await;
+        crate::traits::CowSigner::sign_typed_data(&mock, B256::ZERO, B256::ZERO).await.unwrap();
+        crate::traits::CowSigner::sign_message(&mock, b"msg1").await.unwrap();
+        crate::traits::CowSigner::sign_message(&mock, b"msg2").await.unwrap();
         assert_eq!(mock.sign_request_count(), 3);
     }
 

@@ -258,7 +258,8 @@ impl RpcProvider for crate::onchain::OnchainReader {
 #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
 impl IpfsClient for crate::app_data::Ipfs {
     async fn fetch(&self, cid: &str) -> Result<String, CowError> {
-        let base = self.read_uri.as_deref().unwrap_or(crate::app_data::DEFAULT_IPFS_READ_URI);
+        let base =
+            self.read_uri.as_deref().unwrap_or_else(|| crate::app_data::DEFAULT_IPFS_READ_URI);
         let url = format!("{base}/{cid}");
         let text = reqwest::get(&url).await?.text().await?;
         Ok(text)
@@ -273,7 +274,7 @@ impl IpfsClient for crate::app_data::Ipfs {
         })?;
 
         let write_uri =
-            self.write_uri.as_deref().unwrap_or(crate::app_data::DEFAULT_IPFS_WRITE_URI);
+            self.write_uri.as_deref().unwrap_or_else(|| crate::app_data::DEFAULT_IPFS_WRITE_URI);
         let url = format!("{write_uri}/pinning/pinJSONToIPFS");
 
         let parsed: serde_json::Value =
