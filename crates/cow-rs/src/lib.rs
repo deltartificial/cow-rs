@@ -62,6 +62,7 @@ pub mod onchain;
 pub mod order_book;
 pub mod order_signing;
 pub mod permit;
+pub mod settlement;
 pub mod subgraph;
 pub mod trading;
 pub mod types;
@@ -181,6 +182,14 @@ pub use order_signing::{
 pub use permit::{
     Erc20PermitInfo, PERMIT_GAS_LIMIT, PermitHookData, PermitInfo, build_permit_calldata,
     build_permit_hook, permit_digest, permit_domain_separator, permit_type_hash, sign_permit,
+};
+pub use settlement::{
+    encoder::{EncodedInteraction, InteractionStage, SettlementEncoder},
+    reader::{AllowListReader, SettlementReader},
+    vault::{
+        VAULT_ACTIONS, grant_role_calldata, required_vault_role_calls,
+        required_vault_role_selectors, revoke_role_calldata, vault_role_hash,
+    },
 };
 pub use subgraph::{
     Bundle, DailyTotal, DailyVolume, HourlyTotal, HourlyVolume, LAST_DAYS_VOLUME_QUERY,

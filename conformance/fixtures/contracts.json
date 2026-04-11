@@ -17,9 +17,18 @@
       "description": "GPv2Order.Data has exactly 12 fields in the correct order",
       "expected": {
         "fields": [
-          "sellToken", "buyToken", "receiver", "sellAmount", "buyAmount",
-          "validTo", "appData", "feeAmount", "kind", "partiallyFillable",
-          "sellTokenBalance", "buyTokenBalance"
+          "sellToken",
+          "buyToken",
+          "receiver",
+          "sellAmount",
+          "buyAmount",
+          "validTo",
+          "appData",
+          "feeAmount",
+          "kind",
+          "partiallyFillable",
+          "sellTokenBalance",
+          "buyTokenBalance"
         ]
       }
     },
