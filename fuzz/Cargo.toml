@@ -10,12 +10,41 @@ cargo-fuzz = true
 [dependencies]
 libfuzzer-sys = "0.4"
 
-# [dependencies.cow-rs]
-# path = "../crates/cow-rs"
+[dependencies.cow-rs]
+path = "../crates/cow-rs"
+features = ["schema-validation"]
 
 [[bin]]
-name = "example_fuzz"
-path = "fuzz_targets/example_fuzz.rs"
+name = "fuzz_cid"
+path = "fuzz_targets/fuzz_cid.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_flags"
+path = "fuzz_targets/fuzz_flags.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_composable"
+path = "fuzz_targets/fuzz_composable.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_trade"
+path = "fuzz_targets/fuzz_trade.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_appdata"
+path = "fuzz_targets/fuzz_appdata.rs"
 test = false
 doc = false
 bench = false
