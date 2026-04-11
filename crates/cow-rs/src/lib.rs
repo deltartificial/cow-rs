@@ -69,8 +69,10 @@ pub mod traits;
 pub mod types;
 pub mod weiroll;
 
-#[cfg(feature = "wasm")]
-#[allow(unsafe_code, reason = "wasm-bindgen macro generates unsafe glue code")]
+#[cfg_attr(
+    feature = "wasm",
+    allow(unsafe_code, reason = "wasm-bindgen macro generates unsafe glue code")
+)]
 pub mod browser_wallet;
 
 #[cfg(feature = "wasm")]
