@@ -1,0 +1,22 @@
+[package]
+name = "cow-rs-browser-wallet-console"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.93"
+publish = false
+description = "Browser wallet console demo for cow-rs WASM bindings"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+cow-rs = { path = "../../../crates/cow-rs", version = "1", default-features = false, features = ["wasm"] }
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+web-sys = { version = "0.3", features = ["console", "Window"] }
+js-sys = "0.3"
+alloy-primitives = "1"
+alloy-signer = { version = "1", default-features = false }
+alloy-signer-local = { version = "1", default-features = false }
