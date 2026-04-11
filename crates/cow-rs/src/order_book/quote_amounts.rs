@@ -801,4 +801,76 @@ mod tests {
         assert_eq!(result.costs.partner_fee.amount, expected_partner);
         assert_eq!(result.after_partner_fees.sell_amount, sell_after_network + expected_partner);
     }
+
+    // ── Zero protocol fee ───────────────────────────────────────────────────
+
+    #[test]
+    fn sell_protocol_fee_zero_bps() {
+        let order_params = sell_order();
+        let amount = get_protocol_fee_amount(&ProtocolFeeAmountParams {
+            order_params,
+            protocol_fee_bps: 0.0,
+        });
+        assert_eq!(amount, U256::ZERO);
+    }
+
+    #[test]
+    fn sell_protocol_fee_negative_bps() {
+        let order_params = sell_order();
+        let amount = get_protocol_fee_amount(&ProtocolFeeAmountParams {
+            order_params,
+            protocol_fee_bps: -1.0,
+        });
+        assert_eq!(amount, U256::ZERO);
+    }
+
+    // ── Zero sell amount (division by zero guard) ───────────────────────────
+
+    #[test]
+    fn sell_order_zero_sell_amount() {
+        let order_params = QuoteOrderParams {
+            kind: OrderKind::Sell,
+            sell_amount: U256::ZERO,
+            buy_amount: U256::from(1000u64),
+            fee_amount: U256::from(100u64),
+        };
+        let result = get_quote_amounts_and_costs(&QuoteAmountsAndCostsParams {
+            order_params,
+            slippage_percent_bps: 50,
+            partner_fee_bps: None,
+            protocol_fee_bps: None,
+        });
+        assert_eq!(result.costs.network_fee.amount_in_buy_currency, U256::ZERO);
+    }
+
+    // ── Partner fee zero bps ────────────────────────────────────────────────
+
+    #[test]
+    fn partner_fee_zero_bps() {
+        let amounts =
+            QuoteAmounts { sell_amount: U256::from(1000u64), buy_amount: U256::from(500u64) };
+        let result = get_quote_amounts_after_partner_fee(&amounts, &amounts, true, 0);
+        assert_eq!(result.partner_fee_amount, U256::ZERO);
+        assert_eq!(result.after_partner_fees.buy_amount, U256::from(500u64));
+    }
+
+    // ── Slippage ────────────────────────────────────────────────────────────
+
+    #[test]
+    fn sell_slippage_reduces_buy_amount() {
+        let amounts =
+            QuoteAmounts { sell_amount: U256::from(1000u64), buy_amount: U256::from(10_000u64) };
+        let result = get_quote_amounts_after_slippage(&amounts, true, 100); // 1% slippage
+        assert_eq!(result.sell_amount, U256::from(1000u64));
+        assert!(result.buy_amount < U256::from(10_000u64));
+    }
+
+    #[test]
+    fn buy_slippage_increases_sell_amount() {
+        let amounts =
+            QuoteAmounts { sell_amount: U256::from(10_000u64), buy_amount: U256::from(1000u64) };
+        let result = get_quote_amounts_after_slippage(&amounts, false, 100); // 1% slippage
+        assert!(result.sell_amount > U256::from(10_000u64));
+        assert_eq!(result.buy_amount, U256::from(1000u64));
+    }
 }

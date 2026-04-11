@@ -402,4 +402,21 @@ mod tests {
         let reader = OnchainReader::new("https://example.com");
         assert_eq!(reader.rpc_url, "https://example.com");
     }
+
+    #[test]
+    fn decode_string_invalid_utf8() {
+        let mut buf = vec![0u8; 96];
+        buf[31] = 32; // offset
+        buf[63] = 2; // length = 2
+        buf[64] = 0xFF;
+        buf[65] = 0xFE;
+        assert!(decode_string(&buf).is_err());
+    }
+
+    #[test]
+    fn decode_u256_large_value() {
+        let buf = [0xFFu8; 32];
+        let v = decode_u256(&buf).unwrap();
+        assert_eq!(v, alloy_primitives::U256::MAX);
+    }
 }

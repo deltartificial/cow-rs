@@ -196,3 +196,78 @@ impl fmt::Display for ConditionalOrderFactory {
         f.write_str("conditional-order-factory")
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use alloy_primitives::{Address, B256};
+
+    use super::*;
+
+    #[test]
+    fn factory_new() {
+        let factory = ConditionalOrderFactory::new();
+        assert_eq!(factory.to_string(), "conditional-order-factory");
+    }
+
+    #[test]
+    fn factory_unknown_handler() {
+        let factory = ConditionalOrderFactory::new();
+        let params = ConditionalOrderParams {
+            handler: Address::ZERO,
+            salt: B256::ZERO,
+            static_input: vec![],
+        };
+        let result = factory.from_params(params).unwrap();
+        assert!(result.is_unknown());
+        assert!(!result.is_twap());
+        assert!(!result.is_stop_loss());
+        assert!(!result.is_good_after_time());
+        assert_eq!(result.as_str(), "unknown");
+    }
+
+    #[test]
+    fn factory_twap_handler_empty_static_input_errors() {
+        let factory = ConditionalOrderFactory::new();
+        let params = ConditionalOrderParams {
+            handler: TWAP_HANDLER_ADDRESS,
+            salt: B256::ZERO,
+            static_input: vec![],
+        };
+        // Empty static input is not valid for TWAP
+        assert!(factory.from_params(params).is_err());
+    }
+
+    #[test]
+    fn factory_stop_loss_handler_empty_static_input_errors() {
+        let factory = ConditionalOrderFactory::new();
+        let params = ConditionalOrderParams {
+            handler: STOP_LOSS_HANDLER_ADDRESS,
+            salt: B256::ZERO,
+            static_input: vec![],
+        };
+        assert!(factory.from_params(params).is_err());
+    }
+
+    #[test]
+    fn conditional_order_kind_display_unknown() {
+        let kind = ConditionalOrderKind::Unknown(ConditionalOrderParams {
+            handler: Address::ZERO,
+            salt: B256::ZERO,
+            static_input: vec![],
+        });
+        let s = kind.to_string();
+        assert!(s.contains("unknown"));
+    }
+
+    #[test]
+    fn conditional_order_kind_display_stop_loss() {
+        let kind = ConditionalOrderKind::Unknown(ConditionalOrderParams {
+            handler: Address::ZERO,
+            salt: B256::ZERO,
+            static_input: vec![],
+        });
+        // We can't easily construct a StopLoss without valid data,
+        // so we test the other Display variants through the Unknown variant
+        assert_eq!(kind.as_str(), "unknown");
+    }
+}

@@ -363,3 +363,123 @@ fn sort_keys(value: Value) -> Value {
         other @ (Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_)) => other,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn appdata_hex_is_deterministic() {
+        let doc = AppDataDoc::new("Test");
+        let h1 = appdata_hex(&doc).unwrap();
+        let h2 = appdata_hex(&doc).unwrap();
+        assert_eq!(h1, h2);
+        assert_ne!(h1, B256::ZERO);
+    }
+
+    #[test]
+    fn build_order_app_data_format() {
+        let hex = build_order_app_data("MyDApp").unwrap();
+        assert!(hex.starts_with("0x"));
+        assert_eq!(hex.len(), 66);
+    }
+
+    #[test]
+    fn build_app_data_doc_returns_hex() {
+        let hex = build_app_data_doc("MyDApp", Metadata::default()).unwrap();
+        assert!(hex.starts_with("0x"));
+        assert_eq!(hex.len(), 66);
+    }
+
+    #[test]
+    fn build_app_data_doc_full_returns_json_and_hex() {
+        let (json, hex) = build_app_data_doc_full("MyDApp", Metadata::default()).unwrap();
+        assert!(json.contains("MyDApp"));
+        assert!(hex.starts_with("0x"));
+        assert_eq!(hex.len(), 66);
+    }
+
+    #[test]
+    fn appdata_json_deterministic() {
+        let doc = AppDataDoc::new("Test");
+        let j1 = appdata_json(&doc).unwrap();
+        let j2 = appdata_json(&doc).unwrap();
+        assert_eq!(j1, j2);
+        assert!(j1.starts_with('{'));
+    }
+
+    #[test]
+    fn stringify_deterministic_sorts_keys() {
+        let doc = AppDataDoc::new("Test");
+        let json = stringify_deterministic(&doc).unwrap();
+        // Keys should be sorted: appCode before metadata before version
+        let app_idx = json.find("appCode").unwrap();
+        let meta_idx = json.find("metadata").unwrap();
+        let ver_idx = json.find("version").unwrap();
+        assert!(app_idx < meta_idx);
+        assert!(meta_idx < ver_idx);
+    }
+
+    #[test]
+    fn merge_app_data_doc_overrides_app_code() {
+        let base = AppDataDoc::new("Base");
+        let other = AppDataDoc::new("Override");
+        let merged = merge_app_data_doc(base, other);
+        assert_eq!(merged.app_code, Some("Override".to_owned()));
+    }
+
+    #[test]
+    fn merge_app_data_doc_overrides_version() {
+        let base = AppDataDoc::new("Base");
+        let mut other = AppDataDoc::new("Other");
+        other.version = "2.0.0".to_owned();
+        let merged = merge_app_data_doc(base, other);
+        assert_eq!(merged.version, "2.0.0");
+    }
+
+    #[test]
+    fn merge_app_data_doc_preserves_base_when_other_empty() {
+        let base = AppDataDoc::new("Base").with_environment("prod");
+        let other = AppDataDoc {
+            version: String::new(),
+            app_code: None,
+            environment: None,
+            metadata: Metadata::default(),
+        };
+        let merged = merge_app_data_doc(base, other);
+        // Empty version on other means base version is kept
+        assert_eq!(merged.app_code, Some("Base".to_owned()));
+        assert_eq!(merged.environment, Some("prod".to_owned()));
+    }
+
+    #[test]
+    fn merge_app_data_doc_overrides_environment() {
+        let base = AppDataDoc::new("Base");
+        let other = AppDataDoc::new("Other").with_environment("staging");
+        let merged = merge_app_data_doc(base, other);
+        assert_eq!(merged.environment.as_deref(), Some("staging"));
+    }
+
+    #[test]
+    fn merge_app_data_doc_overrides_metadata_fields() {
+        use crate::app_data::types::{Quote, Referrer, Utm, Widget};
+        let base = AppDataDoc::new("Base");
+        let other = AppDataDoc {
+            version: LATEST_APP_DATA_VERSION.to_owned(),
+            app_code: None,
+            environment: None,
+            metadata: Metadata::default()
+                .with_referrer(Referrer::code("ABC"))
+                .with_utm(Utm { utm_source: Some("test".into()), ..Default::default() })
+                .with_quote(Quote::new(50))
+                .with_widget(Widget { app_code: "w".into(), environment: None })
+                .with_signer("0x1111111111111111111111111111111111111111"),
+        };
+        let merged = merge_app_data_doc(base, other);
+        assert!(merged.metadata.referrer.is_some());
+        assert!(merged.metadata.utm.is_some());
+        assert!(merged.metadata.quote.is_some());
+        assert!(merged.metadata.widget.is_some());
+        assert!(merged.metadata.signer.is_some());
+    }
+}

@@ -621,4 +621,77 @@ mod tests {
         assert_eq!(step.amount, U256::from(500));
         assert!(step.user_data.is_empty());
     }
+
+    #[test]
+    fn encode_swap_step_with_user_data() {
+        let mut tokens = SettlementTokenRegistry::new();
+        let swap = Swap {
+            pool_id: B256::ZERO,
+            asset_in: address!("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+            asset_out: address!("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"),
+            amount: U256::from(500),
+            user_data: Some(Bytes::from(vec![0xDE, 0xAD])),
+        };
+        let step = encode_swap_step(&mut tokens, &swap);
+        assert_eq!(step.user_data, Bytes::from(vec![0xDE, 0xAD]));
+    }
+
+    #[test]
+    fn encode_signature_data_returns_clone() {
+        let sig = SignatureData { scheme: SigningScheme::Eip712, data: Bytes::from(vec![1, 2, 3]) };
+        let encoded = encode_signature_data(&sig);
+        assert_eq!(encoded, Bytes::from(vec![1, 2, 3]));
+    }
+
+    #[test]
+    fn decode_signature_owner_too_short() {
+        assert!(decode_signature_owner(&[0u8; 19]).is_err());
+    }
+
+    #[test]
+    fn decode_signature_owner_exact_20_bytes() {
+        let mut data = [0u8; 20];
+        data[19] = 0x42;
+        let owner = decode_signature_owner(&data).unwrap();
+        assert_eq!(owner.as_slice()[19], 0x42);
+    }
+
+    #[test]
+    fn decode_eip1271_exact_20_bytes_empty_sig() {
+        let data = [0u8; 20];
+        let result = decode_eip1271_signature_data(&data).unwrap();
+        assert_eq!(result.verifier, Address::ZERO);
+        assert!(result.signature.is_empty());
+    }
+
+    #[test]
+    fn encode_decode_trade_partially_fillable() {
+        let sell = address!("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+        let buy = address!("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
+        let mut tokens = SettlementTokenRegistry::new();
+
+        let order = UnsignedOrder {
+            sell_token: sell,
+            buy_token: buy,
+            receiver: Address::ZERO,
+            sell_amount: U256::from(1000),
+            buy_amount: U256::from(900),
+            valid_to: 1_000_000,
+            app_data: B256::ZERO,
+            fee_amount: U256::ZERO,
+            kind: OrderKind::Buy,
+            partially_fillable: true,
+            sell_token_balance: TokenBalance::Erc20,
+            buy_token_balance: TokenBalance::Erc20,
+        };
+
+        let signature =
+            SignatureData { scheme: SigningScheme::Eip712, data: Bytes::from(vec![0u8; 65]) };
+
+        let encoded = encode_trade(&mut tokens, &order, &signature, U256::from(100u64));
+        assert_eq!(encoded.executed_amount, U256::from(100u64));
+        let decoded = decode_order(&encoded, tokens.addresses()).unwrap();
+        assert_eq!(decoded.kind, OrderKind::Buy);
+        assert!(decoded.partially_fillable);
+    }
 }

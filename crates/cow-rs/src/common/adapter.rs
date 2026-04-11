@@ -146,4 +146,56 @@ mod tests {
         // We just verify the function doesn't panic.
         let _result = get_global_adapter();
     }
+
+    struct MockAdapter;
+
+    impl ProviderAdapter for MockAdapter {
+        fn signer_address(&self) -> Result<Address, CowError> {
+            Ok(Address::ZERO)
+        }
+
+        fn sign_typed_data(
+            &self,
+            _domain_separator: [u8; 32],
+            _struct_hash: [u8; 32],
+        ) -> Result<Vec<u8>, CowError> {
+            Ok(vec![0u8; 65])
+        }
+
+        fn sign_message(&self, _message: &[u8]) -> Result<Vec<u8>, CowError> {
+            Ok(vec![0u8; 65])
+        }
+    }
+
+    #[test]
+    fn set_global_adapter_accepts_arc() {
+        // OnceLock may already be set from another test, but set_global_adapter
+        // should not panic regardless.
+        let adapter = Arc::new(MockAdapter);
+        set_global_adapter(adapter);
+        // Whether or not it was first, we should be able to call get now
+        // (it may return the original adapter if already set, which is OK).
+        let result = get_global_adapter();
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn mock_adapter_signer_address() {
+        let adapter = MockAdapter;
+        assert_eq!(adapter.signer_address().unwrap(), Address::ZERO);
+    }
+
+    #[test]
+    fn mock_adapter_sign_typed_data() {
+        let adapter = MockAdapter;
+        let result = adapter.sign_typed_data([0u8; 32], [0u8; 32]).unwrap();
+        assert_eq!(result.len(), 65);
+    }
+
+    #[test]
+    fn mock_adapter_sign_message() {
+        let adapter = MockAdapter;
+        let result = adapter.sign_message(b"hello").unwrap();
+        assert_eq!(result.len(), 65);
+    }
 }

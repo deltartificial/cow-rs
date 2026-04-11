@@ -176,3 +176,65 @@ impl FlashLoanParams {
         self.provider.is_supported_on(self.chain_id)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn flash_loan_provider_name() {
+        assert_eq!(FlashLoanProvider::Balancer.name(), "Balancer");
+        assert_eq!(FlashLoanProvider::MakerDao.name(), "MakerDAO");
+        assert_eq!(FlashLoanProvider::AaveV3.name(), "Aave V3");
+    }
+
+    #[test]
+    fn flash_loan_provider_contract_address_balancer() {
+        assert!(FlashLoanProvider::Balancer.contract_address(1).is_some());
+        assert!(FlashLoanProvider::Balancer.contract_address(100).is_some());
+        assert!(FlashLoanProvider::Balancer.contract_address(42161).is_none());
+    }
+
+    #[test]
+    fn flash_loan_provider_contract_address_maker() {
+        // MakerDAO has no contract addresses in the current implementation
+        assert!(FlashLoanProvider::MakerDao.contract_address(1).is_none());
+        assert!(FlashLoanProvider::MakerDao.contract_address(999).is_none());
+    }
+
+    #[test]
+    fn flash_loan_provider_contract_address_aave() {
+        assert!(FlashLoanProvider::AaveV3.contract_address(1).is_some());
+        assert!(FlashLoanProvider::AaveV3.contract_address(100).is_some());
+        assert!(FlashLoanProvider::AaveV3.contract_address(42161).is_none());
+    }
+
+    #[test]
+    fn flash_loan_provider_is_supported_on() {
+        assert!(FlashLoanProvider::Balancer.is_supported_on(1));
+        assert!(!FlashLoanProvider::Balancer.is_supported_on(42161));
+    }
+
+    #[test]
+    fn flash_loan_params_new() {
+        let params = FlashLoanParams::new(
+            FlashLoanProvider::Balancer,
+            Address::ZERO,
+            U256::from(1_000_000u64),
+            1,
+        );
+        assert_eq!(params.provider_name(), "Balancer");
+        assert!(params.is_provider_supported());
+    }
+
+    #[test]
+    fn flash_loan_params_unsupported_chain() {
+        let params = FlashLoanParams::new(
+            FlashLoanProvider::Balancer,
+            Address::ZERO,
+            U256::from(1_000_000u64),
+            999,
+        );
+        assert!(!params.is_provider_supported());
+    }
+}

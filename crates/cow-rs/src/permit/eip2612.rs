@@ -305,4 +305,102 @@ mod tests {
         // 4 (selector) + 8 × 32 (params) = 260 bytes
         assert_eq!(cd.len(), 4 + 8 * 32);
     }
+
+    #[test]
+    fn permit_digest_is_deterministic() {
+        let token = address!("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48");
+        let domain_sep = permit_domain_separator("USD Coin", "2", 1, token);
+        let info = PermitInfo {
+            token_address: token,
+            owner: address!("1111111111111111111111111111111111111111"),
+            spender: address!("2222222222222222222222222222222222222222"),
+            value: U256::from(1_000_000u64),
+            nonce: U256::ZERO,
+            deadline: 9_999_999_999u64,
+        };
+        let d1 = permit_digest(domain_sep, &info);
+        let d2 = permit_digest(domain_sep, &info);
+        assert_eq!(d1, d2);
+        assert_ne!(d1, B256::ZERO);
+    }
+
+    #[test]
+    fn permit_digest_changes_with_different_nonce() {
+        let token = address!("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48");
+        let domain_sep = permit_domain_separator("USD Coin", "2", 1, token);
+        let info1 = PermitInfo {
+            token_address: token,
+            owner: address!("1111111111111111111111111111111111111111"),
+            spender: address!("2222222222222222222222222222222222222222"),
+            value: U256::from(1_000_000u64),
+            nonce: U256::ZERO,
+            deadline: 9_999_999_999u64,
+        };
+        let d1 = permit_digest(domain_sep, &info1);
+        let info2 = PermitInfo { nonce: U256::from(1u64), ..info1 };
+        let d2 = permit_digest(domain_sep, &info2);
+        assert_ne!(d1, d2);
+    }
+
+    #[test]
+    fn domain_separator_different_token_produces_different_result() {
+        let token1 = address!("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48");
+        let token2 = address!("dAC17F958D2ee523a2206206994597C13D831ec7");
+        let a = permit_domain_separator("USD Coin", "2", 1, token1);
+        let b = permit_domain_separator("Tether USD", "2", 1, token2);
+        assert_ne!(a, b);
+    }
+
+    #[test]
+    fn calldata_starts_with_permit_selector() {
+        let info = PermitInfo {
+            token_address: address!("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"),
+            owner: address!("1111111111111111111111111111111111111111"),
+            spender: address!("2222222222222222222222222222222222222222"),
+            value: U256::from(1_000_000u64),
+            nonce: U256::ZERO,
+            deadline: 9_999_999_999u64,
+        };
+        let sig = [0u8; 65];
+        let cd = build_permit_calldata(&info, sig);
+        let expected_selector =
+            keccak256(b"permit(address,address,uint256,uint256,uint256,uint8,bytes32,bytes32)");
+        assert_eq!(&cd[..4], &expected_selector[..4]);
+    }
+
+    #[tokio::test]
+    async fn sign_permit_produces_65_bytes() {
+        let signer = PrivateKeySigner::random();
+        let info = PermitInfo {
+            token_address: address!("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"),
+            owner: signer.address(),
+            spender: address!("2222222222222222222222222222222222222222"),
+            value: U256::from(1_000_000u64),
+            nonce: U256::ZERO,
+            deadline: 9_999_999_999u64,
+        };
+        let erc20_info =
+            Erc20PermitInfo { name: "USD Coin".into(), version: "2".into(), chain_id: 1 };
+        let sig = sign_permit(&info, &erc20_info, &signer).await.unwrap();
+        assert_eq!(sig.len(), 65);
+    }
+
+    #[tokio::test]
+    async fn build_permit_hook_returns_correct_data() {
+        let signer = PrivateKeySigner::random();
+        let info = PermitInfo {
+            token_address: address!("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"),
+            owner: signer.address(),
+            spender: address!("2222222222222222222222222222222222222222"),
+            value: U256::from(1_000_000u64),
+            nonce: U256::ZERO,
+            deadline: 9_999_999_999u64,
+        };
+        let erc20_info =
+            Erc20PermitInfo { name: "USD Coin".into(), version: "2".into(), chain_id: 1 };
+        let hook = build_permit_hook(&info, &erc20_info, &signer).await.unwrap();
+        assert_eq!(hook.target, info.token_address);
+        assert_eq!(hook.gas_limit, PERMIT_GAS_LIMIT);
+        assert_eq!(hook.calldata.len(), 260); // 4 + 8 * 32
+    }
 }

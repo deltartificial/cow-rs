@@ -199,4 +199,75 @@ mod tests {
         let back: Wrapper = serde_json::from_str(&json).unwrap();
         assert_eq!(back, w);
     }
+
+    #[test]
+    fn json_with_bigint_replacer_simple_struct() {
+        use serde::Serialize;
+
+        #[derive(Serialize)]
+        struct Simple {
+            name: String,
+            count: u32,
+        }
+
+        let s = Simple { name: "test".into(), count: 42 };
+        let json = json_with_bigint_replacer(&s).unwrap();
+        assert!(json.contains("\"test\""));
+        assert!(json.contains("42"));
+    }
+
+    #[test]
+    fn u256_dec_string_zero() {
+        let w = U256DecString(U256::ZERO);
+        let json = serde_json::to_string(&w).unwrap();
+        assert_eq!(json, "\"0\"");
+    }
+
+    #[test]
+    fn u256_string_module_roundtrip_zero() {
+        use serde::{Deserialize, Serialize};
+
+        #[derive(Serialize, Deserialize, Debug, PartialEq)]
+        struct Wrapper {
+            #[serde(with = "u256_string")]
+            value: U256,
+        }
+
+        let w = Wrapper { value: U256::ZERO };
+        let json = serde_json::to_string(&w).unwrap();
+        assert!(json.contains("\"0\""));
+        let back: Wrapper = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, w);
+    }
+
+    #[test]
+    fn u256_string_module_roundtrip_max() {
+        use serde::{Deserialize, Serialize};
+
+        #[derive(Serialize, Deserialize, Debug, PartialEq)]
+        struct Wrapper {
+            #[serde(with = "u256_string")]
+            value: U256,
+        }
+
+        let w = Wrapper { value: U256::MAX };
+        let json = serde_json::to_string(&w).unwrap();
+        let back: Wrapper = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, w);
+    }
+
+    #[test]
+    fn u256_string_deserialize_invalid_returns_error() {
+        use serde::Deserialize;
+
+        #[derive(Deserialize)]
+        struct Wrapper {
+            #[serde(with = "u256_string")]
+            #[allow(dead_code, reason = "field is tested via deserialization failure")]
+            value: U256,
+        }
+
+        let result = serde_json::from_str::<Wrapper>(r#"{"value":"not-a-number"}"#);
+        assert!(result.is_err());
+    }
 }

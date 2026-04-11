@@ -1766,4 +1766,104 @@ mod tests {
         let mapped = map_address_to_supported_networks(Address::ZERO);
         assert_eq!(mapped.len(), SupportedChainId::all().len());
     }
+
+    // ── Additional coverage ────────────────────────────────────────────
+
+    #[test]
+    fn is_zk_sync_chain_returns_false_for_lens() {
+        // Lens (232) has is_zk_sync = true in chain info, but it is not in EvmChains
+        // so is_zk_sync_chain returns false because it first checks is_evm_chain.
+        assert!(!is_zk_sync_chain(232));
+    }
+
+    #[test]
+    fn is_zk_sync_chain_returns_false_for_non_evm() {
+        assert!(!is_zk_sync_chain(1_000_000_000));
+    }
+
+    #[test]
+    fn is_chain_under_development_unknown_chain() {
+        assert!(!is_chain_under_development(9999));
+    }
+
+    #[test]
+    fn is_chain_deprecated_unknown_chain() {
+        assert!(!is_chain_deprecated(9999));
+    }
+
+    #[test]
+    fn chain_info_is_under_development_non_evm() {
+        let info = additional_target_chain_info(AdditionalTargetChainId::Bitcoin);
+        assert!(!info.is_under_development());
+    }
+
+    #[test]
+    fn chain_info_is_deprecated_non_evm() {
+        let info = additional_target_chain_info(AdditionalTargetChainId::Bitcoin);
+        assert!(!info.is_deprecated());
+    }
+
+    #[test]
+    fn evm_chain_info_type_guards() {
+        let info = supported_chain_info(SupportedChainId::Mainnet);
+        assert!(is_evm_chain_info(&info));
+        assert!(!is_non_evm_chain_info(&info));
+    }
+
+    #[test]
+    fn non_evm_chain_info_type_guards() {
+        let info = additional_target_chain_info(AdditionalTargetChainId::Bitcoin);
+        assert!(is_non_evm_chain_info(&info));
+        assert!(!is_evm_chain_info(&info));
+    }
+
+    #[test]
+    fn tradable_supported_chains_returns_chain_infos() {
+        let chains = tradable_supported_chains();
+        assert!(!chains.is_empty());
+        for c in &chains {
+            assert!(!c.is_deprecated());
+        }
+    }
+
+    #[test]
+    fn all_additional_target_chains_returns_infos() {
+        let chains = all_additional_target_chains();
+        assert_eq!(chains.len(), 3);
+    }
+
+    #[test]
+    fn map_all_networks_covers_everything() {
+        let mapped = map_all_networks(|t| t.as_u64());
+        assert!(
+            mapped.len() >= SupportedChainId::all().len() + AdditionalTargetChainId::all().len()
+        );
+    }
+
+    #[test]
+    fn chain_info_label_non_evm() {
+        let info = additional_target_chain_info(AdditionalTargetChainId::Solana);
+        assert_eq!(info.label(), "Solana");
+        assert_eq!(info.id(), 1_000_000_001);
+    }
+
+    #[test]
+    fn additional_target_optimism_is_evm() {
+        let info = additional_target_chain_info(AdditionalTargetChainId::Optimism);
+        assert!(info.is_evm());
+        assert_eq!(info.label(), "Optimism");
+    }
+
+    #[test]
+    fn api_context_default() {
+        let ctx = ApiContext::default();
+        assert_eq!(ctx.chain_id, SupportedChainId::Mainnet);
+        assert!(ctx.base_urls.is_none());
+        assert!(ctx.api_key.is_none());
+    }
+
+    #[test]
+    fn additional_target_try_from_u64_unknown() {
+        assert!(AdditionalTargetChainId::try_from_u64(999).is_none());
+    }
 }
