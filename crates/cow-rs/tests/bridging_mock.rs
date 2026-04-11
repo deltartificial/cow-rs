@@ -2262,7 +2262,7 @@ fn safe_call_best_quote_callback_invokes_callback() {
     };
 
     let called = Arc::new(AtomicBool::new(false));
-    let called_clone = called.clone();
+    let called_clone = Arc::clone(&called);
 
     let result = cow_rs::bridging::types::MultiQuoteResult {
         provider_dapp_id: "test".to_owned(),
@@ -2302,7 +2302,7 @@ fn safe_call_progressive_callback_invokes_callback() {
     };
 
     let called = Arc::new(AtomicBool::new(false));
-    let called_clone = called.clone();
+    let called_clone = Arc::clone(&called);
 
     let result = cow_rs::bridging::types::MultiQuoteResult {
         provider_dapp_id: "test".to_owned(),
