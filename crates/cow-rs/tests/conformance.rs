@@ -1,7 +1,7 @@
 //! Conformance tests: verify that the Rust SDK produces identical results
 //! to the `TypeScript` SDK at the pinned upstream commit.
 //!
-//! Fixtures in `conformance/fixtures/*.json` contain test vectors extracted
+//! Fixtures in `scripts/conformance/fixtures/*.json` contain test vectors extracted
 //! from the `TypeScript` SDK. Each test loads a fixture case by ID and
 //! asserts the Rust output matches the expected `TypeScript` output.
 #![allow(
@@ -43,7 +43,7 @@ use cow_rs::{
 
 fn load_fixture(surface: &str) -> serde_json::Value {
     let path = format!(
-        "{}/conformance/fixtures/{surface}.json",
+        "{}/scripts/conformance/fixtures/{surface}.json",
         env!("CARGO_MANIFEST_DIR").trim_end_matches("/crates/cow-rs")
     );
     let content = std::fs::read_to_string(&path)
