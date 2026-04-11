@@ -178,3 +178,147 @@ fn weiroll_command_zero_target_packed_correctly() {
     let packed = cmd.pack();
     assert!(packed[4..24].iter().all(|&b| b == 0));
 }
+
+// ── WeirollScript state_slot_count ──────────────────────────────────────────
+
+#[test]
+fn weiroll_script_state_slot_count() {
+    let mut planner = WeirollPlanner::new();
+    planner.add_state_slot(vec![1, 2, 3]);
+    planner.add_state_slot(vec![4, 5]);
+    planner.add_command(sample_command());
+    let script = planner.plan();
+    assert_eq!(script.state_slot_count(), 2);
+    assert_eq!(script.command_count(), 1);
+}
+
+// ── WeirollPlanner chaining ─────────────────────────────────────────────────
+
+#[test]
+fn weiroll_planner_add_command_returns_self() {
+    let mut planner = WeirollPlanner::new();
+    planner.add_command(sample_command()).add_command(sample_command());
+    assert_eq!(planner.command_count(), 2);
+}
+
+// ── create_weiroll_delegate_call with state slots ───────────────────────────
+
+#[test]
+fn delegate_call_with_state_slots() {
+    use cow_rs::weiroll::create_weiroll_delegate_call;
+
+    let evm_call = create_weiroll_delegate_call(|planner| {
+        planner.add_state_slot(vec![0xAA; 32]);
+        planner.add_state_slot(vec![0xBB; 64]);
+        planner.add_command(WeirollCommand {
+            flags: 0x01,
+            value: 0,
+            gas: 0,
+            target: Address::ZERO,
+            selector: [0xDE, 0xAD, 0xBE, 0xEF],
+            in_out: [0, 1, 0xFF, 0xFF],
+        });
+    });
+    // The encoded calldata should contain the state slots
+    assert!(evm_call.data.len() > 4 + 64); // at least selector + head + some data
+    assert_eq!(&evm_call.data[..4], &[0xde, 0x79, 0x2b, 0xe1]);
+}
+
+// ── create_weiroll_contract and library with ABI ────────────────────────────
+
+#[test]
+fn create_weiroll_contract_with_abi() {
+    use cow_rs::weiroll::{WeirollCommandFlags, create_weiroll_contract};
+    let abi = b"[{\"name\":\"test\"}]".to_vec();
+    let contract = create_weiroll_contract(Address::ZERO, abi.clone(), None);
+    assert_eq!(contract.command_flags, WeirollCommandFlags::Call);
+    assert_eq!(contract.abi, abi);
+}
+
+#[test]
+fn create_weiroll_library_with_abi() {
+    use cow_rs::weiroll::{WeirollCommandFlags, create_weiroll_library};
+    let abi = b"[{\"name\":\"lib_fn\"}]".to_vec();
+    let lib = create_weiroll_library(Address::ZERO, abi.clone());
+    assert_eq!(lib.command_flags, WeirollCommandFlags::DelegateCall);
+    assert_eq!(lib.abi, abi);
+}
+
+// ── WeirollCommandFlags bit operations ──────────────────────────────────────
+
+#[test]
+fn command_flags_combine_with_extended() {
+    use cow_rs::weiroll::WeirollCommandFlags;
+    let combined = WeirollCommandFlags::Call as u8 | WeirollCommandFlags::EXTENDED_COMMAND;
+    assert_eq!(combined & WeirollCommandFlags::CALLTYPE_MASK, WeirollCommandFlags::Call as u8);
+    assert_ne!(combined & WeirollCommandFlags::EXTENDED_COMMAND, 0);
+}
+
+#[test]
+fn command_flags_combine_with_tuple_return() {
+    use cow_rs::weiroll::WeirollCommandFlags;
+    let combined = WeirollCommandFlags::StaticCall as u8 | WeirollCommandFlags::TUPLE_RETURN;
+    assert_eq!(
+        combined & WeirollCommandFlags::CALLTYPE_MASK,
+        WeirollCommandFlags::StaticCall as u8
+    );
+    assert_ne!(combined & WeirollCommandFlags::TUPLE_RETURN, 0);
+}
+
+// ── WeirollContractRef debug and clone ──────────────────────────────────────
+
+#[test]
+fn weiroll_contract_ref_debug_and_clone() {
+    use cow_rs::weiroll::{WeirollCommandFlags, WeirollContractRef};
+    let contract = WeirollContractRef {
+        address: Address::ZERO,
+        abi: vec![],
+        command_flags: WeirollCommandFlags::Call,
+    };
+    let cloned = contract.clone();
+    assert_eq!(cloned.command_flags, WeirollCommandFlags::Call);
+    let debug = format!("{contract:?}");
+    assert!(debug.contains("WeirollContractRef"));
+}
+
+// ── WeirollCommand clone ────────────────────────────────────────────────────
+
+#[test]
+fn weiroll_command_clone() {
+    let cmd = sample_command();
+    let cloned = cmd.clone();
+    assert_eq!(cloned.pack(), cmd.pack());
+}
+
+// ── Multiple state slots ────────────────────────────────────────────────────
+
+#[test]
+fn weiroll_planner_multiple_state_slots() {
+    let mut planner = WeirollPlanner::new();
+    for i in 0..10 {
+        let idx = planner.add_state_slot(vec![i as u8; 32]);
+        assert_eq!(idx, i);
+    }
+    assert_eq!(planner.state_slot_count(), 10);
+    let script = planner.plan();
+    assert_eq!(script.state_slot_count(), 10);
+    assert_eq!(script.state[5], vec![5u8; 32]);
+}
+
+// ── define_read_only with string ────────────────────────────────────────────
+
+#[test]
+fn define_read_only_with_string() {
+    use cow_rs::weiroll::define_read_only;
+    let s = define_read_only(String::new(), |s| s.push_str("hello"));
+    assert_eq!(s, "hello");
+}
+
+// ── get_static with duplicate keys ──────────────────────────────────────────
+
+#[test]
+fn get_static_returns_first_match() {
+    use cow_rs::weiroll::get_static;
+    let entries: &[(&str, i32)] = &[("a", 1), ("a", 2), ("b", 3)];
+    assert_eq!(get_static(entries, "a"), Some(1));
+}

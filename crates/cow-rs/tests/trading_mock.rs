@@ -2398,3 +2398,112 @@ fn mock_get_order_returns_valid_order() {
     assert_eq!(order.kind, OrderKind::Sell);
     assert!(!order.invalidated);
 }
+
+// ── TradingSdkConfig with_utm and with_partner_fee ─────────────────────────
+
+#[test]
+fn config_with_utm() {
+    let utm = cow_rs::trading::get_default_utm_params();
+    let config = TradingSdkConfig::prod(SupportedChainId::Mainnet, "TestApp").with_utm(utm);
+    assert!(config.utm.is_some());
+    assert_eq!(config.utm.as_ref().unwrap().utm_source.as_deref(), Some("web"));
+}
+
+#[test]
+fn config_with_partner_fee() {
+    use cow_rs::app_data::types::{PartnerFee, PartnerFeeEntry};
+    let entry = PartnerFeeEntry::volume(50, "0x1111111111111111111111111111111111111111");
+    let fee = PartnerFee::single(entry);
+    let config = TradingSdkConfig::prod(SupportedChainId::Mainnet, "TestApp").with_partner_fee(fee);
+    assert!(config.partner_fee.is_some());
+}
+
+#[test]
+fn config_orderbook_client_is_none_by_default() {
+    let config = TradingSdkConfig::prod(SupportedChainId::Mainnet, "TestApp");
+    assert!(config.orderbook_client.is_none());
+}
+
+// ── TradingSdkConfig Debug impl ────────────────────────────────────────────
+
+#[test]
+fn config_debug_impl() {
+    let config = TradingSdkConfig::prod(SupportedChainId::Mainnet, "TestApp");
+    let debug = format!("{config:?}");
+    assert!(debug.contains("TradingSdkConfig"));
+    assert!(debug.contains("Mainnet"));
+}
+
+// ── TradingSdk Debug impl ──────────────────────────────────────────────────
+
+#[test]
+fn trading_sdk_debug_impl() {
+    let config = TradingSdkConfig::prod(SupportedChainId::Mainnet, "TestApp");
+    let sdk = TradingSdk::new(config, TEST_KEY).unwrap();
+    let debug = format!("{sdk:?}");
+    assert!(debug.contains("TradingSdk"));
+}
+
+// ── TradingSdk Clone impl ──────────────────────────────────────────────────
+
+#[test]
+fn trading_sdk_clone() {
+    let config = TradingSdkConfig::prod(SupportedChainId::Mainnet, "TestApp");
+    let sdk = TradingSdk::new(config, TEST_KEY).unwrap();
+    let cloned = sdk.clone();
+    assert_eq!(cloned.address(), sdk.address());
+}
+
+// ── swap_params_to_limit_order_params with invalid amounts ─────────────────
+
+#[test]
+fn swap_params_to_limit_order_params_invalid_amounts_default_to_zero() {
+    use cow_rs::order_book::{OrderQuoteResponse, QuoteData};
+    let params = default_trade_params();
+    let quote = OrderQuoteResponse {
+        quote: QuoteData {
+            sell_token: SELL_TOKEN.parse().unwrap(),
+            buy_token: BUY_TOKEN.parse().unwrap(),
+            receiver: None,
+            sell_amount: "not_a_number".to_owned(),
+            buy_amount: "also_not_a_number".to_owned(),
+            valid_to: 9_999_999,
+            app_data: "0x0000000000000000000000000000000000000000000000000000000000000000"
+                .to_owned(),
+            fee_amount: "0".to_owned(),
+            kind: OrderKind::Sell,
+            partially_fillable: false,
+            sell_token_balance: TokenBalance::Erc20,
+            buy_token_balance: TokenBalance::Erc20,
+        },
+        from: Address::ZERO,
+        expiration: "2099-01-01T00:00:00.000Z".to_owned(),
+        id: Some(42),
+        verified: false,
+        protocol_fee_bps: None,
+    };
+    let limit = cow_rs::trading::swap_params_to_limit_order_params(&params, &quote);
+    // Invalid amounts should default to zero
+    assert_eq!(limit.sell_amount, U256::ZERO);
+    assert_eq!(limit.buy_amount, U256::ZERO);
+}
+
+// ── ETH_FLOW_DEFAULT_SLIPPAGE_BPS equals DEFAULT_SLIPPAGE_BPS ──────────────
+
+#[test]
+fn eth_flow_slippage_equals_default() {
+    assert_eq!(cow_rs::ETH_FLOW_DEFAULT_SLIPPAGE_BPS, cow_rs::DEFAULT_SLIPPAGE_BPS);
+}
+
+// ── staging config ─────────────────────────────────────────────────────────
+
+#[test]
+fn config_staging_values() {
+    let config = TradingSdkConfig::staging(SupportedChainId::Sepolia, "StageApp");
+    assert!(matches!(config.env, Env::Staging));
+    assert_eq!(config.app_code, "StageApp");
+    assert_eq!(config.slippage_bps, cow_rs::DEFAULT_SLIPPAGE_BPS);
+    assert!(config.rpc_url.is_none());
+    assert!(config.utm.is_none());
+    assert!(config.partner_fee.is_none());
+}

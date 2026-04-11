@@ -2711,3 +2711,295 @@ fn across_event_interface_constants() {
     assert!(ACROSS_FUNDS_DEPOSITED_TOPIC.contains("FundsDeposited"));
     assert!(COW_TRADE_EVENT_SIGNATURE.contains("Trade"));
 }
+
+// ── BridgingSdk type guard functions ────────────────────────────────────────
+
+#[test]
+fn is_bridge_quote_and_post_cross_chain() {
+    use cow_rs::bridging::{
+        sdk::{
+            BridgeQuoteAndPost, CrossChainQuoteAndPost, assert_is_bridge_quote_and_post,
+            assert_is_quote_and_post, is_bridge_quote_and_post, is_quote_and_post,
+        },
+        types::{
+            BridgeAmounts, BridgeCosts, BridgeFees, BridgeLimits, BridgeProviderInfo,
+            BridgeProviderType, BridgeQuoteAmountsAndCosts, BridgeQuoteResult, BridgeQuoteResults,
+            BridgingFee,
+        },
+    };
+
+    let quote_result = BridgeQuoteResult {
+        id: None,
+        signature: None,
+        attestation_signature: None,
+        quote_body: None,
+        is_sell: true,
+        amounts_and_costs: BridgeQuoteAmountsAndCosts {
+            before_fee: BridgeAmounts { sell_amount: U256::ZERO, buy_amount: U256::ZERO },
+            after_fee: BridgeAmounts { sell_amount: U256::ZERO, buy_amount: U256::ZERO },
+            after_slippage: BridgeAmounts { sell_amount: U256::ZERO, buy_amount: U256::ZERO },
+            costs: BridgeCosts {
+                bridging_fee: BridgingFee {
+                    fee_bps: 0,
+                    amount_in_sell_currency: U256::ZERO,
+                    amount_in_buy_currency: U256::ZERO,
+                },
+            },
+            slippage_bps: 0,
+        },
+        expected_fill_time_seconds: None,
+        quote_timestamp: 0,
+        fees: BridgeFees { bridge_fee: U256::ZERO, destination_gas_fee: U256::ZERO },
+        limits: BridgeLimits { min_deposit: U256::ZERO, max_deposit: U256::ZERO },
+    };
+
+    let cross = CrossChainQuoteAndPost::CrossChain(Box::new(BridgeQuoteAndPost {
+        swap: QuoteBridgeResponse {
+            provider: "mock".to_owned(),
+            sell_amount: U256::ZERO,
+            buy_amount: U256::ZERO,
+            fee_amount: U256::ZERO,
+            estimated_secs: 0,
+            bridge_hook: None,
+        },
+        bridge: BridgeQuoteResults {
+            provider_info: BridgeProviderInfo {
+                name: "mock".into(),
+                logo_url: "".into(),
+                dapp_id: "mock-dapp".into(),
+                website: "".into(),
+                provider_type: BridgeProviderType::HookBridgeProvider,
+            },
+            quote: quote_result,
+            bridge_call_details: None,
+            bridge_receiver_override: None,
+        },
+    }));
+
+    assert!(is_bridge_quote_and_post(&cross));
+    assert!(!is_quote_and_post(&cross));
+    assert!(assert_is_bridge_quote_and_post(&cross).is_ok());
+    assert!(assert_is_quote_and_post(&cross).is_err());
+}
+
+#[test]
+fn is_quote_and_post_same_chain() {
+    use cow_rs::bridging::sdk::{
+        CrossChainQuoteAndPost, QuoteAndPost, assert_is_bridge_quote_and_post,
+        assert_is_quote_and_post, is_bridge_quote_and_post, is_quote_and_post,
+    };
+
+    let same = CrossChainQuoteAndPost::SameChain(Box::new(QuoteAndPost {
+        quote: QuoteBridgeResponse {
+            provider: "mock".to_owned(),
+            sell_amount: U256::ZERO,
+            buy_amount: U256::ZERO,
+            fee_amount: U256::ZERO,
+            estimated_secs: 0,
+            bridge_hook: None,
+        },
+    }));
+
+    assert!(is_quote_and_post(&same));
+    assert!(!is_bridge_quote_and_post(&same));
+    assert!(assert_is_quote_and_post(&same).is_ok());
+    assert!(assert_is_bridge_quote_and_post(&same).is_err());
+}
+
+// ── Stub async functions return errors ─────────────────────────────────────
+
+#[tokio::test]
+async fn get_bridge_signed_hook_returns_error() {
+    use cow_rs::bridging::{
+        sdk::get_bridge_signed_hook,
+        types::{
+            BridgeAmounts, BridgeCosts, BridgeFees, BridgeLimits, BridgeQuoteAmountsAndCosts,
+            BridgeQuoteResult, BridgingFee,
+        },
+    };
+
+    let quote = BridgeQuoteResult {
+        id: None,
+        signature: None,
+        attestation_signature: None,
+        quote_body: None,
+        is_sell: true,
+        amounts_and_costs: BridgeQuoteAmountsAndCosts {
+            before_fee: BridgeAmounts { sell_amount: U256::ZERO, buy_amount: U256::ZERO },
+            after_fee: BridgeAmounts { sell_amount: U256::ZERO, buy_amount: U256::ZERO },
+            after_slippage: BridgeAmounts { sell_amount: U256::ZERO, buy_amount: U256::ZERO },
+            costs: BridgeCosts {
+                bridging_fee: BridgingFee {
+                    fee_bps: 0,
+                    amount_in_sell_currency: U256::ZERO,
+                    amount_in_buy_currency: U256::ZERO,
+                },
+            },
+            slippage_bps: 0,
+        },
+        expected_fill_time_seconds: None,
+        quote_timestamp: 0,
+        fees: BridgeFees { bridge_fee: U256::ZERO, destination_gas_fee: U256::ZERO },
+        limits: BridgeLimits { min_deposit: U256::ZERO, max_deposit: U256::ZERO },
+    };
+    let result = get_bridge_signed_hook(&quote, &[]).await;
+    assert!(result.is_err());
+}
+
+#[tokio::test]
+async fn get_quote_with_bridge_returns_error() {
+    use cow_rs::bridging::sdk::{GetQuoteWithBridgeParams, get_quote_with_bridge};
+    let params =
+        GetQuoteWithBridgeParams { swap_and_bridge_request: sample_request(), slippage_bps: 50 };
+    let result = get_quote_with_bridge(&params).await;
+    assert!(result.is_err());
+}
+
+#[tokio::test]
+async fn get_quote_without_bridge_returns_error() {
+    use cow_rs::bridging::sdk::get_quote_without_bridge;
+    let result = get_quote_without_bridge(&sample_request()).await;
+    assert!(result.is_err());
+}
+
+#[tokio::test]
+async fn get_swap_quote_returns_error() {
+    use cow_rs::bridging::sdk::get_swap_quote;
+    let result = get_swap_quote(&sample_request()).await;
+    assert!(result.is_err());
+}
+
+#[tokio::test]
+async fn get_intermediate_swap_result_returns_error() {
+    use cow_rs::bridging::sdk::get_intermediate_swap_result;
+    let result = get_intermediate_swap_result(&sample_request()).await;
+    assert!(result.is_err());
+}
+
+// ── QuoteStrategy equality ─────────────────────────────────────────────────
+
+#[test]
+fn quote_strategy_equality_and_create() {
+    use cow_rs::bridging::sdk::{QuoteStrategy, create_strategies};
+    assert_eq!(QuoteStrategy::Single, QuoteStrategy::Single);
+    assert_ne!(QuoteStrategy::Single, QuoteStrategy::Multi);
+
+    let strategies = create_strategies();
+    assert_eq!(strategies.len(), 3);
+    assert_eq!(strategies[0], QuoteStrategy::Single);
+    assert_eq!(strategies[1], QuoteStrategy::Multi);
+    assert_eq!(strategies[2], QuoteStrategy::Best);
+}
+
+// ── BridgingSdk Debug impl ─────────────────────────────────────────────────
+
+#[test]
+fn bridging_sdk_debug_with_bungee() {
+    let sdk = BridgingSdk::new().with_bungee("test-key");
+    let debug = format!("{sdk:?}");
+    assert!(debug.contains("BridgingSdk"));
+    assert!(debug.contains("provider_count"));
+}
+
+// ── BungeeProvider name and supports_route ─────────────────────────────────
+
+#[test]
+fn bungee_provider_name_and_supports_route() {
+    use cow_rs::bridging::bungee::BungeeProvider;
+    let provider = BungeeProvider::new("test-key");
+    assert_eq!(provider.name(), "bungee");
+    assert!(provider.supports_route(1, 42161));
+    assert!(provider.supports_route(1, 8453));
+}
+
+// ── create_bungee_deposit_call with native token ───────────────────────────
+
+#[test]
+fn create_bungee_deposit_call_native_token() {
+    use cow_rs::bridging::bungee::{BungeeDepositCallParams, create_bungee_deposit_call};
+    let amount_hex = "0000000000000000000000000000000000000000000000000000000000000064";
+    let build_tx_data = format!("0x11223344cc54d224{amount_hex}");
+
+    let mut req = sample_request();
+    req.sell_token = cow_rs::NATIVE_CURRENCY_ADDRESS;
+
+    let params = BungeeDepositCallParams {
+        request: req,
+        build_tx_data,
+        input_amount: U256::from(100u64),
+        bridge: BungeeBridge::Across,
+    };
+
+    let result = create_bungee_deposit_call(&params);
+    assert!(result.is_ok());
+    let call = result.unwrap();
+    // Native token should have non-zero value
+    assert_eq!(call.value, U256::from(100u64));
+}
+
+// ── Gnosis native bridge decode ────────────────────────────────────────────
+
+#[test]
+fn decode_amounts_for_gnosis_native_3bf5c228_padded() {
+    // GnosisNative with 0x3bf5c228 has bytes_start_index=136, string_start_index=2+8*2=18
+    let mut tx_data = String::from("0x11223344");
+    tx_data.push_str("3bf5c228");
+    // Pad to reach the amount position at string offset 18..18+64
+    // The amount should be at tx_data[18..82] which is right after "0x" + routeId(8) + selector(8)
+    // Wait, bytes_string_start_index = 2 + 8*2 = 18 (same for all)
+    // But bytes_start_index = 136, which means the amount bytes are at offset 136 from the start of
+    // raw data The hex string offset: 2 + 136*2 = 274
+    // Actually let me re-read: bytes_string_start_index is always 2 + 8*2 = 18
+    // So the amount hex is at tx_data[18..18+64]
+    // That's right after "0x11223344" which is 10 chars, then "3bf5c228" is 8 more = 18 chars
+    // So the next 64 chars are the amount
+    let amount_hex = "0000000000000000000000000000000000000000000000000000000000000064";
+    // Already have 18 chars, need to add the rest up to offset 18+64=82
+    // We need data starting from position 18 in the tx_data string
+    // tx_data = "0x11223344" (10) + "3bf5c228" (8) = 18 chars so far
+    // The amount starts at position 18, so add it directly
+    tx_data.push_str(amount_hex);
+    // Pad enough so the string is long enough
+    tx_data.push_str(&"00".repeat(200));
+
+    let decoded = decode_amounts_bungee_tx_data(&tx_data, BungeeBridge::GnosisNative).unwrap();
+    assert_eq!(decoded.input_amount, U256::from(100u64));
+}
+
+// ── Across status with non-Across bridge and Across fallback ───────────────
+
+#[tokio::test]
+async fn status_from_events_across_with_unknown_status_returns_in_progress() {
+    let across_unknown = |_: &str| async { Ok("some-unknown-status".to_owned()) };
+    let event = make_bungee_event(
+        BungeeEventStatus::Completed,
+        BungeeEventStatus::Pending,
+        BungeeBridgeName::Across,
+    );
+    let result = get_bridging_status_from_events(Some(&[event]), across_unknown).await.unwrap();
+    assert!(matches!(result.status, BridgeStatus::InProgress));
+}
+
+// ── BridgeProviderType type guards ─────────────────────────────────────────
+
+#[test]
+fn bridge_provider_type_guards() {
+    use cow_rs::bridging::types::{BridgeProviderInfo, BridgeProviderType};
+    let hook = BridgeProviderType::HookBridgeProvider;
+    let receiver = BridgeProviderType::ReceiverAccountBridgeProvider;
+
+    assert!(hook.is_hook_bridge_provider());
+    assert!(!hook.is_receiver_account_bridge_provider());
+    assert!(!receiver.is_hook_bridge_provider());
+    assert!(receiver.is_receiver_account_bridge_provider());
+
+    let info = BridgeProviderInfo {
+        name: "Test".into(),
+        logo_url: "https://example.com/logo.png".into(),
+        dapp_id: "test-dapp".into(),
+        website: "https://example.com".into(),
+        provider_type: BridgeProviderType::HookBridgeProvider,
+    };
+    assert!(info.is_hook_bridge_provider());
+    assert!(!info.is_receiver_account_bridge_provider());
+}

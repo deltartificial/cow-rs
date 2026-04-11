@@ -621,3 +621,107 @@ fn get_app_data_info_unicode_app_code() {
     assert!(!info.cid.is_empty());
     assert!(info.app_data_content.contains("\u{1F42E}"));
 }
+
+// ── IpfsClient trait impl on Ipfs struct (upload error branches) ───────────
+
+#[tokio::test]
+async fn ipfs_client_upload_missing_api_key_returns_error() {
+    use cow_rs::traits::IpfsClient;
+    let ipfs =
+        Ipfs { pinata_api_key: None, pinata_api_secret: Some("s".into()), ..Ipfs::default() };
+    let result = IpfsClient::upload(&ipfs, r#"{"test":true}"#).await;
+    assert!(result.is_err());
+}
+
+#[tokio::test]
+async fn ipfs_client_upload_missing_api_secret_returns_error() {
+    use cow_rs::traits::IpfsClient;
+    let ipfs =
+        Ipfs { pinata_api_key: Some("k".into()), pinata_api_secret: None, ..Ipfs::default() };
+    let result = IpfsClient::upload(&ipfs, r#"{"test":true}"#).await;
+    assert!(result.is_err());
+}
+
+#[tokio::test]
+async fn ipfs_client_upload_invalid_json_returns_error() {
+    use cow_rs::traits::IpfsClient;
+    let ipfs = Ipfs::default().with_pinata("key", "secret");
+    let result = IpfsClient::upload(&ipfs, "not json at all {{{").await;
+    assert!(result.is_err());
+}
+
+#[tokio::test]
+async fn ipfs_client_upload_api_error_returns_error() {
+    use cow_rs::traits::IpfsClient;
+    let server = MockServer::start().await;
+
+    Mock::given(matchers::method("POST"))
+        .and(matchers::path("/pinning/pinJSONToIPFS"))
+        .respond_with(ResponseTemplate::new(401).set_body_string("unauthorized"))
+        .mount(&server)
+        .await;
+
+    let ipfs = Ipfs::default().with_write_uri(server.uri()).with_pinata("key", "secret");
+    let result = IpfsClient::upload(&ipfs, r#"{"test":true}"#).await;
+    assert!(result.is_err());
+}
+
+#[tokio::test]
+async fn ipfs_client_upload_malformed_response_returns_error() {
+    use cow_rs::traits::IpfsClient;
+    let server = MockServer::start().await;
+
+    Mock::given(matchers::method("POST"))
+        .and(matchers::path("/pinning/pinJSONToIPFS"))
+        .respond_with(ResponseTemplate::new(200).set_body_string(r#"{"unexpected":"format"}"#))
+        .mount(&server)
+        .await;
+
+    let ipfs = Ipfs::default().with_write_uri(server.uri()).with_pinata("key", "secret");
+    let result = IpfsClient::upload(&ipfs, r#"{"test":true}"#).await;
+    assert!(result.is_err());
+}
+
+#[tokio::test]
+async fn ipfs_client_upload_success() {
+    use cow_rs::traits::IpfsClient;
+    let server = MockServer::start().await;
+
+    Mock::given(matchers::method("POST"))
+        .and(matchers::path("/pinning/pinJSONToIPFS"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "IpfsHash": "QmTraitImplHash",
+            "PinSize": 42,
+            "Timestamp": "2025-01-01T00:00:00Z"
+        })))
+        .mount(&server)
+        .await;
+
+    let ipfs = Ipfs::default().with_write_uri(server.uri()).with_pinata("key", "secret");
+    let result = IpfsClient::upload(&ipfs, r#"{"test":true}"#).await;
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), "QmTraitImplHash");
+}
+
+#[tokio::test]
+async fn ipfs_client_fetch_success() {
+    use cow_rs::traits::IpfsClient;
+    let server = MockServer::start().await;
+
+    Mock::given(matchers::method("GET"))
+        .and(matchers::path("/test-cid"))
+        .respond_with(ResponseTemplate::new(200).set_body_string(r#"{"version":"1.14.0"}"#))
+        .mount(&server)
+        .await;
+
+    let ipfs = Ipfs::default().with_read_uri(server.uri());
+    let result = IpfsClient::fetch(&ipfs, "test-cid").await;
+    assert!(result.is_ok());
+    assert!(result.unwrap().contains("version"));
+}
+
+#[test]
+fn ipfs_client_default_read_uri_is_none() {
+    let ipfs = Ipfs::default();
+    assert!(ipfs.read_uri.is_none());
+}
