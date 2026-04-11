@@ -698,6 +698,432 @@ fn resolve_api_endpoint_falls_back_when_empty_option() {
     assert_eq!(result, defaults.events_api_base_url);
 }
 
+// ── resolve_api_endpoint across key ─────────────────────────────────────────
+
+#[test]
+fn resolve_api_endpoint_across_key() {
+    let mut options = BungeeApiUrlOptions::default();
+    options.across_api_base_url = "https://across.custom.com".to_owned();
+
+    let result = resolve_api_endpoint_from_options("across_api_base_url", &options, false, None);
+    assert_eq!(result, "https://across.custom.com");
+}
+
+#[test]
+fn resolve_api_endpoint_unknown_key_uses_api_base() {
+    let options = BungeeApiUrlOptions::default();
+    let result = resolve_api_endpoint_from_options("unknown_key", &options, false, None);
+    assert_eq!(result, options.api_base_url);
+}
+
+// ── Across spoke pool addresses ─────────────────────────────────────────────
+
+#[test]
+fn across_spoke_pool_addresses_contains_mainnet() {
+    use cow_rs::bridging::across::across_spoke_pool_addresses;
+    let pools = across_spoke_pool_addresses();
+    assert!(pools.contains_key(&1));
+    assert!(pools.contains_key(&42161));
+    assert!(pools.contains_key(&8453));
+}
+
+// ── Across math contract addresses ──────────────────────────────────────────
+
+#[test]
+fn across_math_contract_addresses_contains_mainnet() {
+    use cow_rs::bridging::across::across_math_contract_addresses;
+    let addrs = across_math_contract_addresses();
+    assert!(addrs.contains_key(&1));
+    assert!(addrs.contains_key(&42161));
+    assert!(addrs.contains_key(&8453));
+}
+
+// ── Across token mapping ────────────────────────────────────────────────────
+
+#[test]
+fn across_token_mapping_contains_expected_chains() {
+    use cow_rs::bridging::across::across_token_mapping;
+    let mapping = across_token_mapping();
+    assert!(mapping.contains_key(&1)); // Mainnet
+    assert!(mapping.contains_key(&42161)); // Arbitrum
+    assert!(mapping.contains_key(&8453)); // Base
+    assert!(mapping.contains_key(&137)); // Polygon
+
+    let mainnet = mapping.get(&1).unwrap();
+    assert!(mainnet.tokens.contains_key("usdc"));
+    assert!(mainnet.tokens.contains_key("weth"));
+    assert!(mainnet.tokens.contains_key("wbtc"));
+}
+
+// ── get_chain_configs ───────────────────────────────────────────────────────
+
+#[test]
+fn get_chain_configs_returns_valid_pair() {
+    use cow_rs::bridging::across::get_chain_configs;
+    let result = get_chain_configs(1, 42161);
+    assert!(result.is_some());
+    let (source, target) = result.unwrap();
+    assert_eq!(source.chain_id, 1);
+    assert_eq!(target.chain_id, 42161);
+}
+
+#[test]
+fn get_chain_configs_returns_none_for_unknown_chain() {
+    use cow_rs::bridging::across::get_chain_configs;
+    let result = get_chain_configs(99999, 42161);
+    assert!(result.is_none());
+}
+
+// ── get_token_symbol ────────────────────────────────────────────────────────
+
+#[test]
+fn get_token_symbol_finds_known_token() {
+    use cow_rs::bridging::across::{across_token_mapping, get_token_symbol};
+    let mapping = across_token_mapping();
+    let mainnet = mapping.get(&1).unwrap();
+    let usdc_addr = mainnet.tokens["usdc"];
+    let symbol = get_token_symbol(usdc_addr, mainnet);
+    assert_eq!(symbol, Some("usdc".to_owned()));
+}
+
+#[test]
+fn get_token_symbol_returns_none_for_unknown() {
+    use alloy_primitives::Address;
+    use cow_rs::bridging::across::{across_token_mapping, get_token_symbol};
+    let mapping = across_token_mapping();
+    let mainnet = mapping.get(&1).unwrap();
+    let symbol = get_token_symbol(Address::ZERO, mainnet);
+    assert!(symbol.is_none());
+}
+
+// ── get_token_address ───────────────────────────────────────────────────────
+
+#[test]
+fn get_token_address_finds_known_symbol() {
+    use cow_rs::bridging::across::{across_token_mapping, get_token_address};
+    let mapping = across_token_mapping();
+    let mainnet = mapping.get(&1).unwrap();
+    let addr = get_token_address("usdc", mainnet);
+    assert!(addr.is_some());
+}
+
+#[test]
+fn get_token_address_returns_none_for_unknown() {
+    use cow_rs::bridging::across::{across_token_mapping, get_token_address};
+    let mapping = across_token_mapping();
+    let mainnet = mapping.get(&1).unwrap();
+    let addr = get_token_address("unknown_token", mainnet);
+    assert!(addr.is_none());
+}
+
+// ── get_token_by_address_and_chain_id ───────────────────────────────────────
+
+#[test]
+fn get_token_by_address_and_chain_id_finds_token() {
+    use cow_rs::bridging::across::{across_token_mapping, get_token_by_address_and_chain_id};
+    let mapping = across_token_mapping();
+    let usdc_addr = mapping.get(&1).unwrap().tokens["usdc"];
+    let result = get_token_by_address_and_chain_id(usdc_addr, 1);
+    assert!(result.is_some());
+    let (sym, addr) = result.unwrap();
+    assert_eq!(sym, "usdc");
+    assert_eq!(addr, usdc_addr);
+}
+
+#[test]
+fn get_token_by_address_and_chain_id_returns_none_for_unknown_chain() {
+    use alloy_primitives::Address;
+    use cow_rs::bridging::across::get_token_by_address_and_chain_id;
+    let result = get_token_by_address_and_chain_id(Address::ZERO, 99999);
+    assert!(result.is_none());
+}
+
+// ── Across event parsing ────────────────────────────────────────────────────
+
+#[test]
+fn get_across_deposit_events_empty_for_unknown_chain() {
+    use cow_rs::bridging::across::{EvmLogEntry, get_across_deposit_events};
+    let events = get_across_deposit_events(99999, &[]);
+    assert!(events.is_empty());
+}
+
+#[test]
+fn get_across_deposit_events_empty_for_no_logs() {
+    use cow_rs::bridging::across::get_across_deposit_events;
+    let events = get_across_deposit_events(1, &[]);
+    assert!(events.is_empty());
+}
+
+#[test]
+fn get_cow_trade_events_empty_for_no_logs() {
+    use cow_rs::bridging::across::get_cow_trade_events;
+    let events = get_cow_trade_events(1, &[], None);
+    assert!(events.is_empty());
+}
+
+#[test]
+fn get_deposit_params_returns_none_for_empty_logs() {
+    use cow_rs::bridging::across::get_deposit_params;
+    let result = get_deposit_params(1, "0xorderid", &[], None);
+    assert!(result.is_none());
+}
+
+// ── Bungee approve and bridge addresses ─────────────────────────────────────
+
+#[test]
+fn bungee_approve_and_bridge_v1_addresses_contains_mainnet() {
+    use cow_rs::bridging::bungee::bungee_approve_and_bridge_v1_addresses;
+    let addrs = bungee_approve_and_bridge_v1_addresses();
+    assert!(addrs.contains_key(&1)); // Mainnet
+    assert!(addrs.contains_key(&100)); // GnosisChain
+    assert!(addrs.contains_key(&42161)); // Arbitrum
+    assert!(addrs.contains_key(&8453)); // Base
+    assert!(addrs.contains_key(&10)); // Optimism
+}
+
+// ── bungee_tx_data_bytes_index ──────────────────────────────────────────────
+
+#[test]
+fn bungee_tx_data_bytes_index_across() {
+    use cow_rs::bridging::bungee::bungee_tx_data_bytes_index;
+    let idx = bungee_tx_data_bytes_index(BungeeBridge::Across, "0xcc54d224");
+    assert!(idx.is_some());
+    let idx = idx.unwrap();
+    assert_eq!(idx.bytes_start_index, 8);
+    assert_eq!(idx.bytes_length, 32);
+}
+
+#[test]
+fn bungee_tx_data_bytes_index_across_alternate_selector() {
+    use cow_rs::bridging::bungee::bungee_tx_data_bytes_index;
+    let idx = bungee_tx_data_bytes_index(BungeeBridge::Across, "0xa3b8bfba");
+    assert!(idx.is_some());
+}
+
+#[test]
+fn bungee_tx_data_bytes_index_cctp() {
+    use cow_rs::bridging::bungee::bungee_tx_data_bytes_index;
+    let idx = bungee_tx_data_bytes_index(BungeeBridge::CircleCctp, "0xb7dfe9d0");
+    assert!(idx.is_some());
+}
+
+#[test]
+fn bungee_tx_data_bytes_index_gnosis_native() {
+    use cow_rs::bridging::bungee::bungee_tx_data_bytes_index;
+    let idx = bungee_tx_data_bytes_index(BungeeBridge::GnosisNative, "0x3bf5c228");
+    assert!(idx.is_some());
+    let idx2 = bungee_tx_data_bytes_index(BungeeBridge::GnosisNative, "0xfcb23eb0");
+    assert!(idx2.is_some());
+}
+
+#[test]
+fn bungee_tx_data_bytes_index_returns_none_for_unknown_selector() {
+    use cow_rs::bridging::bungee::bungee_tx_data_bytes_index;
+    let idx = bungee_tx_data_bytes_index(BungeeBridge::Across, "0x00000000");
+    assert!(idx.is_none());
+    let idx2 = bungee_tx_data_bytes_index(BungeeBridge::CircleCctp, "0x00000000");
+    assert!(idx2.is_none());
+    let idx3 = bungee_tx_data_bytes_index(BungeeBridge::GnosisNative, "0x00000000");
+    assert!(idx3.is_none());
+}
+
+// ── bungee_tx_data_bytes_index case-insensitive ─────────────────────────────
+
+#[test]
+fn bungee_tx_data_bytes_index_case_insensitive() {
+    use cow_rs::bridging::bungee::bungee_tx_data_bytes_index;
+    let idx_lower = bungee_tx_data_bytes_index(BungeeBridge::Across, "0xCC54D224");
+    assert!(idx_lower.is_some());
+}
+
+// ── decode_amounts for CircleCctp ───────────────────────────────────────────
+
+#[test]
+fn decode_amounts_for_circle_cctp() {
+    let amount_hex = "0000000000000000000000000000000000000000000000000000000000000064";
+    let tx_data = format!("0x11223344b7dfe9d0{amount_hex}");
+    let decoded = decode_amounts_bungee_tx_data(&tx_data, BungeeBridge::CircleCctp).unwrap();
+    assert_eq!(decoded.input_amount, U256::from(100u64));
+}
+
+// ── get_display_name_from_bungee_bridge ─────────────────────────────────────
+
+#[test]
+fn get_display_name_from_bungee_bridge_roundtrip() {
+    use cow_rs::bridging::bungee::get_display_name_from_bungee_bridge;
+    assert_eq!(get_display_name_from_bungee_bridge(BungeeBridge::Across), "Across");
+    assert_eq!(get_display_name_from_bungee_bridge(BungeeBridge::CircleCctp), "Circle CCTP");
+    assert_eq!(
+        get_display_name_from_bungee_bridge(BungeeBridge::GnosisNative),
+        "Gnosis Native"
+    );
+}
+
+// ── Bungee deposit call construction ────────────────────────────────────────
+
+#[test]
+fn create_bungee_deposit_call_across() {
+    use cow_rs::bridging::bungee::{BungeeDepositCallParams, create_bungee_deposit_call};
+    let amount_hex = "0000000000000000000000000000000000000000000000000000000000000064";
+    let build_tx_data = format!("0x11223344cc54d224{amount_hex}");
+
+    let params = BungeeDepositCallParams {
+        request: sample_request(),
+        build_tx_data,
+        input_amount: U256::from(100u64),
+        bridge: BungeeBridge::Across,
+    };
+
+    let result = create_bungee_deposit_call(&params);
+    assert!(result.is_ok());
+    let call = result.unwrap();
+    assert!(!call.data.is_empty());
+}
+
+#[test]
+fn create_bungee_deposit_call_unknown_chain_fails() {
+    use cow_rs::bridging::bungee::{BungeeDepositCallParams, create_bungee_deposit_call};
+    let amount_hex = "0000000000000000000000000000000000000000000000000000000000000064";
+    let build_tx_data = format!("0x11223344cc54d224{amount_hex}");
+
+    let mut req = sample_request();
+    req.sell_chain_id = 99999;
+
+    let params = BungeeDepositCallParams {
+        request: req,
+        build_tx_data,
+        input_amount: U256::from(100u64),
+        bridge: BungeeBridge::Across,
+    };
+
+    let result = create_bungee_deposit_call(&params);
+    assert!(result.is_err());
+}
+
+// ── Across status from events with Across error ────────────────────────────
+
+#[tokio::test]
+async fn status_from_events_src_complete_dest_pending_across_error_returns_in_progress() {
+    let across_error = |_: &str| async { Err(BridgeError::QuoteError("api error".to_owned())) };
+
+    let event = make_bungee_event(
+        BungeeEventStatus::Completed,
+        BungeeEventStatus::Pending,
+        BungeeBridgeName::Across,
+    );
+    let result = get_bridging_status_from_events(Some(&[event]), across_error)
+        .await
+        .unwrap();
+    assert!(matches!(result.status, BridgeStatus::InProgress));
+}
+
+// ── Across deposit call params ──────────────────────────────────────────────
+
+#[test]
+fn across_deposit_call_params_debug() {
+    use cow_rs::bridging::across::AcrossDepositCallParams;
+    let params = AcrossDepositCallParams {
+        request: sample_request(),
+        suggested_fees: sample_suggested_fees(),
+        cow_shed_account: address!("1111111111111111111111111111111111111111"),
+    };
+    let debug = format!("{params:?}");
+    assert!(debug.contains("AcrossDepositCallParams"));
+}
+
+// ── Across to_bridge_quote_result with zero amounts ─────────────────────────
+
+#[test]
+fn across_to_bridge_quote_result_zero_sell_amount() {
+    let mut req = sample_request();
+    req.sell_amount = U256::ZERO;
+    let fees = sample_suggested_fees();
+    let result = to_bridge_quote_result(&req, 50, &fees);
+    assert!(result.is_ok());
+}
+
+// ── Bungee quote response with multiple routes ──────────────────────────────
+
+#[test]
+fn is_valid_quote_response_multiple_routes() {
+    let resp = json!({
+        "success": true,
+        "result": {
+            "manualRoutes": [
+                {
+                    "quoteId": "q-1",
+                    "output": { "amount": "100" },
+                    "estimatedTime": 60,
+                    "routeDetails": { "routeFee": { "amount": "5" } }
+                },
+                {
+                    "quoteId": "q-2",
+                    "output": { "amount": "200" },
+                    "estimatedTime": 30,
+                    "routeDetails": { "routeFee": { "amount": "3" } }
+                }
+            ]
+        }
+    });
+    assert!(is_valid_quote_response(&resp));
+}
+
+// ── Bungee events response with multiple events ─────────────────────────────
+
+#[test]
+fn is_valid_bungee_events_response_multiple_events() {
+    let resp = json!({
+        "success": true,
+        "result": [
+            {
+                "identifier": "evt-1",
+                "bridgeName": "across",
+                "fromChainId": 1,
+                "orderId": "o-1",
+                "srcTxStatus": "COMPLETED",
+                "destTxStatus": "COMPLETED"
+            },
+            {
+                "identifier": "evt-2",
+                "bridgeName": "cctp",
+                "fromChainId": 137,
+                "orderId": "o-2",
+                "srcTxStatus": "PENDING",
+                "destTxStatus": "PENDING"
+            }
+        ]
+    });
+    assert!(is_valid_bungee_events_response(&resp));
+}
+
+// ── BungeeApiUrlOptions default values ──────────────────────────────────────
+
+#[test]
+fn bungee_api_url_options_default_values() {
+    let options = BungeeApiUrlOptions::default();
+    assert!(!options.api_base_url.is_empty());
+    assert!(!options.manual_api_base_url.is_empty());
+    assert!(!options.events_api_base_url.is_empty());
+    assert!(!options.across_api_base_url.is_empty());
+}
+
+// ── decode_bungee_bridge_tx_data edge cases ─────────────────────────────────
+
+#[test]
+fn decode_bungee_bridge_tx_data_minimal_valid() {
+    let tx_data = "0x1122334455667788aabbccdd";
+    let decoded = decode_bungee_bridge_tx_data(tx_data).unwrap();
+    assert_eq!(decoded.route_id, "0x11223344");
+    assert!(decoded.encoded_function_data.starts_with("0x55667788"));
+}
+
+#[test]
+fn decode_bungee_bridge_tx_data_only_route_id_no_selector() {
+    let tx_data = "0x112233445566";
+    let result = decode_bungee_bridge_tx_data(tx_data);
+    assert!(result.is_err());
+}
+
 // ── BridgingSdk with mock provider ───────────────────────────────────────────
 
 struct MockProvider {

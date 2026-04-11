@@ -10,7 +10,9 @@
     clippy::deref_by_slicing,
     clippy::redundant_clone,
     clippy::single_match_else,
-    clippy::single_match
+    clippy::single_match,
+    clippy::unwrap_used,
+    clippy::expect_used
 )]
 //! Wiremock-based integration tests for [`TradingSdk`] high-level trading methods.
 
@@ -906,4 +908,514 @@ fn unsigned_order_for_signing_is_identity() {
     let same = cow_rs::trading::unsigned_order_for_signing(order.clone());
     assert_eq!(same.sell_amount, order.sell_amount);
     assert_eq!(same.buy_amount, order.buy_amount);
+}
+
+// ── TradingSdk::off_chain_cancel_order ──────────────────────────────────────
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn off_chain_cancel_order_sends_delete_request() {
+    let server = MockServer::start().await;
+    let uid = "0x".to_owned() + &"55".repeat(56);
+    Mock::given(matchers::method("DELETE"))
+        .and(matchers::path("/api/v1/orders"))
+        .respond_with(ResponseTemplate::new(200).set_body_string("\"Cancelled\""))
+        .mount(&server)
+        .await;
+
+    let sdk = make_sdk(&server);
+    let result = sdk
+        .off_chain_cancel_order(uid, cow_rs::EcdsaSigningScheme::Eip712)
+        .await;
+    assert!(result.is_ok());
+}
+
+// ── TradingSdk::off_chain_cancel_orders (multiple) ──────────────────────────
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn off_chain_cancel_orders_sends_delete_request() {
+    let server = MockServer::start().await;
+    let uid1 = "0x".to_owned() + &"56".repeat(56);
+    let uid2 = "0x".to_owned() + &"57".repeat(56);
+    Mock::given(matchers::method("DELETE"))
+        .and(matchers::path("/api/v1/orders"))
+        .respond_with(ResponseTemplate::new(200).set_body_string("\"Cancelled\""))
+        .mount(&server)
+        .await;
+
+    let sdk = make_sdk(&server);
+    let result = sdk
+        .off_chain_cancel_orders(vec![uid1, uid2], cow_rs::EcdsaSigningScheme::Eip712)
+        .await;
+    assert!(result.is_ok());
+}
+
+// ── TradingSdk::get_order_multi_env ─────────────────────────────────────────
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn get_order_multi_env_returns_order() {
+    let server = MockServer::start().await;
+    let uid = "0x".to_owned() + &"58".repeat(56);
+    Mock::given(matchers::method("GET"))
+        .and(matchers::path_regex(r"/api/v1/orders/.*"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(make_order_json(&uid)))
+        .mount(&server)
+        .await;
+
+    let sdk = make_sdk(&server);
+    let order = sdk.get_order_multi_env(&uid).await.unwrap();
+    assert_eq!(order.uid, uid);
+}
+
+// ── TradingSdk::get_orders (paginated) ──────────────────────────────────────
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn get_orders_paginated_returns_list() {
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("GET"))
+        .and(matchers::path_regex(r"/api/v1/account/.*/orders"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!([])))
+        .mount(&server)
+        .await;
+
+    let sdk = make_sdk(&server);
+    let req = cow_rs::GetOrdersRequest::for_owner(
+        "0x1111111111111111111111111111111111111111".parse().unwrap(),
+    );
+    let orders = sdk.get_orders(&req).await.unwrap();
+    assert!(orders.is_empty());
+}
+
+// ── TradingSdk::get_trades_with_request ─────────────────────────────────────
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn get_trades_with_request_returns_list() {
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("GET"))
+        .and(matchers::path("/api/v2/trades"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!([])))
+        .mount(&server)
+        .await;
+
+    let sdk = make_sdk(&server);
+    let req = cow_rs::GetTradesRequest {
+        owner: Some("0x1111111111111111111111111111111111111111".parse().unwrap()),
+        order_uid: None,
+        limit: Some(5),
+        offset: None,
+    };
+    let trades = sdk.get_trades_with_request(&req).await.unwrap();
+    assert!(trades.is_empty());
+}
+
+// ── TradingSdk::get_solver_competition ──────────────────────────────────────
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn get_solver_competition_by_id_parses() {
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("GET"))
+        .and(matchers::path_regex(r"/api/v1/solver_competition/\d+"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "auctionId": 42,
+            "transactionHash": null,
+            "gasPrice": null,
+            "liquidityCollectedBlock": null,
+            "competitionSimulationBlock": null,
+            "auctionStartBlock": 100,
+            "solutions": []
+        })))
+        .mount(&server)
+        .await;
+
+    let sdk = make_sdk(&server);
+    let competition = sdk.get_solver_competition(42).await.unwrap();
+    assert_eq!(competition.auction_id, Some(42));
+}
+
+// ── TradingSdk::get_solver_competition_by_tx ────────────────────────────────
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn get_solver_competition_by_tx_parses() {
+    let server = MockServer::start().await;
+    let tx_hash = "0x".to_owned() + &"ab".repeat(32);
+    Mock::given(matchers::method("GET"))
+        .and(matchers::path_regex(r"/api/v1/solver_competition/by_tx_hash/.*"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "auctionId": 99,
+            "transactionHash": null,
+            "gasPrice": null,
+            "liquidityCollectedBlock": null,
+            "competitionSimulationBlock": null,
+            "auctionStartBlock": 200,
+            "solutions": []
+        })))
+        .mount(&server)
+        .await;
+
+    let sdk = make_sdk(&server);
+    let competition = sdk.get_solver_competition_by_tx(&tx_hash).await.unwrap();
+    assert_eq!(competition.auction_id, Some(99));
+}
+
+// ── TradingSdk::get_solver_competition_latest_v2 ────────────────────────────
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn get_solver_competition_latest_v2_parses() {
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("GET"))
+        .and(matchers::path("/api/v2/solver_competition/latest"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "auctionId": 77,
+            "transactionHash": null,
+            "gasPrice": null,
+            "liquidityCollectedBlock": null,
+            "competitionSimulationBlock": null,
+            "auctionStartBlock": 300,
+            "solutions": []
+        })))
+        .mount(&server)
+        .await;
+
+    let sdk = make_sdk(&server);
+    let competition = sdk.get_solver_competition_latest_v2().await.unwrap();
+    assert_eq!(competition.auction_id, Some(77));
+}
+
+// ── TradingSdk::get_solver_competition_v2 ───────────────────────────────────
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn get_solver_competition_v2_by_id_parses() {
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("GET"))
+        .and(matchers::path_regex(r"/api/v2/solver_competition/\d+"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "auctionId": 88,
+            "transactionHash": null,
+            "gasPrice": null,
+            "liquidityCollectedBlock": null,
+            "competitionSimulationBlock": null,
+            "auctionStartBlock": 400,
+            "solutions": []
+        })))
+        .mount(&server)
+        .await;
+
+    let sdk = make_sdk(&server);
+    let competition = sdk.get_solver_competition_v2(88).await.unwrap();
+    assert_eq!(competition.auction_id, Some(88));
+}
+
+// ── TradingSdk::get_solver_competition_by_tx_v2 ────────────────────────────
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn get_solver_competition_by_tx_v2_parses() {
+    let server = MockServer::start().await;
+    let tx_hash = "0x".to_owned() + &"cd".repeat(32);
+    Mock::given(matchers::method("GET"))
+        .and(matchers::path_regex(r"/api/v2/solver_competition/by_tx_hash/.*"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "auctionId": 55,
+            "transactionHash": null,
+            "gasPrice": null,
+            "liquidityCollectedBlock": null,
+            "competitionSimulationBlock": null,
+            "auctionStartBlock": 500,
+            "solutions": []
+        })))
+        .mount(&server)
+        .await;
+
+    let sdk = make_sdk(&server);
+    let competition = sdk.get_solver_competition_by_tx_v2(&tx_hash).await.unwrap();
+    assert_eq!(competition.auction_id, Some(55));
+}
+
+// ── TradingSdk::get_limit_trade_parameters ──────────────────────────────────
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn get_limit_trade_parameters_from_api() {
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("POST"))
+        .and(matchers::path("/api/v1/quote"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(make_quote_response_json()))
+        .mount(&server)
+        .await;
+
+    let sdk = make_sdk(&server);
+    let limit = sdk.get_limit_trade_parameters(default_trade_params()).await.unwrap();
+
+    assert_eq!(limit.sell_token, SELL_TOKEN.parse::<Address>().unwrap());
+    assert_eq!(limit.buy_token, BUY_TOKEN.parse::<Address>().unwrap());
+    assert!(!limit.sell_amount.is_zero());
+    assert!(!limit.buy_amount.is_zero());
+    assert_eq!(limit.kind, OrderKind::Sell);
+}
+
+// ── get_eth_flow_cancellation ───────────────────────────────────────────────
+
+#[test]
+fn get_eth_flow_cancellation_returns_calldata() {
+    let uid = "0x".to_owned() + &"ab".repeat(56);
+    let tx = cow_rs::trading::get_eth_flow_cancellation(
+        SupportedChainId::Mainnet,
+        Env::Prod,
+        &uid,
+    )
+    .unwrap();
+    assert!(!tx.data.is_empty());
+    assert_eq!(tx.value, U256::ZERO);
+    assert_eq!(tx.gas_limit, cow_rs::GAS_LIMIT_DEFAULT);
+    assert_ne!(tx.to, Address::ZERO);
+}
+
+// ── get_settlement_cancellation ─────────────────────────────────────────────
+
+#[test]
+fn get_settlement_cancellation_returns_calldata() {
+    let uid = "0x".to_owned() + &"cd".repeat(56);
+    let tx = cow_rs::trading::get_settlement_cancellation(
+        SupportedChainId::Mainnet,
+        Env::Prod,
+        &uid,
+    )
+    .unwrap();
+    assert!(!tx.data.is_empty());
+    assert_eq!(tx.value, U256::ZERO);
+    assert_ne!(tx.to, Address::ZERO);
+}
+
+// ── get_order_to_sign ───────────────────────────────────────────────────────
+
+#[test]
+fn get_order_to_sign_returns_valid_order() {
+    let params = cow_rs::LimitTradeParameters {
+        kind: OrderKind::Sell,
+        sell_token: SELL_TOKEN.parse().unwrap(),
+        buy_token: BUY_TOKEN.parse().unwrap(),
+        sell_amount: U256::from(1_000_000u64),
+        buy_amount: U256::from(500_000_000_000_000u64),
+        receiver: None,
+        valid_for: None,
+        valid_to: Some(9_999_999),
+        partially_fillable: false,
+        app_data: None,
+        partner_fee: None,
+    };
+    let from: Address = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266".parse().unwrap();
+    let order = cow_rs::trading::get_order_to_sign(
+        SupportedChainId::Mainnet,
+        from,
+        false,
+        U256::ZERO,
+        false,
+        &params,
+        "0x0000000000000000000000000000000000000000000000000000000000000000",
+    );
+    assert_eq!(order.sell_token, SELL_TOKEN.parse::<Address>().unwrap());
+    assert_eq!(order.buy_token, BUY_TOKEN.parse::<Address>().unwrap());
+    assert_eq!(order.sell_amount, U256::from(1_000_000u64));
+    assert_eq!(order.valid_to, 9_999_999);
+    assert_eq!(order.receiver, from);
+    assert_eq!(order.fee_amount, U256::ZERO);
+}
+
+#[test]
+fn get_order_to_sign_with_slippage_adjustment() {
+    let params = cow_rs::LimitTradeParameters {
+        kind: OrderKind::Sell,
+        sell_token: SELL_TOKEN.parse().unwrap(),
+        buy_token: BUY_TOKEN.parse().unwrap(),
+        sell_amount: U256::from(1_000_000u64),
+        buy_amount: U256::from(500_000_000_000_000u64),
+        receiver: None,
+        valid_for: None,
+        valid_to: Some(9_999_999),
+        partially_fillable: false,
+        app_data: None,
+        partner_fee: None,
+    };
+    let from: Address = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266".parse().unwrap();
+    let order = cow_rs::trading::get_order_to_sign(
+        SupportedChainId::Mainnet,
+        from,
+        false,
+        U256::from(1000u64),
+        true,
+        &params,
+        "0x0000000000000000000000000000000000000000000000000000000000000000",
+    );
+    // For sell orders with apply_costs_slippage_and_fees=true, buy_amount should be reduced.
+    assert!(order.buy_amount < U256::from(500_000_000_000_000u64));
+}
+
+// ── get_order_typed_data ────────────────────────────────────────────────────
+
+#[test]
+fn get_order_typed_data_returns_typed_data() {
+    let order = cow_rs::UnsignedOrder::sell(
+        SELL_TOKEN.parse().unwrap(),
+        BUY_TOKEN.parse().unwrap(),
+        U256::from(1_000_000u64),
+        U256::from(500_000_000_000_000u64),
+    );
+    let typed_data = cow_rs::trading::get_order_typed_data(SupportedChainId::Mainnet, order);
+    assert_eq!(typed_data.domain.chain_id, SupportedChainId::Mainnet.as_u64());
+}
+
+// ── get_slippage_percent buy order ──────────────────────────────────────────
+
+#[test]
+fn get_slippage_percent_buy_order() {
+    let result = cow_rs::trading::get_slippage_percent(
+        false,
+        U256::from(1_000_000u64),
+        U256::from(999_000u64),
+        U256::from(5_000u64),
+    )
+    .unwrap();
+    assert!(result > 0.0);
+    assert!(result < 1.0);
+}
+
+// ── adjust_eth_flow_order_params ────────────────────────────────────────────
+
+#[test]
+fn adjust_eth_flow_order_params_replaces_sell_token() {
+    let params = TradeParameters {
+        kind: OrderKind::Sell,
+        sell_token: cow_rs::NATIVE_CURRENCY_ADDRESS,
+        sell_token_decimals: 18,
+        buy_token: BUY_TOKEN.parse().unwrap(),
+        buy_token_decimals: 18,
+        amount: U256::from(1u64),
+        slippage_bps: Some(50),
+        receiver: None,
+        valid_for: None,
+        valid_to: None,
+        partially_fillable: None,
+        partner_fee: None,
+    };
+    let adjusted = cow_rs::trading::adjust_eth_flow_order_params(SupportedChainId::Mainnet, params);
+    assert_ne!(adjusted.sell_token, cow_rs::NATIVE_CURRENCY_ADDRESS);
+}
+
+// ── adjust_eth_flow_limit_order_params ──────────────────────────────────────
+
+#[test]
+fn adjust_eth_flow_limit_order_params_replaces_sell_token() {
+    let params = cow_rs::LimitTradeParameters {
+        kind: OrderKind::Sell,
+        sell_token: cow_rs::NATIVE_CURRENCY_ADDRESS,
+        buy_token: BUY_TOKEN.parse().unwrap(),
+        sell_amount: U256::from(1u64),
+        buy_amount: U256::from(1u64),
+        receiver: None,
+        valid_for: None,
+        valid_to: None,
+        partially_fillable: false,
+        app_data: None,
+        partner_fee: None,
+    };
+    let adjusted = cow_rs::trading::adjust_eth_flow_limit_order_params(
+        SupportedChainId::Mainnet,
+        params,
+    );
+    assert_ne!(adjusted.sell_token, cow_rs::NATIVE_CURRENCY_ADDRESS);
+}
+
+// ── get_trade_parameters_after_quote ────────────────────────────────────────
+
+#[test]
+fn get_trade_parameters_after_quote_restores_sell_token() {
+    let params = TradeParameters {
+        kind: OrderKind::Sell,
+        sell_token: Address::ZERO,
+        sell_token_decimals: 18,
+        buy_token: BUY_TOKEN.parse().unwrap(),
+        buy_token_decimals: 18,
+        amount: U256::from(1u64),
+        slippage_bps: Some(50),
+        receiver: None,
+        valid_for: None,
+        valid_to: None,
+        partially_fillable: None,
+        partner_fee: None,
+    };
+    let restored = cow_rs::trading::get_trade_parameters_after_quote(
+        params,
+        cow_rs::NATIVE_CURRENCY_ADDRESS,
+    );
+    assert_eq!(restored.sell_token, cow_rs::NATIVE_CURRENCY_ADDRESS);
+}
+
+// ── TradingSdkConfig builder with utm and partner_fee ───────────────────────
+
+#[test]
+fn config_with_utm_and_partner_fee() {
+    let utm = cow_rs::Utm {
+        utm_source: Some("test".to_owned()),
+        utm_medium: None,
+        utm_campaign: None,
+        utm_term: None,
+        utm_content: None,
+    };
+    let fee = cow_rs::PartnerFee::single(
+        cow_rs::PartnerFeeEntry::volume(10, "0x1111111111111111111111111111111111111111"),
+    );
+    let config = TradingSdkConfig::prod(SupportedChainId::Mainnet, "MyApp")
+        .with_utm(utm)
+        .with_partner_fee(fee);
+    assert!(config.utm.is_some());
+    assert!(config.partner_fee.is_some());
+}
+
+// ── get_order_deadline_from_now ─────────────────────────────────────────────
+
+#[test]
+fn get_order_deadline_from_now_is_in_future() {
+    let deadline = cow_rs::trading::get_order_deadline_from_now(1800);
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as u32;
+    assert!(deadline > now);
+}
+
+// ── build_app_data with partner_fee ─────────────────────────────────────────
+
+#[test]
+fn build_app_data_with_partner_fee() {
+    let fee = cow_rs::PartnerFee::single(
+        cow_rs::PartnerFeeEntry::volume(100, "0x1111111111111111111111111111111111111111"),
+    );
+    let info =
+        cow_rs::trading::build_app_data("MyDApp", 50, cow_rs::OrderClassKind::Limit, Some(&fee));
+    assert!(!info.full_app_data.is_empty());
+    assert!(info.app_data_keccak256.starts_with("0x"));
+}
+
+// ── get_settlement_contract staging ─────────────────────────────────────────
+
+#[test]
+fn get_settlement_contract_staging_non_zero() {
+    let addr = cow_rs::trading::get_settlement_contract(SupportedChainId::Mainnet, Env::Staging);
+    assert_ne!(addr, Address::ZERO);
+}
+
+// ── get_eth_flow_contract staging ───────────────────────────────────────────
+
+#[test]
+fn get_eth_flow_contract_staging_non_zero() {
+    let addr = cow_rs::trading::get_eth_flow_contract(SupportedChainId::Mainnet, Env::Staging);
+    assert_ne!(addr, Address::ZERO);
 }
