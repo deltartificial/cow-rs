@@ -811,3 +811,377 @@ fn deterministic_salt(d: &TwapData) -> B256 {
     buf.extend_from_slice(&d.num_parts.to_be_bytes());
     keccak256(&buf)
 }
+
+// ── Tests ────────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sell_token() -> Address {
+        Address::repeat_byte(0x11)
+    }
+
+    fn buy_token() -> Address {
+        Address::repeat_byte(0x22)
+    }
+
+    fn sample_data() -> TwapData {
+        TwapData::sell(sell_token(), buy_token(), U256::from(1000u64), 4, 3600)
+            .with_buy_amount(U256::from(800u64))
+    }
+
+    // ── encode / decode roundtrip ────────────────────────────────────────
+
+    #[test]
+    fn encode_decode_twap_struct_roundtrip() {
+        let data = sample_data();
+        let s = data_to_struct(&data).unwrap();
+        let bytes = encode_twap_struct(&s);
+        assert_eq!(bytes.len(), 320);
+        let decoded = decode_twap_struct(&bytes).unwrap();
+        assert_eq!(decoded.sell_token, s.sell_token);
+        assert_eq!(decoded.buy_token, s.buy_token);
+        assert_eq!(decoded.receiver, s.receiver);
+        assert_eq!(decoded.part_sell_amount, s.part_sell_amount);
+        assert_eq!(decoded.min_part_limit, s.min_part_limit);
+        assert_eq!(decoded.t0, s.t0);
+        assert_eq!(decoded.n, s.n);
+        assert_eq!(decoded.t, s.t);
+        assert_eq!(decoded.span, s.span);
+        assert_eq!(decoded.app_data, s.app_data);
+    }
+
+    #[test]
+    fn data_to_struct_to_data_roundtrip() {
+        let data = sample_data();
+        let s = data_to_struct(&data).unwrap();
+        let back = struct_to_data(&s);
+        assert_eq!(back.sell_token, data.sell_token);
+        assert_eq!(back.buy_token, data.buy_token);
+        assert_eq!(back.sell_amount, data.sell_amount);
+        assert_eq!(back.buy_amount, data.buy_amount);
+        assert_eq!(back.num_parts, data.num_parts);
+        assert_eq!(back.part_duration, data.part_duration);
+    }
+
+    #[test]
+    fn decode_twap_static_input_roundtrip() {
+        let data = sample_data();
+        let s = data_to_struct(&data).unwrap();
+        let bytes = encode_twap_struct(&s);
+        let decoded_data = decode_twap_static_input(&bytes).unwrap();
+        assert_eq!(decoded_data.sell_amount, data.sell_amount);
+        assert_eq!(decoded_data.buy_amount, data.buy_amount);
+    }
+
+    // ── error cases ──────────────────────────────────────────────────────
+
+    #[test]
+    fn decode_twap_struct_too_short() {
+        let result = decode_twap_struct(&[0u8; 319]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn data_to_struct_zero_num_parts() {
+        let mut data = sample_data();
+        data.num_parts = 0;
+        assert!(data_to_struct(&data).is_err());
+    }
+
+    // ── encode_params / decode_params roundtrip ──────────────────────────
+
+    #[test]
+    fn encode_decode_params_roundtrip() {
+        let params = ConditionalOrderParams {
+            handler: Address::repeat_byte(0xaa),
+            salt: B256::new([0xbb; 32]),
+            static_input: vec![0xcc; 50],
+        };
+        let hex = encode_params(&params);
+        let decoded = decode_params(&hex).unwrap();
+        assert_eq!(decoded.handler, params.handler);
+        assert_eq!(decoded.salt, params.salt);
+        assert_eq!(decoded.static_input, params.static_input);
+    }
+
+    #[test]
+    fn decode_params_invalid_hex() {
+        assert!(decode_params("0xZZZZ").is_err());
+    }
+
+    #[test]
+    fn decode_params_too_short() {
+        assert!(decode_params("0xabcd").is_err());
+    }
+
+    // ── order_id ─────────────────────────────────────────────────────────
+
+    #[test]
+    fn order_id_deterministic() {
+        let params = ConditionalOrderParams {
+            handler: Address::ZERO,
+            salt: B256::ZERO,
+            static_input: vec![0xab, 0xcd],
+        };
+        let id1 = order_id(&params);
+        let id2 = order_id(&params);
+        assert_eq!(id1, id2);
+        assert_ne!(id1, B256::ZERO);
+    }
+
+    #[test]
+    fn order_id_changes_with_salt() {
+        let p1 = ConditionalOrderParams {
+            handler: Address::ZERO,
+            salt: B256::ZERO,
+            static_input: vec![],
+        };
+        let p2 = ConditionalOrderParams {
+            handler: Address::ZERO,
+            salt: B256::new([1u8; 32]),
+            static_input: vec![],
+        };
+        assert_ne!(order_id(&p1), order_id(&p2));
+    }
+
+    // ── TwapOrder methods ────────────────────────────────────────────────
+
+    #[test]
+    fn twap_order_new_deterministic_salt() {
+        let data = sample_data();
+        let order1 = TwapOrder::new(data.clone());
+        let order2 = TwapOrder::new(data);
+        assert_eq!(order1.salt, order2.salt);
+    }
+
+    #[test]
+    fn twap_order_with_salt() {
+        let data = sample_data();
+        let salt = B256::new([0xff; 32]);
+        let order = TwapOrder::with_salt(data, salt);
+        assert_eq!(order.salt, salt);
+    }
+
+    #[test]
+    fn twap_order_to_params_and_id() {
+        let order = TwapOrder::new(sample_data());
+        let params = order.to_params().unwrap();
+        assert_eq!(params.handler, TWAP_HANDLER_ADDRESS);
+        let id = order.id().unwrap();
+        assert_ne!(id, B256::ZERO);
+    }
+
+    #[test]
+    fn twap_order_per_part_amounts() {
+        let data = sample_data();
+        let order = TwapOrder::new(data);
+        let (sell, buy) = order.per_part_amounts().unwrap();
+        assert_eq!(sell, U256::from(250u64));
+        assert_eq!(buy, U256::from(200u64));
+    }
+
+    #[test]
+    fn twap_order_per_part_amounts_zero_parts() {
+        let mut data = sample_data();
+        data.num_parts = 0;
+        let order = TwapOrder::new(data);
+        assert!(order.per_part_amounts().is_err());
+    }
+
+    #[test]
+    fn twap_order_is_valid_happy_path() {
+        let order = TwapOrder::new(sample_data());
+        assert!(order.is_valid());
+    }
+
+    #[test]
+    fn twap_order_is_valid_same_tokens() {
+        let mut data = sample_data();
+        data.buy_token = data.sell_token;
+        let order = TwapOrder::new(data);
+        assert!(!order.is_valid());
+    }
+
+    #[test]
+    fn twap_order_is_valid_zero_sell_token() {
+        let mut data = sample_data();
+        data.sell_token = Address::ZERO;
+        assert!(!TwapOrder::new(data).is_valid());
+    }
+
+    #[test]
+    fn twap_order_is_valid_zero_sell_amount() {
+        let mut data = sample_data();
+        data.sell_amount = U256::ZERO;
+        assert!(!TwapOrder::new(data).is_valid());
+    }
+
+    #[test]
+    fn twap_order_is_valid_one_part() {
+        let mut data = sample_data();
+        data.num_parts = 1;
+        assert!(!TwapOrder::new(data).is_valid());
+    }
+
+    #[test]
+    fn twap_order_is_valid_zero_duration() {
+        let mut data = sample_data();
+        data.part_duration = 0;
+        assert!(!TwapOrder::new(data).is_valid());
+    }
+
+    #[test]
+    fn twap_order_is_valid_sell_amount_not_divisible() {
+        let mut data = sample_data();
+        data.sell_amount = U256::from(1001u64); // not divisible by 4
+        assert!(!TwapOrder::new(data).is_valid());
+    }
+
+    #[test]
+    fn twap_order_is_valid_limit_duration_exceeds_part_duration() {
+        let mut data = sample_data();
+        data.duration_of_part = DurationOfPart::LimitDuration { duration: 7200 }; // > 3600
+        assert!(!TwapOrder::new(data).is_valid());
+    }
+
+    #[test]
+    fn twap_order_is_valid_limit_duration_within_bounds() {
+        let mut data = sample_data();
+        data.duration_of_part = DurationOfPart::LimitDuration { duration: 1800 };
+        assert!(TwapOrder::new(data).is_valid());
+    }
+
+    // ── poll_validate ────────────────────────────────────────────────────
+
+    #[test]
+    fn poll_validate_at_mining_time_always_success() {
+        let order = TwapOrder::new(sample_data());
+        match order.poll_validate(0) {
+            PollResult::Success { .. } => {}
+            other => panic!("expected Success, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn poll_validate_before_start() {
+        let mut data = sample_data();
+        data.start_time = TwapStartTime::At(1_000_000);
+        let order = TwapOrder::new(data);
+        match order.poll_validate(999_999) {
+            PollResult::TryAtEpoch { epoch } => assert_eq!(epoch, 1_000_000),
+            other => panic!("expected TryAtEpoch, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn poll_validate_within_window() {
+        let mut data = sample_data();
+        data.start_time = TwapStartTime::At(1_000_000);
+        let order = TwapOrder::new(data);
+        // end = 1_000_000 + 4 * 3600 = 1_014_400
+        match order.poll_validate(1_007_000) {
+            PollResult::Success { .. } => {}
+            other => panic!("expected Success, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn poll_validate_after_expiry() {
+        let mut data = sample_data();
+        data.start_time = TwapStartTime::At(1_000_000);
+        let order = TwapOrder::new(data);
+        match order.poll_validate(1_014_400) {
+            PollResult::DontTryAgain { .. } => {}
+            other => panic!("expected DontTryAgain, got {other:?}"),
+        }
+    }
+
+    // ── Accessor methods ─────────────────────────────────────────────────
+
+    #[test]
+    fn twap_order_accessors() {
+        let mut data = sample_data();
+        data.start_time = TwapStartTime::At(42);
+        let order = TwapOrder::new(data);
+        assert_eq!(order.total_sell_amount(), U256::from(1000u64));
+        assert_eq!(order.total_buy_amount(), U256::from(800u64));
+        assert!(order.is_sell());
+        assert!(!order.is_buy());
+        assert_eq!(order.start_timestamp(), Some(42));
+        assert_eq!(order.salt_ref(), &order.salt);
+        assert_eq!(order.data_ref().num_parts, 4);
+    }
+
+    #[test]
+    fn twap_order_is_expired_at() {
+        let mut data = sample_data();
+        data.start_time = TwapStartTime::At(1_000_000);
+        let order = TwapOrder::new(data);
+        assert!(!order.is_expired_at(1_014_399));
+        assert!(order.is_expired_at(1_014_400));
+    }
+
+    #[test]
+    fn twap_order_at_mining_time_start_timestamp_none() {
+        let order = TwapOrder::new(sample_data());
+        assert_eq!(order.start_timestamp(), None);
+    }
+
+    // ── format_epoch ─────────────────────────────────────────────────────
+
+    #[test]
+    fn format_epoch_known_timestamp() {
+        let s = format_epoch(1_700_000_000);
+        assert!(s.starts_with("2023-11-14"));
+    }
+
+    // ── to_struct ────────────────────────────────────────────────────────
+
+    #[test]
+    fn to_struct_with_limit_duration() {
+        let mut data = sample_data();
+        data.duration_of_part = DurationOfPart::LimitDuration { duration: 1800 };
+        let order = TwapOrder::new(data);
+        let s = order.to_struct().unwrap();
+        assert_eq!(s.span, 1800);
+    }
+
+    #[test]
+    fn to_struct_auto_duration() {
+        let order = TwapOrder::new(sample_data());
+        let s = order.to_struct().unwrap();
+        assert_eq!(s.span, 0);
+    }
+
+    // ── struct_to_data edge cases ────────────────────────────────────────
+
+    #[test]
+    fn struct_to_data_at_mining_time() {
+        let s = data_to_struct(&sample_data()).unwrap();
+        let data = struct_to_data(&s);
+        assert!(matches!(data.start_time, TwapStartTime::AtMiningTime));
+        assert!(matches!(data.duration_of_part, DurationOfPart::Auto));
+    }
+
+    #[test]
+    fn struct_to_data_with_fixed_start() {
+        let mut d = sample_data();
+        d.start_time = TwapStartTime::At(12345);
+        d.duration_of_part = DurationOfPart::LimitDuration { duration: 600 };
+        let s = data_to_struct(&d).unwrap();
+        let back = struct_to_data(&s);
+        assert!(matches!(back.start_time, TwapStartTime::At(12345)));
+        assert!(matches!(back.duration_of_part, DurationOfPart::LimitDuration { duration: 600 }));
+    }
+
+    // ── Display ──────────────────────────────────────────────────────────
+
+    #[test]
+    fn twap_order_display_does_not_panic() {
+        let order = TwapOrder::new(sample_data());
+        let s = format!("{order}");
+        assert!(!s.is_empty());
+    }
+}

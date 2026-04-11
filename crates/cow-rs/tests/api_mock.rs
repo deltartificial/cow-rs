@@ -534,6 +534,331 @@ async fn partner_api_headers_survive_retry() {
     assert_eq!(v, "1.2.3");
 }
 
+// ── GET /api/v2/trades?orderUid= ─────────────────────────────────────────────
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn get_trades_by_order_uid_returns_list() {
+    let server = MockServer::start().await;
+    let uid = "0x".to_owned() + &"ee".repeat(56);
+    Mock::given(matchers::method("GET"))
+        .and(matchers::path("/api/v2/trades"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!([{
+            "blockNumber":           12345,
+            "logIndex":              0,
+            "orderUid":              &uid,
+            "owner":                 "0x1111111111111111111111111111111111111111",
+            "sellToken":             "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+            "buyToken":              "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+            "sellAmount":            "1000000",
+            "sellAmountBeforeFees":  "1001000",
+            "buyAmount":             "500000000000000000",
+            "txHash":                "0xdeadbeef"
+        }])))
+        .mount(&server)
+        .await;
+    let trades: Vec<Trade> = make_api(&server).get_trades(Some(&uid), Some(5)).await.unwrap();
+    assert_eq!(trades.len(), 1);
+    assert_eq!(trades[0].block_number, 12345);
+    assert!(trades[0].has_tx_hash());
+}
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn get_trades_without_uid_returns_list() {
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("GET"))
+        .and(matchers::path("/api/v2/trades"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!([])))
+        .mount(&server)
+        .await;
+    let trades: Vec<Trade> = make_api(&server).get_trades(None, Some(10)).await.unwrap();
+    assert!(trades.is_empty());
+}
+
+// ── GET /api/v2/trades (GetTradesRequest) ────────────────────────────────────
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn get_trades_with_request_parses_response() {
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("GET"))
+        .and(matchers::path("/api/v2/trades"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!([])))
+        .mount(&server)
+        .await;
+    let req = cow_rs::GetTradesRequest {
+        owner: Some(alloy_primitives::address!("1111111111111111111111111111111111111111")),
+        order_uid: None,
+        offset: Some(0),
+        limit: Some(5),
+    };
+    let trades: Vec<Trade> = make_api(&server).get_trades_with_request(&req).await.unwrap();
+    assert!(trades.is_empty());
+}
+
+// ── GET /api/v1/account/{owner}/orders (GetOrdersRequest) ───────────────────
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn get_orders_with_request_returns_list() {
+    let server = MockServer::start().await;
+    let address = alloy_primitives::address!("3333333333333333333333333333333333333333");
+    Mock::given(matchers::method("GET"))
+        .and(matchers::path_regex(r"/api/v1/account/.*/orders"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!([])))
+        .mount(&server)
+        .await;
+    let req = cow_rs::GetOrdersRequest::for_owner(address).with_limit(10).with_offset(0);
+    let orders = make_api(&server).get_orders(&req).await.unwrap();
+    assert!(orders.is_empty());
+}
+
+// ── GET /api/v1/solver_competition/{auction_id} ──────────────────────────────
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn get_solver_competition_parses_response() {
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("GET"))
+        .and(matchers::path_regex(r"/api/v1/solver_competition/\d+"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "auctionId":             42,
+            "auctionStartBlock":     1000,
+            "auctionDeadlineBlock":  1010,
+            "transactionHashes":     ["0xdeadbeef"],
+            "auction":               null,
+            "solutions":             []
+        })))
+        .mount(&server)
+        .await;
+    let comp = make_api(&server).get_solver_competition(42).await.unwrap();
+    assert_eq!(comp.auction_id, Some(42));
+    assert!(comp.has_auction_id());
+    assert!(comp.has_start_block());
+    assert!(comp.has_deadline_block());
+    assert!(comp.is_settled());
+    assert_eq!(comp.num_solutions(), 0);
+}
+
+// ── GET /api/v1/solver_competition/by_tx_hash/{tx_hash} ──────────────────────
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn get_solver_competition_by_tx_parses_response() {
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("GET"))
+        .and(matchers::path_regex(r"/api/v1/solver_competition/by_tx_hash/.*"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "auctionId":             7,
+            "auctionStartBlock":     null,
+            "auctionDeadlineBlock":  null,
+            "transactionHashes":     null,
+            "auction":               null,
+            "solutions":             null
+        })))
+        .mount(&server)
+        .await;
+    let comp = make_api(&server).get_solver_competition_by_tx("0xdeadbeef").await.unwrap();
+    assert_eq!(comp.auction_id, Some(7));
+    assert!(!comp.is_settled());
+    assert!(!comp.has_solutions());
+}
+
+// ── GET /api/v1/solver_competition/latest ────────────────────────────────────
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn get_solver_competition_latest_parses_response() {
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("GET"))
+        .and(matchers::path("/api/v1/solver_competition/latest"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "auctionId":             99,
+            "auctionStartBlock":     null,
+            "auctionDeadlineBlock":  null,
+            "transactionHashes":     null,
+            "auction":               null,
+            "solutions":             null
+        })))
+        .mount(&server)
+        .await;
+    let comp = make_api(&server).get_solver_competition_latest().await.unwrap();
+    assert_eq!(comp.auction_id, Some(99));
+}
+
+// ── GET /api/v2/solver_competition/{auction_id} ──────────────────────────────
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn get_solver_competition_v2_parses_response() {
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("GET"))
+        .and(matchers::path_regex(r"/api/v2/solver_competition/\d+"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "auctionId":             50,
+            "auctionStartBlock":     2000,
+            "auctionDeadlineBlock":  2010,
+            "transactionHashes":     [],
+            "auction":               null,
+            "solutions":             null
+        })))
+        .mount(&server)
+        .await;
+    let comp = make_api(&server).get_solver_competition_v2(50).await.unwrap();
+    assert_eq!(comp.auction_id, Some(50));
+    assert!(comp.has_start_block());
+    // Empty vec means not settled
+    assert!(!comp.is_settled());
+}
+
+// ── GET /api/v2/solver_competition/by_tx_hash/{tx_hash} ──────────────────────
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn get_solver_competition_by_tx_v2_parses_response() {
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("GET"))
+        .and(matchers::path_regex(r"/api/v2/solver_competition/by_tx_hash/.*"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "auctionId":             null,
+            "auctionStartBlock":     null,
+            "auctionDeadlineBlock":  null,
+            "transactionHashes":     null,
+            "auction":               null,
+            "solutions":             null
+        })))
+        .mount(&server)
+        .await;
+    let comp = make_api(&server).get_solver_competition_by_tx_v2("0xcafe").await.unwrap();
+    assert!(!comp.has_auction_id());
+}
+
+// ── GET /api/v2/solver_competition/latest ────────────────────────────────────
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn get_solver_competition_latest_v2_parses_response() {
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("GET"))
+        .and(matchers::path("/api/v2/solver_competition/latest"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "auctionId":             200,
+            "auctionStartBlock":     null,
+            "auctionDeadlineBlock":  null,
+            "transactionHashes":     null,
+            "auction":               null,
+            "solutions":             null
+        })))
+        .mount(&server)
+        .await;
+    let comp = make_api(&server).get_solver_competition_latest_v2().await.unwrap();
+    assert_eq!(comp.auction_id, Some(200));
+}
+
+// ── GET /api/v1/transactions/{tx_hash}/orders ────────────────────────────────
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn get_orders_by_tx_returns_list() {
+    let server = MockServer::start().await;
+    let uid = "0x".to_owned() + &"ff".repeat(56);
+    Mock::given(matchers::method("GET"))
+        .and(matchers::path_regex(r"/api/v1/transactions/.*/orders"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!([
+            make_order_json(&uid)
+        ])))
+        .mount(&server)
+        .await;
+    let orders = make_api(&server).get_orders_by_tx("0xdeadbeef").await.unwrap();
+    assert_eq!(orders.len(), 1);
+    assert_eq!(orders[0].uid, uid);
+}
+
+// ── PUT /api/v1/app_data/{hash} (upload_app_data) ───────────────────────────
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn upload_app_data_returns_object() {
+    let server = MockServer::start().await;
+    let hash = "0x".to_owned() + &"dd".repeat(32);
+    Mock::given(matchers::method("PUT"))
+        .and(matchers::path_regex(r"/api/v1/app_data/0x.*"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "fullAppData": "{\"appCode\":\"Uploaded\"}"
+        })))
+        .mount(&server)
+        .await;
+    let result = make_api(&server)
+        .upload_app_data(&hash, "{\"appCode\":\"Uploaded\"}")
+        .await
+        .unwrap();
+    assert!(result.full_app_data.contains("Uploaded"));
+}
+
+// ── PUT /api/v1/app_data (upload_app_data_auto) ─────────────────────────────
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn upload_app_data_auto_returns_object() {
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("PUT"))
+        .and(matchers::path("/api/v1/app_data"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "fullAppData": "{\"appCode\":\"Auto\"}"
+        })))
+        .mount(&server)
+        .await;
+    let result = make_api(&server)
+        .upload_app_data_auto("{\"appCode\":\"Auto\"}")
+        .await
+        .unwrap();
+    assert!(result.full_app_data.contains("Auto"));
+}
+
+// ── upload_app_data error path ───────────────────────────────────────────────
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn upload_app_data_400_returns_api_error() {
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("PUT"))
+        .and(matchers::path_regex(r"/api/v1/app_data/.*"))
+        .respond_with(ResponseTemplate::new(400).set_body_string("hash mismatch"))
+        .mount(&server)
+        .await;
+    let result = make_api(&server).upload_app_data("0xbad", "data").await;
+    match result {
+        Err(cow_rs::CowError::Api { status, .. }) => assert_eq!(status, 400),
+        other => panic!("expected Api error, got {other:?}"),
+    }
+}
+
+// ── cancel_orders error path ─────────────────────────────────────────────────
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn cancel_orders_403_returns_api_error() {
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("DELETE"))
+        .and(matchers::path("/api/v1/orders"))
+        .respond_with(ResponseTemplate::new(403).set_body_string("forbidden"))
+        .mount(&server)
+        .await;
+    let cancels = OrderCancellations {
+        order_uids: vec!["0xabc".to_owned()],
+        signature: "0xsig".into(),
+        signing_scheme: EcdsaSigningScheme::Eip712,
+    };
+    let result = make_api(&server).cancel_orders(&cancels).await;
+    match result {
+        Err(cow_rs::CowError::Api { status, .. }) => assert_eq!(status, 403),
+        other => panic!("expected Api error, got {other:?}"),
+    }
+}
+
+// ── Rate limiting and retry integration tests ────────────────────────────────
+
 #[cfg_attr(miri, ignore)]
 #[tokio::test]
 async fn rate_limiter_serialises_concurrent_get_version() {

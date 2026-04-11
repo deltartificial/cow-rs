@@ -694,4 +694,249 @@ mod tests {
         let mux = Multiplexer::new(ProofLocation::Private);
         assert!(mux.root().unwrap().is_none());
     }
+
+    // ── add / remove / update ────────────────────────────────────────────
+
+    #[test]
+    fn add_increases_len() {
+        let mut mux = Multiplexer::new(ProofLocation::Private);
+        assert!(mux.is_empty());
+        mux.add(make_params(1));
+        assert_eq!(mux.len(), 1);
+        mux.add(make_params(2));
+        assert_eq!(mux.len(), 2);
+    }
+
+    #[test]
+    fn remove_by_id() {
+        let mut mux = Multiplexer::new(ProofLocation::Private);
+        let p = make_params(0xaa);
+        let id = order_id(&p);
+        mux.add(p);
+        mux.add(make_params(0xbb));
+        assert_eq!(mux.len(), 2);
+        mux.remove(id);
+        assert_eq!(mux.len(), 1);
+    }
+
+    #[test]
+    fn remove_nonexistent_is_noop() {
+        let mut mux = Multiplexer::new(ProofLocation::Private);
+        mux.add(make_params(1));
+        mux.remove(B256::ZERO);
+        assert_eq!(mux.len(), 1);
+    }
+
+    #[test]
+    fn update_in_range() {
+        let mut mux = Multiplexer::new(ProofLocation::Private);
+        mux.add(make_params(1));
+        mux.add(make_params(2));
+        let new_params = make_params(99);
+        mux.update(1, new_params.clone()).unwrap();
+        assert_eq!(mux.get_by_index(1).unwrap().salt, new_params.salt);
+    }
+
+    #[test]
+    fn update_out_of_range() {
+        let mut mux = Multiplexer::new(ProofLocation::Private);
+        mux.add(make_params(1));
+        assert!(mux.update(5, make_params(2)).is_err());
+    }
+
+    // ── get_by_index / get_by_id ─────────────────────────────────────────
+
+    #[test]
+    fn get_by_index_valid() {
+        let mut mux = Multiplexer::new(ProofLocation::Private);
+        let p = make_params(0xcc);
+        mux.add(p.clone());
+        let got = mux.get_by_index(0).unwrap();
+        assert_eq!(got.salt, p.salt);
+    }
+
+    #[test]
+    fn get_by_index_out_of_range() {
+        let mux = Multiplexer::new(ProofLocation::Private);
+        assert!(mux.get_by_index(0).is_none());
+    }
+
+    #[test]
+    fn get_by_id_found() {
+        let mut mux = Multiplexer::new(ProofLocation::Private);
+        let p = make_params(0xdd);
+        let id = order_id(&p);
+        mux.add(p.clone());
+        let got = mux.get_by_id(id).unwrap();
+        assert_eq!(got.salt, p.salt);
+    }
+
+    #[test]
+    fn get_by_id_not_found() {
+        let mut mux = Multiplexer::new(ProofLocation::Private);
+        mux.add(make_params(1));
+        assert!(mux.get_by_id(B256::ZERO).is_none());
+    }
+
+    // ── root / proof ─────────────────────────────────────────────────────
+
+    #[test]
+    fn root_changes_when_order_added() {
+        let mut mux = Multiplexer::new(ProofLocation::Private);
+        mux.add(make_params(1));
+        let root1 = mux.root().unwrap().unwrap();
+        mux.add(make_params(2));
+        let root2 = mux.root().unwrap().unwrap();
+        assert_ne!(root1, root2);
+    }
+
+    #[test]
+    fn root_two_orders() {
+        let mut mux = Multiplexer::new(ProofLocation::Private);
+        mux.add(make_params(0xaa));
+        mux.add(make_params(0xbb));
+        let root = mux.root().unwrap();
+        assert!(root.is_some());
+    }
+
+    #[test]
+    fn proof_valid_index() {
+        let mut mux = Multiplexer::new(ProofLocation::Private);
+        mux.add(make_params(0xaa));
+        mux.add(make_params(0xbb));
+        let proof = mux.proof(0).unwrap();
+        assert!(!proof.proof.is_empty());
+        assert_eq!(proof.params.salt, make_params(0xaa).salt);
+    }
+
+    #[test]
+    fn proof_out_of_range() {
+        let mut mux = Multiplexer::new(ProofLocation::Private);
+        mux.add(make_params(1));
+        assert!(mux.proof(5).is_err());
+    }
+
+    // ── dump_proofs_and_params ───────────────────────────────────────────
+
+    #[test]
+    fn dump_proofs_and_params_returns_all() {
+        let mut mux = Multiplexer::new(ProofLocation::Private);
+        mux.add(make_params(0xaa));
+        mux.add(make_params(0xbb));
+        mux.add(make_params(0xcc));
+        let proofs = mux.dump_proofs_and_params().unwrap();
+        assert_eq!(proofs.len(), 3);
+    }
+
+    // ── to_json / from_json roundtrip ────────────────────────────────────
+
+    #[test]
+    fn to_json_from_json_roundtrip() {
+        let mut mux = Multiplexer::new(ProofLocation::Ipfs);
+        mux.add(make_params(0x11));
+        mux.add(make_params(0x22));
+
+        let json = mux.to_json().unwrap();
+        let restored = Multiplexer::from_json(&json).unwrap();
+
+        assert_eq!(restored.len(), 2);
+        assert_eq!(restored.proof_location(), ProofLocation::Ipfs);
+        assert_eq!(restored.get_by_index(0).unwrap().salt, make_params(0x11).salt);
+        assert_eq!(restored.get_by_index(1).unwrap().salt, make_params(0x22).salt);
+    }
+
+    #[test]
+    fn from_json_invalid() {
+        assert!(Multiplexer::from_json("not json").is_err());
+    }
+
+    #[test]
+    fn from_json_unknown_proof_location() {
+        let json = r#"{"proof_location": 99, "orders": []}"#;
+        assert!(Multiplexer::from_json(json).is_err());
+    }
+
+    // ── miscellaneous ────────────────────────────────────────────────────
+
+    #[test]
+    fn clear_empties_multiplexer() {
+        let mut mux = Multiplexer::new(ProofLocation::Private);
+        mux.add(make_params(1));
+        mux.add(make_params(2));
+        mux.clear();
+        assert!(mux.is_empty());
+    }
+
+    #[test]
+    fn order_ids_iterator() {
+        let mut mux = Multiplexer::new(ProofLocation::Private);
+        mux.add(make_params(0xaa));
+        mux.add(make_params(0xbb));
+        let ids: Vec<_> = mux.order_ids().collect();
+        assert_eq!(ids.len(), 2);
+        assert_eq!(ids[0], order_id(&make_params(0xaa)));
+    }
+
+    #[test]
+    fn iter_and_as_slice() {
+        let mut mux = Multiplexer::new(ProofLocation::Private);
+        mux.add(make_params(1));
+        mux.add(make_params(2));
+        assert_eq!(mux.iter().count(), 2);
+        assert_eq!(mux.as_slice().len(), 2);
+    }
+
+    #[test]
+    fn into_vec_returns_orders() {
+        let mut mux = Multiplexer::new(ProofLocation::Private);
+        mux.add(make_params(1));
+        let v = mux.into_vec();
+        assert_eq!(v.len(), 1);
+    }
+
+    #[test]
+    fn with_proof_location_builder() {
+        let mux = Multiplexer::new(ProofLocation::Private).with_proof_location(ProofLocation::Swarm);
+        assert_eq!(mux.proof_location(), ProofLocation::Swarm);
+    }
+
+    #[test]
+    fn display_multiplexer() {
+        let mut mux = Multiplexer::new(ProofLocation::Private);
+        mux.add(make_params(1));
+        let s = format!("{mux}");
+        assert!(s.contains("1 orders"));
+    }
+
+    #[test]
+    fn display_order_proof() {
+        let mut mux = Multiplexer::new(ProofLocation::Private);
+        mux.add(make_params(0xaa));
+        mux.add(make_params(0xbb));
+        let proof = mux.proof(0).unwrap();
+        let s = format!("{proof}");
+        assert!(s.contains("order-proof"));
+    }
+
+    #[test]
+    fn display_proof_with_params() {
+        let mut mux = Multiplexer::new(ProofLocation::Private);
+        mux.add(make_params(0xaa));
+        mux.add(make_params(0xbb));
+        let proofs = mux.dump_proofs_and_params().unwrap();
+        let s = format!("{}", proofs[0]);
+        assert!(s.contains("proof-with-params"));
+    }
+
+    #[test]
+    fn order_proof_new_and_proof_len() {
+        let op = OrderProof::new(B256::ZERO, vec![B256::ZERO, B256::ZERO], make_params(1));
+        assert_eq!(op.proof_len(), 2);
+    }
+
+    #[test]
+    fn proof_with_params_new_and_proof_len() {
+        let pwp = ProofWithParams::new(vec![B256::ZERO], make_params(1));
+        assert_eq!(pwp.proof_len(), 1);
+    }
 }
