@@ -20,6 +20,7 @@ All notable changes to this project will be documented in this file.
 - Pin alloy-signer ≥1.5 for minimal-versions (#9) ([`f7f6d83`](https://github.com/deltartificial/cow-rs/commit/f7f6d83a766660e1d70d51dbc85245a3bd87c07f))
 - Bump alloy-signer pin to ≥1.8.3 for minimal-versions (#10) ([`2b70317`](https://github.com/deltartificial/cow-rs/commit/2b70317e7d388b5c06040219acf986a76028e8dd))
 - Resolve clippy and fmt errors in test code (#23) ([`73943dd`](https://github.com/deltartificial/cow-rs/commit/73943ddf68cf9d217318da1510b68f9c496a06f1))
+- Use Arc::clone instead of .clone() on ref-counted pointer (#27) ([`f0ab089`](https://github.com/deltartificial/cow-rs/commit/f0ab089))
 
 ### Tests
 
@@ -28,6 +29,7 @@ All notable changes to this project will be documented in this file.
 - Wiremock API tests + sync coverage push (82% → 85%) (#17) ([`e79eb0f`](https://github.com/deltartificial/cow-rs/commit/e79eb0feedc52499d4d3bda60ce5af05e969f2ef))
 - Bridging + IPFS wiremock tests (85% → 90% coverage) (#18) ([`582430e`](https://github.com/deltartificial/cow-rs/commit/582430ed21fedbdec046acb37f5ec2a0a8764820))
 - Push coverage to 92% with expanded wiremock tests (#19) ([`4af871b`](https://github.com/deltartificial/cow-rs/commit/4af871bc0351399b02a01fb56ef6d12e8bdd3d5c))
+- Push coverage to 96% — trading/sdk, order_book, bridging, onchain (#26) ([`c90351d`](https://github.com/deltartificial/cow-rs/commit/c90351d))
 
 ### CI
 
