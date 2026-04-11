@@ -543,4 +543,31 @@ mod tests {
         let cid2 = appdata_hex_to_cid(SAMPLE_HEX).unwrap_or_default();
         assert_eq!(cid1, cid2);
     }
+
+    #[test]
+    fn cid_to_appdata_hex_invalid_hex() {
+        assert!(cid_to_appdata_hex("fZZZZinvalid").is_err());
+    }
+
+    #[test]
+    fn parse_cid_uppercase_f_prefix() {
+        let cid = appdata_hex_to_cid(SAMPLE_HEX).unwrap();
+        // Replace lowercase 'f' prefix with uppercase 'F'
+        let upper = format!("F{}", &cid[1..]);
+        let c = parse_cid(&upper).unwrap();
+        assert_eq!(c.version, CID_VERSION);
+    }
+
+    #[test]
+    fn to_cid_bytes_without_0x() {
+        let hex = SAMPLE_HEX.strip_prefix("0x").unwrap();
+        let bytes = to_cid_bytes(CID_VERSION, MULTICODEC_RAW, HASH_KECCAK256, HASH_LEN, hex);
+        assert!(bytes.is_ok());
+    }
+
+    #[test]
+    fn to_cid_bytes_invalid_hex() {
+        let result = to_cid_bytes(CID_VERSION, MULTICODEC_RAW, HASH_KECCAK256, HASH_LEN, "ZZZZ");
+        assert!(result.is_err());
+    }
 }

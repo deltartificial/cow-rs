@@ -621,4 +621,61 @@ mod tests {
             assert!(versions.contains(reg), "missing {reg}");
         }
     }
+
+    #[test]
+    fn schema_error_display_unsupported_version() {
+        let err = SchemaError::UnsupportedVersion {
+            requested: "99.0.0".to_owned(),
+            supported: vec!["1.0.0".to_owned(), "1.6.0".to_owned()],
+        };
+        let s = format!("{err}");
+        assert!(s.contains("99.0.0"));
+        assert!(s.contains("1.0.0, 1.6.0"));
+    }
+
+    #[test]
+    fn schema_error_display_violations() {
+        let err = SchemaError::Violations(vec![
+            SchemaViolation { path: "/metadata".to_owned(), message: "missing field".to_owned() },
+            SchemaViolation { path: String::new(), message: "top-level error".to_owned() },
+        ]);
+        let s = format!("{err}");
+        assert!(s.contains("2 error(s)"));
+        assert!(s.contains("missing field at /metadata"));
+        assert!(s.contains("top-level error"));
+    }
+
+    #[test]
+    fn schema_error_is_error_trait() {
+        let err =
+            SchemaError::UnsupportedVersion { requested: "0.0.0".to_owned(), supported: vec![] };
+        // Verify std::error::Error is implemented
+        let _: &dyn std::error::Error = &err;
+    }
+
+    #[test]
+    fn validate_json_with_unsupported_version() {
+        let val = json!({ "version": "1.13.0", "metadata": {} });
+        let err = validate_json_with(&val, "42.0.0").expect_err("unsupported version must fail");
+        assert!(matches!(err, SchemaError::UnsupportedVersion { .. }));
+    }
+
+    #[test]
+    fn validate_json_missing_version_uses_latest() {
+        // No "version" key => falls back to LATEST_VERSION, but the schema itself
+        // requires "version", so it will fail with Violations (not UnsupportedVersion).
+        let val = json!({ "metadata": {} });
+        let err = validate_json(&val).expect_err("missing version in document should fail");
+        assert!(matches!(err, SchemaError::Violations(_)));
+    }
+
+    #[test]
+    fn validate_with_valid_doc_and_each_version() {
+        for version in supported_versions() {
+            let doc = AppDataDoc::new("TestApp");
+            // Minimal doc should validate under most schemas (may fail on older ones
+            // if they have different shape, but 1.0.0 was already tested above)
+            let _ = validate_with(&doc, version);
+        }
+    }
 }

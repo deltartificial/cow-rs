@@ -414,4 +414,41 @@ mod tests {
             "cloned limiter should share the bucket"
         );
     }
+
+    #[test]
+    fn rate_limiter_default_matches_default_orderbook() {
+        let a = RateLimiter::default();
+        let b = RateLimiter::default_orderbook();
+        assert!((a.rate() - b.rate()).abs() < f64::EPSILON);
+        assert!((a.capacity() - b.capacity()).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn retry_policy_default_trait() {
+        let a = RetryPolicy::default();
+        let b = RetryPolicy::default_orderbook();
+        assert_eq!(a.max_attempts, b.max_attempts);
+        assert_eq!(a.initial_delay, b.initial_delay);
+        assert_eq!(a.max_delay, b.max_delay);
+    }
+
+    #[test]
+    #[should_panic(expected = "rate must be a finite positive number")]
+    fn rate_limiter_rejects_nan_rate() {
+        let _ = RateLimiter::new(f64::NAN, 5.0);
+    }
+
+    #[test]
+    #[should_panic(expected = "capacity must be a finite positive number")]
+    fn rate_limiter_rejects_inf_capacity() {
+        let _ = RateLimiter::new(5.0, f64::INFINITY);
+    }
+
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn retry_policy_wait_sleeps() {
+        let p = RetryPolicy::default_orderbook();
+        let start = tokio::time::Instant::now();
+        p.wait(Duration::from_millis(100)).await;
+        assert!(start.elapsed() >= Duration::from_millis(100));
+    }
 }

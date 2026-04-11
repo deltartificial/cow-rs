@@ -1998,6 +1998,85 @@ mod tests {
         let p = ProofStruct::new(ProofLocation::Ipfs, vec![1]);
         assert_eq!(p.to_string(), "proof(ipfs)");
     }
+
+    // ── ProofLocation try_from exhaustive ────────────────────────────────
+
+    #[test]
+    fn proof_location_try_from_str_all() {
+        for (s, expected) in [
+            ("emitted", ProofLocation::Emitted),
+            ("swarm", ProofLocation::Swarm),
+            ("waku", ProofLocation::Waku),
+            ("reserved", ProofLocation::Reserved),
+        ] {
+            assert_eq!(ProofLocation::try_from(s).unwrap(), expected);
+        }
+    }
+
+    #[test]
+    fn proof_location_try_from_u8_all() {
+        assert_eq!(ProofLocation::try_from(2u8).unwrap(), ProofLocation::Swarm);
+        assert_eq!(ProofLocation::try_from(3u8).unwrap(), ProofLocation::Waku);
+        assert_eq!(ProofLocation::try_from(4u8).unwrap(), ProofLocation::Reserved);
+    }
+
+    // ── TwapData serde roundtrip ────────────────────────────────────────
+
+    #[test]
+    fn twap_data_serde_roundtrip() {
+        let data = TwapData::sell(
+            Address::repeat_byte(0x11),
+            Address::repeat_byte(0x22),
+            U256::from(1000u64),
+            4,
+            3600,
+        )
+        .with_buy_amount(U256::from(800u64))
+        .with_start_time(TwapStartTime::At(1_000_000))
+        .with_duration_of_part(DurationOfPart::limit(900));
+
+        let json = serde_json::to_string(&data).unwrap();
+        let back: TwapData = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.sell_amount, data.sell_amount);
+        assert_eq!(back.buy_amount, data.buy_amount);
+        assert_eq!(back.num_parts, data.num_parts);
+        assert_eq!(back.part_duration, data.part_duration);
+    }
+
+    // ── ConditionalOrderParams serde roundtrip ──────────────────────────
+
+    #[test]
+    fn conditional_order_params_serde_roundtrip() {
+        let params = ConditionalOrderParams::new(
+            TWAP_HANDLER_ADDRESS,
+            B256::repeat_byte(0xAB),
+            vec![0xDE, 0xAD, 0xBE, 0xEF],
+        );
+        let json = serde_json::to_string(&params).unwrap();
+        let back: ConditionalOrderParams = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.handler, params.handler);
+        assert_eq!(back.salt, params.salt);
+        assert_eq!(back.static_input, params.static_input);
+    }
+
+    // ── BlockInfo ───────────────────────────────────────────────────────
+
+    #[test]
+    fn block_info_new() {
+        let b = BlockInfo { block_number: 100, block_timestamp: 1_700_000_000 };
+        assert_eq!(b.block_number, 100);
+        assert_eq!(b.block_timestamp, 1_700_000_000);
+    }
+
+    // ── GpV2OrderStruct try_from coverage ────────────────────────────────
+
+    #[test]
+    fn gpv2_order_try_from_bad_kind_fails() {
+        let o = make_gpv2_order();
+        // kind is B256::ZERO which is neither sell nor buy hash
+        let result = crate::order_signing::types::UnsignedOrder::try_from(&o);
+        assert!(result.is_err());
+    }
 }
 
 // ── ProofStruct ───────────────────────────────────────────────────────────────

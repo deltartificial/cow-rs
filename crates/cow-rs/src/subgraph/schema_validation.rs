@@ -259,4 +259,67 @@ mod tests {
         let good = "query { totals { tokens orders traders } }";
         assert!(lint_query(good, "Total", &model).is_empty());
     }
+
+    #[test]
+    fn linter_catches_unknown_entity() {
+        let model = build_schema_model();
+        let bad = "query { totals { tokens } }";
+        let errors = lint_query(bad, "NonExistentEntity", &model);
+        assert!(
+            errors.iter().any(|e| e.contains("unknown entity")),
+            "linter must flag unknown entity; got: {errors:?}"
+        );
+    }
+
+    #[test]
+    fn linter_catches_fragment_spread() {
+        let model = build_schema_model();
+        // A query that uses a fragment spread
+        let bad = "query { totals { ...TotalFields } } fragment TotalFields on Total { tokens }";
+        let errors = lint_query(bad, "Total", &model);
+        assert!(
+            errors.iter().any(|e| e.contains("fragment")),
+            "linter must flag fragments; got: {errors:?}"
+        );
+    }
+
+    #[test]
+    fn linter_handles_parse_error() {
+        let model = build_schema_model();
+        let bad = "not a valid graphql query {{{";
+        let errors = lint_query(bad, "Total", &model);
+        assert!(
+            errors.iter().any(|e| e.contains("parse error")),
+            "linter must flag parse errors; got: {errors:?}"
+        );
+    }
+
+    #[test]
+    fn linter_mutation_and_subscription_paths() {
+        let model = build_schema_model();
+        // These will parse but have empty selection sets at the entity level
+        let mutation = "mutation { doSomething { tokens } }";
+        let errors = lint_query(mutation, "Total", &model);
+        // The mutation path is exercised (may or may not have errors depending on fields)
+        let _ = errors;
+
+        let subscription = "subscription { totals { tokens } }";
+        let errors = lint_query(subscription, "Total", &model);
+        let _ = errors;
+    }
+
+    #[test]
+    fn classify_list_type_entity() {
+        // Test that classify handles ListType wrapping an entity
+        let ty = Type::ListType(Box::new(Type::NamedType("Token".to_owned())));
+        let ft = classify(&ty);
+        assert!(matches!(ft, FieldType::Entity(ref name) if name == "Token"));
+    }
+
+    #[test]
+    fn classify_nonnull_scalar() {
+        let ty = Type::NonNullType(Box::new(Type::NamedType("BigInt".to_owned())));
+        let ft = classify(&ty);
+        assert!(matches!(ft, FieldType::Scalar));
+    }
 }

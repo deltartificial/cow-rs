@@ -419,4 +419,41 @@ mod tests {
         let v = decode_u256(&buf).unwrap();
         assert_eq!(v, alloy_primitives::U256::MAX);
     }
+
+    #[test]
+    fn decode_u256_extra_bytes_ignored() {
+        let mut buf = vec![0u8; 64];
+        buf[31] = 7;
+        buf[63] = 99;
+        let v = decode_u256(&buf).unwrap();
+        assert_eq!(v, alloy_primitives::U256::from(7u64));
+    }
+
+    #[test]
+    fn decode_u8_zero() {
+        let buf = [0u8; 32];
+        assert_eq!(decode_u8(&buf).unwrap(), 0u8);
+    }
+
+    #[test]
+    fn decode_string_empty_string() {
+        let mut buf = vec![0u8; 96];
+        buf[31] = 32; // offset = 32
+        buf[63] = 0; // length = 0
+        assert_eq!(decode_string(&buf).unwrap(), "");
+    }
+
+    #[test]
+    fn onchain_reader_clone() {
+        let reader = OnchainReader::new("https://example.com");
+        let cloned = reader.clone();
+        assert_eq!(cloned.rpc_url, "https://example.com");
+    }
+
+    #[test]
+    fn onchain_reader_debug() {
+        let reader = OnchainReader::new("https://example.com");
+        let s = format!("{reader:?}");
+        assert!(s.contains("OnchainReader"));
+    }
 }

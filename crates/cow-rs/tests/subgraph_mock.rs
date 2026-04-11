@@ -712,3 +712,82 @@ fn subgraph_api_new_mainnet_succeeds() {
     let result = SubgraphApi::new(SupportedChainId::Mainnet, Env::Prod);
     assert!(result.is_ok());
 }
+
+#[test]
+fn subgraph_api_new_all_supported_chains() {
+    use cow_rs::{Env, SupportedChainId};
+    // These chains should have subgraph endpoints
+    for chain in [
+        SupportedChainId::Mainnet,
+        SupportedChainId::GnosisChain,
+        SupportedChainId::ArbitrumOne,
+        SupportedChainId::Base,
+        SupportedChainId::Sepolia,
+    ] {
+        assert!(SubgraphApi::new(chain, Env::Prod).is_ok(), "chain {chain} should have subgraph");
+    }
+}
+
+#[test]
+fn subgraph_api_with_rate_limiter() {
+    use std::sync::Arc;
+    let limiter = Arc::new(cow_rs::RateLimiter::new(10.0, 10.0));
+    let _api = SubgraphApi::new_with_url("http://localhost:9999").with_rate_limiter(limiter);
+}
+
+#[test]
+fn subgraph_api_with_retry_policy() {
+    let _api = SubgraphApi::new_with_url("http://localhost:9999")
+        .with_retry_policy(RetryPolicy::no_retry());
+}
+
+// ── run_query error paths ───────────────────────────────────────────────
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn run_query_invalid_json_response() {
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("POST"))
+        .respond_with(ResponseTemplate::new(200).set_body_string("not json at all"))
+        .mount(&server)
+        .await;
+
+    let result = make_api(&server).get_totals().await;
+    assert!(matches!(result, Err(cow_rs::CowError::Parse { field: "response", .. })));
+}
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn run_query_non_200_returns_api_error() {
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("POST"))
+        .respond_with(ResponseTemplate::new(403).set_body_string("forbidden"))
+        .mount(&server)
+        .await;
+
+    let result = make_api(&server).get_totals().await;
+    match result {
+        Err(cow_rs::CowError::Api { status, body }) => {
+            assert_eq!(status, 403);
+            assert_eq!(body, "forbidden");
+        }
+        other => panic!("expected Api error, got {other:?}"),
+    }
+}
+
+// ── missing field in data ───────────────────────────────────────────────
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn missing_field_in_data_returns_parse_error() {
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("POST"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(graphql_data(serde_json::json!({
+            "wrongField": []
+        }))))
+        .mount(&server)
+        .await;
+
+    let result = make_api(&server).get_totals().await;
+    assert!(matches!(result, Err(cow_rs::CowError::Parse { field: "totals", .. })));
+}
