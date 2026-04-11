@@ -550,3 +550,214 @@ pub fn extract_order_uid_params(order_uid: &str) -> Result<OrderUidParams, CowEr
 
     Ok(OrderUidParams { order_digest, owner, valid_to })
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::types::TokenBalance;
+
+    use super::*;
+
+    fn sample_order() -> UnsignedOrder {
+        UnsignedOrder {
+            sell_token: Address::repeat_byte(0x11),
+            buy_token: Address::repeat_byte(0x22),
+            receiver: Address::repeat_byte(0x33),
+            sell_amount: U256::from(1_000_000u64),
+            buy_amount: U256::from(900_000u64),
+            valid_to: 1_700_000_000,
+            app_data: B256::ZERO,
+            fee_amount: U256::from(1000u64),
+            kind: OrderKind::Sell,
+            partially_fillable: false,
+            sell_token_balance: TokenBalance::Erc20,
+            buy_token_balance: TokenBalance::Erc20,
+        }
+    }
+
+    // ── normalize_order ──────────────────────────────────────────────────
+
+    #[test]
+    fn normalize_order_external_to_erc20() {
+        let mut order = sample_order();
+        order.buy_token_balance = TokenBalance::External;
+        let normalized = normalize_order(&order);
+        assert_eq!(normalized.buy_token_balance, TokenBalance::Erc20);
+    }
+
+    #[test]
+    fn normalize_order_erc20_stays() {
+        let order = sample_order();
+        let normalized = normalize_order(&order);
+        assert_eq!(normalized.buy_token_balance, TokenBalance::Erc20);
+        assert_eq!(normalized.sell_token_balance, TokenBalance::Erc20);
+    }
+
+    #[test]
+    fn normalize_order_internal_stays() {
+        let mut order = sample_order();
+        order.buy_token_balance = TokenBalance::Internal;
+        let normalized = normalize_order(&order);
+        assert_eq!(normalized.buy_token_balance, TokenBalance::Internal);
+    }
+
+    // ── pack / extract order uid roundtrip ───────────────────────────────
+
+    #[test]
+    fn pack_extract_order_uid_roundtrip() {
+        let digest = B256::new([0xab; 32]);
+        let owner = Address::repeat_byte(0xcd);
+        let valid_to = 1_700_000_000u32;
+
+        let uid = pack_order_uid_params(digest, owner, valid_to);
+        assert!(uid.starts_with("0x"));
+        assert_eq!(uid.len(), 2 + 112); // "0x" + 56 bytes hex
+
+        let params = extract_order_uid_params(&uid).unwrap();
+        assert_eq!(params.order_digest, digest);
+        assert_eq!(params.owner, owner);
+        assert_eq!(params.valid_to, valid_to);
+    }
+
+    #[test]
+    fn extract_order_uid_params_wrong_length() {
+        let result = extract_order_uid_params("0xabcd");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn extract_order_uid_params_invalid_hex() {
+        let result = extract_order_uid_params("0xZZZZ");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn pack_order_uid_params_zero_valid_to() {
+        let uid = pack_order_uid_params(B256::ZERO, Address::ZERO, 0);
+        let params = extract_order_uid_params(&uid).unwrap();
+        assert_eq!(params.valid_to, 0);
+    }
+
+    // ── hash_order_cancellation / hash_order_cancellations ───────────────
+
+    #[test]
+    fn hash_order_cancellation_produces_nonzero() {
+        // A valid 56-byte order UID as hex
+        let uid = format!("0x{}", "ab".repeat(56));
+        let result = hash_order_cancellation(1, &uid).unwrap();
+        assert_ne!(result, B256::ZERO);
+    }
+
+    #[test]
+    fn hash_order_cancellations_batch() {
+        let uid1 = format!("0x{}", "aa".repeat(56));
+        let uid2 = format!("0x{}", "bb".repeat(56));
+        let result = hash_order_cancellations(1, &[uid1.as_str(), uid2.as_str()]).unwrap();
+        assert_ne!(result, B256::ZERO);
+    }
+
+    #[test]
+    fn hash_order_cancellations_single_matches_convenience() {
+        let uid = format!("0x{}", "cc".repeat(56));
+        let single = hash_order_cancellation(1, &uid).unwrap();
+        let batch = hash_order_cancellations(1, &[uid.as_str()]).unwrap();
+        assert_eq!(single, batch);
+    }
+
+    #[test]
+    fn hash_order_cancellations_invalid_hex() {
+        let result = hash_order_cancellations(1, &["0xNOTHEX"]);
+        assert!(result.is_err());
+    }
+
+    // ── cancellations_hash ───────────────────────────────────────────────
+
+    #[test]
+    fn cancellations_hash_deterministic() {
+        let uid = format!("0x{}", "dd".repeat(20));
+        let h1 = cancellations_hash(&[uid.as_str()]).unwrap();
+        let h2 = cancellations_hash(&[uid.as_str()]).unwrap();
+        assert_eq!(h1, h2);
+    }
+
+    #[test]
+    fn cancellations_hash_order_matters() {
+        let uid1 = format!("0x{}", "aa".repeat(20));
+        let uid2 = format!("0x{}", "bb".repeat(20));
+        let h_ab = cancellations_hash(&[uid1.as_str(), uid2.as_str()]).unwrap();
+        let h_ba = cancellations_hash(&[uid2.as_str(), uid1.as_str()]).unwrap();
+        assert_ne!(h_ab, h_ba);
+    }
+
+    // ── domain_separator ─────────────────────────────────────────────────
+
+    #[test]
+    fn domain_separator_deterministic() {
+        let ds1 = domain_separator(1);
+        let ds2 = domain_separator(1);
+        assert_eq!(ds1, ds2);
+    }
+
+    #[test]
+    fn domain_separator_differs_by_chain() {
+        assert_ne!(domain_separator(1), domain_separator(5));
+    }
+
+    // ── order_hash ───────────────────────────────────────────────────────
+
+    #[test]
+    fn order_hash_deterministic() {
+        let order = sample_order();
+        assert_eq!(order_hash(&order), order_hash(&order));
+    }
+
+    #[test]
+    fn order_hash_differs_by_kind() {
+        let mut sell = sample_order();
+        sell.kind = OrderKind::Sell;
+        let mut buy = sample_order();
+        buy.kind = OrderKind::Buy;
+        assert_ne!(order_hash(&sell), order_hash(&buy));
+    }
+
+    // ── signing_digest / hash_typed_data ─────────────────────────────────
+
+    #[test]
+    fn signing_digest_starts_with_eip712_prefix() {
+        let ds = domain_separator(1);
+        let oh = order_hash(&sample_order());
+        let digest = signing_digest(ds, oh);
+        assert_ne!(digest, B256::ZERO);
+    }
+
+    #[test]
+    fn hash_typed_data_equals_signing_digest() {
+        let ds = domain_separator(1);
+        let oh = order_hash(&sample_order());
+        assert_eq!(hash_typed_data(ds, oh), signing_digest(ds, oh));
+    }
+
+    // ── build_order_typed_data ───────────────────────────────────────────
+
+    #[test]
+    fn build_order_typed_data_fields() {
+        let order = sample_order();
+        let typed = build_order_typed_data(order.clone(), 1);
+        assert_eq!(typed.primary_type, "GPv2Order.Data");
+        assert_eq!(typed.domain.chain_id, 1);
+        assert_eq!(typed.domain.name, "Gnosis Protocol v2");
+        assert_eq!(typed.order.sell_token, order.sell_token);
+    }
+
+    // ── hashify ──────────────────────────────────────────────────────────
+
+    #[test]
+    fn hashify_zero() {
+        assert_eq!(hashify(0), B256::ZERO);
+    }
+
+    #[test]
+    fn hashify_small_value() {
+        let h = hashify(42);
+        assert_eq!(h, B256::left_padding_from(&[42]));
+    }
+}

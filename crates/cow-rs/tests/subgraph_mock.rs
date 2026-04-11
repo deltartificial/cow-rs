@@ -398,6 +398,268 @@ async fn get_settlements_returns_settlement_list() {
     assert!(!settlements[0].has_tx_fee());
 }
 
+// ── get_hourly_totals ────────────────────────────────────────────────────────
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn get_hourly_totals_parses_all_fields() {
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("POST"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(graphql_data(serde_json::json!({
+            "hourlyTotals": [{
+                "timestamp":   "1700000000",
+                "orders":      "50",
+                "traders":     "20",
+                "tokens":      "10",
+                "settlements": "5",
+                "volumeEth":   "50.0",
+                "volumeUsd":   "125000.0",
+                "feesEth":     "0.1",
+                "feesUsd":     "250.0"
+            }]
+        }))))
+        .mount(&server)
+        .await;
+
+    let totals = make_api(&server).get_hourly_totals(1).await.unwrap();
+    assert_eq!(totals.len(), 1);
+    assert_eq!(totals[0].orders, "50");
+    assert_eq!(totals[0].traders, "20");
+    assert_eq!(totals[0].timestamp, "1700000000");
+}
+
+// ── get_user ─────────────────────────────────────────────────────────────────
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn get_user_returns_parsed_user() {
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("POST"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(graphql_data(serde_json::json!({
+            "user": user_json()
+        }))))
+        .mount(&server)
+        .await;
+
+    let user: cow_rs::SubgraphUser = make_api(&server)
+        .get_user("0x1111111111111111111111111111111111111111")
+        .await
+        .unwrap();
+    assert_eq!(user.address, "0x1111111111111111111111111111111111111111");
+    assert_eq!(user.number_of_trades, "5");
+}
+
+// ── get_token_daily_totals ───────────────────────────────────────────────────
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn get_token_daily_totals_returns_list() {
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("POST"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(graphql_data(serde_json::json!({
+            "tokenDailyTotals": [{
+                "id":              "0xweth-1700000000",
+                "token":           token_json(),
+                "timestamp":       "1700000000",
+                "totalVolume":     "100000000000000000",
+                "totalVolumeUsd":  "250000.0",
+                "totalTrades":     "100",
+                "openPrice":       "2400.0",
+                "closePrice":      "2500.0",
+                "higherPrice":     "2550.0",
+                "lowerPrice":      "2380.0",
+                "averagePrice":    "2450.0"
+            }]
+        }))))
+        .mount(&server)
+        .await;
+
+    let totals: Vec<cow_rs::TokenDailyTotal> = make_api(&server)
+        .get_token_daily_totals("0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2", 1)
+        .await
+        .unwrap();
+    assert_eq!(totals.len(), 1);
+    assert_eq!(totals[0].total_trades, "100");
+    assert_eq!(totals[0].open_price, "2400.0");
+}
+
+// ── get_token_hourly_totals ──────────────────────────────────────────────────
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn get_token_hourly_totals_returns_list() {
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("POST"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(graphql_data(serde_json::json!({
+            "tokenHourlyTotals": [{
+                "id":              "0xweth-1700000000",
+                "token":           token_json(),
+                "timestamp":       "1700000000",
+                "totalVolume":     "50000000000000000",
+                "totalVolumeUsd":  "125000.0",
+                "totalTrades":     "42",
+                "openPrice":       "2490.0",
+                "closePrice":      "2500.0",
+                "higherPrice":     "2510.0",
+                "lowerPrice":      "2480.0",
+                "averagePrice":    "2495.0"
+            }]
+        }))))
+        .mount(&server)
+        .await;
+
+    let totals: Vec<cow_rs::TokenHourlyTotal> = make_api(&server)
+        .get_token_hourly_totals("0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2", 1)
+        .await
+        .unwrap();
+    assert_eq!(totals.len(), 1);
+    assert_eq!(totals[0].total_trades, "42");
+}
+
+// ── get_token_trading_events ─────────────────────────────────────────────────
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn get_token_trading_events_returns_list() {
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("POST"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(graphql_data(serde_json::json!({
+            "tokenTradingEvents": [{
+                "id":        "0xevent-1",
+                "token":     token_json(),
+                "priceUsd":  "2500.50",
+                "timestamp": "1700000000"
+            }]
+        }))))
+        .mount(&server)
+        .await;
+
+    let events: Vec<cow_rs::TokenTradingEvent> = make_api(&server)
+        .get_token_trading_events("0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2", 1)
+        .await
+        .unwrap();
+    assert_eq!(events.len(), 1);
+    assert_eq!(events[0].price_usd, "2500.50");
+}
+
+// ── get_pairs ────────────────────────────────────────────────────────────────
+
+fn pair_json() -> serde_json::Value {
+    serde_json::json!({
+        "id":             "0xweth-0xusdc",
+        "token0":         token_json(),
+        "token1":         token_json(),
+        "volumeToken0":   "1000000000000000000",
+        "volumeToken1":   "2500000000",
+        "numberOfTrades": "500"
+    })
+}
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn get_pairs_returns_pair_list() {
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("POST"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(graphql_data(serde_json::json!({
+            "pairs": [pair_json()]
+        }))))
+        .mount(&server)
+        .await;
+
+    let pairs: Vec<cow_rs::SubgraphPair> = make_api(&server).get_pairs(1).await.unwrap();
+    assert_eq!(pairs.len(), 1);
+    assert_eq!(pairs[0].number_of_trades, "500");
+}
+
+// ── get_pair ─────────────────────────────────────────────────────────────────
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn get_pair_returns_single_pair() {
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("POST"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(graphql_data(serde_json::json!({
+            "pair": pair_json()
+        }))))
+        .mount(&server)
+        .await;
+
+    let pair: cow_rs::SubgraphPair = make_api(&server).get_pair("0xweth-0xusdc").await.unwrap();
+    assert_eq!(pair.id, "0xweth-0xusdc");
+}
+
+// ── get_pair_daily_totals ────────────────────────────────────────────────────
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn get_pair_daily_totals_returns_list() {
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("POST"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(graphql_data(serde_json::json!({
+            "pairDailies": [{
+                "id":             "0xweth-0xusdc-1700000000",
+                "token0":         token_json(),
+                "token1":         token_json(),
+                "timestamp":      "1700000000",
+                "volumeToken0":   "500000000000000000",
+                "volumeToken1":   "1250000000",
+                "numberOfTrades": "100"
+            }]
+        }))))
+        .mount(&server)
+        .await;
+
+    let dailies: Vec<cow_rs::PairDaily> =
+        make_api(&server).get_pair_daily_totals("0xweth-0xusdc", 1).await.unwrap();
+    assert_eq!(dailies.len(), 1);
+    assert_eq!(dailies[0].timestamp, "1700000000");
+    assert_eq!(dailies[0].number_of_trades, "100");
+}
+
+// ── get_pair_hourly_totals ───────────────────────────────────────────────────
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn get_pair_hourly_totals_returns_list() {
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("POST"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(graphql_data(serde_json::json!({
+            "pairHourlies": [{
+                "id":             "0xweth-0xusdc-1700000000",
+                "token0":         token_json(),
+                "token1":         token_json(),
+                "timestamp":      "1700000000",
+                "volumeToken0":   "100000000000000000",
+                "volumeToken1":   "250000000",
+                "numberOfTrades": "25"
+            }]
+        }))))
+        .mount(&server)
+        .await;
+
+    let hourlies: Vec<cow_rs::PairHourly> =
+        make_api(&server).get_pair_hourly_totals("0xweth-0xusdc", 1).await.unwrap();
+    assert_eq!(hourlies.len(), 1);
+    assert_eq!(hourlies[0].number_of_trades, "25");
+}
+
+// ── missing data field returns parse error ───────────────────────────────────
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn missing_data_field_returns_parse_error() {
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("POST"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(serde_json::json!({ "noData": true })),
+        )
+        .mount(&server)
+        .await;
+
+    let result = make_api(&server).get_totals().await;
+    assert!(matches!(result, Err(cow_rs::CowError::Parse { field: "data", .. })));
+}
+
 // ── GraphQL error propagation ─────────────────────────────────────────────────
 
 #[cfg_attr(miri, ignore)]

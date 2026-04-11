@@ -343,3 +343,92 @@ impl fmt::Display for PermitHookData {
         )
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn permit_info_new_defaults() {
+        let info = PermitInfo::new(Address::ZERO, Address::ZERO, Address::ZERO, U256::ZERO);
+        assert!(info.nonce.is_zero());
+        assert_eq!(info.deadline, 0);
+        assert!(info.is_zero_allowance());
+        assert!(!info.is_unlimited_allowance());
+    }
+
+    #[test]
+    fn permit_info_builders() {
+        let info = PermitInfo::new(Address::ZERO, Address::ZERO, Address::ZERO, U256::MAX)
+            .with_nonce(U256::from(5u64))
+            .with_deadline(1_000_000);
+        assert_eq!(info.nonce, U256::from(5u64));
+        assert_eq!(info.deadline, 1_000_000);
+        assert!(info.is_unlimited_allowance());
+        assert!(!info.is_zero_allowance());
+    }
+
+    #[test]
+    fn permit_info_is_expired_boundary() {
+        let info = PermitInfo::new(Address::ZERO, Address::ZERO, Address::ZERO, U256::ZERO)
+            .with_deadline(1000);
+        assert!(!info.is_expired(999));
+        assert!(!info.is_expired(1000));
+        assert!(info.is_expired(1001));
+    }
+
+    #[test]
+    fn permit_info_display() {
+        let info = PermitInfo::new(Address::ZERO, Address::ZERO, Address::ZERO, U256::ZERO);
+        let s = format!("{info}");
+        assert!(s.starts_with("permit("));
+    }
+
+    #[test]
+    fn erc20_permit_info_new() {
+        let info = Erc20PermitInfo::new("USD Coin", "2", 1);
+        assert_eq!(info.name, "USD Coin");
+        assert_eq!(info.version, "2");
+        assert_eq!(info.chain_id, 1);
+    }
+
+    #[test]
+    fn erc20_permit_info_display() {
+        let info = Erc20PermitInfo::new("USDC", "1", 1);
+        let s = format!("{info}");
+        assert!(s.contains("USDC"));
+        assert!(s.contains("chain=1"));
+    }
+
+    #[test]
+    fn permit_hook_data_new() {
+        let data = PermitHookData::new(Address::ZERO, vec![1, 2, 3], 50_000);
+        assert!(data.has_calldata());
+        assert_eq!(data.calldata_len(), 3);
+        assert_eq!(data.gas_limit, 50_000);
+    }
+
+    #[test]
+    fn permit_hook_data_empty_calldata() {
+        let data = PermitHookData::new(Address::ZERO, vec![], 0);
+        assert!(!data.has_calldata());
+        assert_eq!(data.calldata_len(), 0);
+    }
+
+    #[test]
+    fn permit_hook_data_into_cow_hook() {
+        let data = PermitHookData::new(Address::ZERO, vec![0xab, 0xcd], 100_000);
+        let hook = data.into_cow_hook();
+        assert!(hook.call_data.starts_with("0x"));
+        assert!(hook.call_data.contains("abcd"));
+        assert_eq!(hook.gas_limit, "100000");
+    }
+
+    #[test]
+    fn permit_hook_data_display() {
+        let data = PermitHookData::new(Address::ZERO, vec![0; 260], 50_000);
+        let s = format!("{data}");
+        assert!(s.contains("gas=50000"));
+        assert!(s.contains("calldata_len=260"));
+    }
+}

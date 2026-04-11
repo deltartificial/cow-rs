@@ -535,4 +535,179 @@ mod tests {
         let loc_slot = &cd[100..132];
         assert_eq!(loc_slot[31], 5u8); // location = Ipfs = 5
     }
+
+    // ── create_with_context_calldata ─────────────────────────────────────
+
+    #[test]
+    fn create_with_context_calldata_has_correct_selector() {
+        let expected_sel = {
+            let h = keccak256(
+                b"createWithContext((address,bytes32,bytes),address,bytes,bool)",
+            );
+            [h[0], h[1], h[2], h[3]]
+        };
+        let cd = create_with_context_calldata(&dummy_params(), Address::ZERO, &[], true);
+        assert_eq!(&cd[..4], expected_sel);
+    }
+
+    #[test]
+    fn create_with_context_calldata_dispatch_true() {
+        let cd = create_with_context_calldata(&dummy_params(), Address::ZERO, &[], true);
+        // dispatch is the 4th head slot (index 3), starting at byte 4 + 3*32 = 100
+        assert_eq!(cd[4 + 3 * 32 + 31], 1u8);
+    }
+
+    #[test]
+    fn create_with_context_calldata_dispatch_false() {
+        let cd = create_with_context_calldata(&dummy_params(), Address::ZERO, &[], false);
+        assert_eq!(cd[4 + 3 * 32 + 31], 0u8);
+    }
+
+    #[test]
+    fn create_with_context_calldata_with_factory_data() {
+        let factory_data = vec![0xffu8; 40];
+        let cd = create_with_context_calldata(
+            &dummy_params(),
+            Address::repeat_byte(0x11),
+            &factory_data,
+            false,
+        );
+        // Factory data should appear in the calldata
+        assert!(cd.windows(40).any(|w| w == &factory_data[..]));
+    }
+
+    #[test]
+    fn create_with_context_calldata_length_aligned() {
+        let cd = create_with_context_calldata(&dummy_params(), Address::ZERO, &[0xab; 5], true);
+        // Total length after selector must be 32-byte aligned
+        assert_eq!((cd.len() - 4) % 32, 0);
+    }
+
+    // ── remove_calldata ──────────────────────────────────────────────────
+
+    #[test]
+    fn remove_calldata_has_correct_selector() {
+        let expected_sel = {
+            let h = keccak256(b"remove(bytes32)");
+            [h[0], h[1], h[2], h[3]]
+        };
+        let cd = remove_calldata(B256::ZERO);
+        assert_eq!(&cd[..4], expected_sel);
+    }
+
+    #[test]
+    fn remove_calldata_has_correct_length() {
+        let cd = remove_calldata(B256::ZERO);
+        assert_eq!(cd.len(), 36); // 4 selector + 32 order_id
+    }
+
+    #[test]
+    fn remove_calldata_embeds_order_id() {
+        let id = B256::new([0xabu8; 32]);
+        let cd = remove_calldata(id);
+        assert_eq!(&cd[4..36], id.as_slice());
+    }
+
+    // ── create_calldata ──────────────────────────────────────────────────
+
+    #[test]
+    fn create_calldata_has_correct_selector() {
+        let expected_sel = {
+            let h = keccak256(b"create((address,bytes32,bytes),bytes32[2][],bytes)");
+            [h[0], h[1], h[2], h[3]]
+        };
+        let cd = create_calldata(&dummy_params(), &[], &[]);
+        assert_eq!(&cd[..4], expected_sel);
+    }
+
+    #[test]
+    fn create_calldata_empty_proof_and_offchain() {
+        let cd = create_calldata(&dummy_params(), &[], &[]);
+        // Length after selector must be 32-byte aligned
+        assert_eq!((cd.len() - 4) % 32, 0);
+    }
+
+    #[test]
+    fn create_calldata_with_proof_pairs() {
+        let pair = [B256::new([0x11u8; 32]), B256::new([0x22u8; 32])];
+        let cd = create_calldata(&dummy_params(), &[pair], &[]);
+        // The proof pair data should appear somewhere in the buffer
+        assert!(cd.windows(32).any(|w| w == pair[0].as_slice()));
+        assert!(cd.windows(32).any(|w| w == pair[1].as_slice()));
+    }
+
+    #[test]
+    fn create_calldata_with_offchain_input() {
+        let offchain = vec![0xddu8; 17];
+        let cd = create_calldata(&dummy_params(), &[], &offchain);
+        assert!(cd.windows(17).any(|w| w == &offchain[..]));
+        assert_eq!((cd.len() - 4) % 32, 0);
+    }
+
+    // ── ABI helpers ──────────────────────────────────────────────────────
+
+    #[test]
+    fn padded32_multiples() {
+        assert_eq!(padded32(0), 0);
+        assert_eq!(padded32(1), 32);
+        assert_eq!(padded32(31), 32);
+        assert_eq!(padded32(32), 32);
+        assert_eq!(padded32(33), 64);
+        assert_eq!(padded32(64), 64);
+    }
+
+    #[test]
+    fn u256_be_encodes_correctly() {
+        let w = u256_be(1);
+        assert_eq!(w[31], 1);
+        assert_eq!(w[..31], [0u8; 31]);
+
+        let w = u256_be(256);
+        assert_eq!(w[30], 1);
+        assert_eq!(w[31], 0);
+    }
+
+    #[test]
+    fn pad_address_correct() {
+        let addr = Address::repeat_byte(0xff);
+        let padded = pad_address(addr.as_slice());
+        assert_eq!(&padded[..12], &[0u8; 12]);
+        assert_eq!(&padded[12..], addr.as_slice());
+    }
+
+    #[test]
+    fn pad_to_aligns_buffer() {
+        let mut buf = vec![0u8; 10];
+        pad_to(&mut buf, 10);
+        assert_eq!(buf.len(), 32); // 10 + 22 padding
+
+        let mut buf2 = vec![0u8; 32];
+        pad_to(&mut buf2, 32);
+        assert_eq!(buf2.len(), 32); // already aligned, no change
+    }
+
+    #[test]
+    fn selector_is_deterministic() {
+        let s1 = selector("remove(bytes32)");
+        let s2 = selector("remove(bytes32)");
+        assert_eq!(s1, s2);
+    }
+
+    // ── set_root_with_context with non-empty factory data ────────────────
+
+    #[test]
+    fn set_root_with_context_calldata_with_factory_data() {
+        let proof = ProofStruct { location: ProofLocation::Emitted, data: vec![0xcc; 10] };
+        let factory_data = vec![0xffu8; 20];
+        let cd = set_root_with_context_calldata(
+            B256::new([0x01u8; 32]),
+            &proof,
+            &dummy_params(),
+            Address::repeat_byte(0x22),
+            &factory_data,
+        );
+        assert_eq!((cd.len() - 4) % 32, 0);
+        // Factory data should appear in the buffer
+        assert!(cd.windows(20).any(|w| w == &factory_data[..]));
+    }
 }
