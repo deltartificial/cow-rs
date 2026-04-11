@@ -177,12 +177,12 @@ pub use order_signing::{
     SignOrderCancellationsParams, SignOrderParams, SigningResult, TradeFlags, UnsignedOrder,
     build_order_typed_data, cancellations_hash, compute_order_uid, decode_order_flags,
     decode_signature_owner, decode_signing_scheme, decode_trade_flags, domain_separator,
-    eip1271_result, encode_order_flags, encode_signing_scheme, encode_trade_flags,
-    extract_order_uid_params, generate_order_id, get_domain, hash_order, hash_order_cancellation,
-    hash_order_cancellations, hash_typed_data, hashify, invalidate_order_calldata,
-    normalize_buy_token_balance, normalize_order, order_hash, pack_order_uid_params,
-    presign_result, set_pre_signature_calldata, sign_order, sign_order_cancellation,
-    sign_order_cancellations, signing_digest,
+    domain_separator_from, eip1271_result, encode_order_flags, encode_signing_scheme,
+    encode_trade_flags, extract_order_uid_params, generate_order_id, get_domain, hash_order,
+    hash_order_cancellation, hash_order_cancellations, hash_typed_data, hashify,
+    invalidate_order_calldata, normalize_buy_token_balance, normalize_order, order_hash,
+    pack_order_uid_params, presign_result, set_pre_signature_calldata, sign_order,
+    sign_order_cancellation, sign_order_cancellations, signing_digest,
 };
 pub use permit::{
     Erc20PermitInfo, PERMIT_GAS_LIMIT, PermitHookData, PermitInfo, build_permit_calldata,
@@ -223,7 +223,7 @@ pub use trading::{
     resolve_signer, resolve_slippage_suggestion, suggest_slippage_bps, suggest_slippage_from_fee,
     suggest_slippage_from_volume, swap_params_to_limit_order_params, unsigned_order_for_signing,
 };
-pub use traits::{CowSigner, OrderbookClient, RpcProvider};
+pub use traits::{CowSigner, IpfsClient, OrderbookClient, RpcProvider};
 pub use types::{
     ATTESTATION_PREFIX_CONST, ATTESTATOR_ADDRESS, ATTESTION_VERSION_BYTE, EcdsaSigningScheme,
     HUNDRED_THOUSANDS, LIMIT_CONCURRENT_REQUESTS, MAX_UINT32, MAX_UINT256, ONE, ONE_HUNDRED_BPS,

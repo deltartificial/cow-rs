@@ -383,8 +383,11 @@ impl OrderDomain {
 
     /// Compute the EIP-712 domain separator for this domain.
     ///
-    /// Convenience wrapper around [`crate::order_signing::domain_separator`]
-    /// using `self.chain_id`.
+    /// When all fields are at their default values (`"Gnosis Protocol v2"`,
+    /// `"v2"`, canonical settlement contract), this is equivalent to
+    /// [`crate::order_signing::domain_separator`]. When any field has been
+    /// overridden via the `with_*` builder methods, the separator is
+    /// computed from the custom values.
     ///
     /// ```
     /// use cow_rs::OrderDomain;
@@ -395,7 +398,75 @@ impl OrderDomain {
     /// ```
     #[must_use]
     pub fn domain_separator(&self) -> alloy_primitives::B256 {
-        crate::order_signing::domain_separator(self.chain_id)
+        crate::order_signing::domain_separator_from(self)
+    }
+
+    /// Override the protocol name used in the EIP-712 domain separator.
+    ///
+    /// The default is `"Gnosis Protocol v2"`. Use this when computing
+    /// domain separators for forks or alternative deployments.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - The protocol name string.
+    ///
+    /// # Returns
+    ///
+    /// `self` with the updated name.
+    #[must_use]
+    pub const fn with_name(mut self, name: &'static str) -> Self {
+        self.name = name;
+        self
+    }
+
+    /// Override the protocol version used in the EIP-712 domain separator.
+    ///
+    /// The default is `"v2"`.
+    ///
+    /// # Arguments
+    ///
+    /// * `version` - The protocol version string.
+    ///
+    /// # Returns
+    ///
+    /// `self` with the updated version.
+    #[must_use]
+    pub const fn with_version(mut self, version: &'static str) -> Self {
+        self.version = version;
+        self
+    }
+
+    /// Override the verifying contract address.
+    ///
+    /// The default is the canonical `GPv2Settlement` contract. Use this
+    /// when computing domain separators for alternative deployments.
+    ///
+    /// # Arguments
+    ///
+    /// * `contract` - The verifying contract address.
+    ///
+    /// # Returns
+    ///
+    /// `self` with the updated verifying contract.
+    #[must_use]
+    pub const fn with_verifying_contract(mut self, contract: Address) -> Self {
+        self.verifying_contract = contract;
+        self
+    }
+
+    /// Override the chain ID.
+    ///
+    /// # Arguments
+    ///
+    /// * `chain_id` - The EVM chain ID.
+    ///
+    /// # Returns
+    ///
+    /// `self` with the updated chain ID.
+    #[must_use]
+    pub const fn with_chain_id(mut self, chain_id: u64) -> Self {
+        self.chain_id = chain_id;
+        self
     }
 }
 
