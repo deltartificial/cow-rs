@@ -554,3 +554,259 @@ impl TryFrom<&str> for PriceQuality {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── OrderKind ────────────────────────────────────────────────────────
+
+    #[test]
+    fn order_kind_as_str() {
+        assert_eq!(OrderKind::Sell.as_str(), "sell");
+        assert_eq!(OrderKind::Buy.as_str(), "buy");
+    }
+
+    #[test]
+    fn order_kind_predicates() {
+        assert!(OrderKind::Sell.is_sell());
+        assert!(!OrderKind::Sell.is_buy());
+        assert!(OrderKind::Buy.is_buy());
+        assert!(!OrderKind::Buy.is_sell());
+    }
+
+    #[test]
+    fn order_kind_display() {
+        assert_eq!(format!("{}", OrderKind::Sell), "sell");
+        assert_eq!(format!("{}", OrderKind::Buy), "buy");
+    }
+
+    #[test]
+    fn order_kind_roundtrip() {
+        for kind in [OrderKind::Sell, OrderKind::Buy] {
+            let parsed = OrderKind::try_from(kind.as_str());
+            assert!(parsed.is_ok());
+            assert_eq!(parsed.unwrap_or(OrderKind::Sell), kind);
+        }
+    }
+
+    #[test]
+    fn order_kind_invalid() {
+        assert!(OrderKind::try_from("invalid").is_err());
+        assert!(OrderKind::try_from("").is_err());
+        assert!(OrderKind::try_from("SELL").is_err());
+    }
+
+    #[test]
+    fn order_kind_serde_roundtrip() {
+        let json = serde_json::to_string(&OrderKind::Sell).unwrap_or_default();
+        assert_eq!(json, "\"sell\"");
+        let back: OrderKind = serde_json::from_str(&json).unwrap_or(OrderKind::Buy);
+        assert_eq!(back, OrderKind::Sell);
+    }
+
+    // ── TokenBalance ────────────────────────────────────────────────────
+
+    #[test]
+    fn token_balance_as_str() {
+        assert_eq!(TokenBalance::Erc20.as_str(), "erc20");
+        assert_eq!(TokenBalance::External.as_str(), "external");
+        assert_eq!(TokenBalance::Internal.as_str(), "internal");
+    }
+
+    #[test]
+    fn token_balance_predicates() {
+        assert!(TokenBalance::Erc20.is_erc20());
+        assert!(!TokenBalance::Erc20.is_external());
+        assert!(!TokenBalance::Erc20.is_internal());
+        assert!(TokenBalance::External.is_external());
+        assert!(TokenBalance::Internal.is_internal());
+    }
+
+    #[test]
+    fn token_balance_default() {
+        assert_eq!(TokenBalance::default(), TokenBalance::Erc20);
+    }
+
+    #[test]
+    fn token_balance_roundtrip() {
+        for bal in [TokenBalance::Erc20, TokenBalance::External, TokenBalance::Internal] {
+            let parsed = TokenBalance::try_from(bal.as_str());
+            assert!(parsed.is_ok());
+            assert_eq!(parsed.unwrap_or(TokenBalance::Erc20), bal);
+        }
+    }
+
+    #[test]
+    fn token_balance_invalid() {
+        assert!(TokenBalance::try_from("ERC20").is_err());
+        assert!(TokenBalance::try_from("").is_err());
+    }
+
+    #[test]
+    fn token_balance_eip712_hash_deterministic() {
+        let h1 = TokenBalance::Erc20.eip712_hash();
+        let h2 = TokenBalance::Erc20.eip712_hash();
+        assert_eq!(h1, h2);
+        // Different variants produce different hashes
+        assert_ne!(TokenBalance::Erc20.eip712_hash(), TokenBalance::External.eip712_hash());
+        assert_ne!(TokenBalance::External.eip712_hash(), TokenBalance::Internal.eip712_hash());
+    }
+
+    #[test]
+    fn token_balance_display() {
+        assert_eq!(format!("{}", TokenBalance::External), "external");
+    }
+
+    // ── SigningScheme ────────────────────────────────────────────────────
+
+    #[test]
+    fn signing_scheme_as_str() {
+        assert_eq!(SigningScheme::Eip712.as_str(), "eip712");
+        assert_eq!(SigningScheme::EthSign.as_str(), "ethsign");
+        assert_eq!(SigningScheme::Eip1271.as_str(), "eip1271");
+        assert_eq!(SigningScheme::PreSign.as_str(), "presign");
+    }
+
+    #[test]
+    fn signing_scheme_predicates() {
+        assert!(SigningScheme::Eip712.is_eip712());
+        assert!(SigningScheme::EthSign.is_eth_sign());
+        assert!(SigningScheme::Eip1271.is_eip1271());
+        assert!(SigningScheme::PreSign.is_presign());
+        assert!(!SigningScheme::Eip712.is_presign());
+    }
+
+    #[test]
+    fn signing_scheme_roundtrip() {
+        for s in [
+            SigningScheme::Eip712,
+            SigningScheme::EthSign,
+            SigningScheme::Eip1271,
+            SigningScheme::PreSign,
+        ] {
+            assert_eq!(SigningScheme::try_from(s.as_str()).unwrap_or(SigningScheme::Eip712), s);
+        }
+    }
+
+    #[test]
+    fn signing_scheme_invalid() {
+        assert!(SigningScheme::try_from("eip-712").is_err());
+        assert!(SigningScheme::try_from("").is_err());
+    }
+
+    #[test]
+    fn signing_scheme_display() {
+        assert_eq!(format!("{}", SigningScheme::PreSign), "presign");
+    }
+
+    // ── EcdsaSigningScheme ──────────────────────────────────────────────
+
+    #[test]
+    fn ecdsa_scheme_default() {
+        assert_eq!(EcdsaSigningScheme::default(), EcdsaSigningScheme::Eip712);
+    }
+
+    #[test]
+    fn ecdsa_scheme_into_signing_scheme() {
+        assert_eq!(EcdsaSigningScheme::Eip712.into_signing_scheme(), SigningScheme::Eip712);
+        assert_eq!(EcdsaSigningScheme::EthSign.into_signing_scheme(), SigningScheme::EthSign);
+    }
+
+    #[test]
+    fn ecdsa_scheme_from_conversion() {
+        let full: SigningScheme = EcdsaSigningScheme::EthSign.into();
+        assert_eq!(full, SigningScheme::EthSign);
+    }
+
+    #[test]
+    fn ecdsa_scheme_predicates() {
+        assert!(EcdsaSigningScheme::Eip712.is_eip712());
+        assert!(!EcdsaSigningScheme::Eip712.is_eth_sign());
+        assert!(EcdsaSigningScheme::EthSign.is_eth_sign());
+    }
+
+    #[test]
+    fn ecdsa_scheme_roundtrip() {
+        for s in [EcdsaSigningScheme::Eip712, EcdsaSigningScheme::EthSign] {
+            assert_eq!(
+                EcdsaSigningScheme::try_from(s.as_str()).unwrap_or(EcdsaSigningScheme::Eip712),
+                s
+            );
+        }
+    }
+
+    #[test]
+    fn ecdsa_scheme_invalid() {
+        assert!(EcdsaSigningScheme::try_from("eip1271").is_err());
+    }
+
+    #[test]
+    fn ecdsa_scheme_display() {
+        assert_eq!(format!("{}", EcdsaSigningScheme::EthSign), "ethsign");
+    }
+
+    // ── PriceQuality ────────────────────────────────────────────────────
+
+    #[test]
+    fn price_quality_default() {
+        assert_eq!(PriceQuality::default(), PriceQuality::Optimal);
+    }
+
+    #[test]
+    fn price_quality_as_str() {
+        assert_eq!(PriceQuality::Fast.as_str(), "fast");
+        assert_eq!(PriceQuality::Optimal.as_str(), "optimal");
+        assert_eq!(PriceQuality::Verified.as_str(), "verified");
+    }
+
+    #[test]
+    fn price_quality_predicates() {
+        assert!(PriceQuality::Fast.is_fast());
+        assert!(PriceQuality::Optimal.is_optimal());
+        assert!(PriceQuality::Verified.is_verified());
+        assert!(!PriceQuality::Fast.is_optimal());
+    }
+
+    #[test]
+    fn price_quality_roundtrip() {
+        for q in [PriceQuality::Fast, PriceQuality::Optimal, PriceQuality::Verified] {
+            assert_eq!(PriceQuality::try_from(q.as_str()).unwrap_or(PriceQuality::Fast), q);
+        }
+    }
+
+    #[test]
+    fn price_quality_invalid() {
+        assert!(PriceQuality::try_from("slow").is_err());
+    }
+
+    #[test]
+    fn price_quality_display() {
+        assert_eq!(format!("{}", PriceQuality::Verified), "verified");
+    }
+
+    // ── Constants ────────────────────────────────────────────────────────
+
+    #[test]
+    fn constants_are_correct() {
+        assert!(ZERO_ADDRESS.is_zero());
+        assert_eq!(ZERO, U256::ZERO);
+        assert_eq!(ONE, U256::from(1));
+        assert_eq!(MAX_UINT32, U256::from(u32::MAX));
+        assert_eq!(MAX_UINT256, U256::MAX);
+        assert_eq!(ONE_HUNDRED_BPS, 10_000);
+        assert_eq!(HUNDRED_THOUSANDS, 100_000);
+        assert_eq!(LIMIT_CONCURRENT_REQUESTS, 5);
+    }
+
+    #[test]
+    fn zero_hash_is_correct_length() {
+        assert_eq!(ZERO_HASH.len(), 66); // "0x" + 64 hex chars
+        assert!(ZERO_HASH.starts_with("0x"));
+    }
+
+    #[test]
+    fn attestator_address_is_nonzero() {
+        assert!(!ATTESTATOR_ADDRESS.is_zero());
+    }
+}

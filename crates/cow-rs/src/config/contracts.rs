@@ -447,3 +447,120 @@ pub const fn implementation_address_slot(proxy: Address) -> (Address, &'static s
 pub const fn owner_address_slot(proxy: Address) -> (Address, &'static str) {
     (proxy, OWNER_STORAGE_SLOT)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use super::super::chain::Env;
+
+    #[test]
+    fn all_contract_addresses_are_nonzero() {
+        assert!(!SETTLEMENT_CONTRACT.is_zero());
+        assert!(!VAULT_RELAYER.is_zero());
+        assert!(!ETH_FLOW_PROD.is_zero());
+        assert!(!ETH_FLOW_STAGING.is_zero());
+        assert!(!EXTENSIBLE_FALLBACK_HANDLER.is_zero());
+        assert!(!SETTLEMENT_CONTRACT_STAGING.is_zero());
+        assert!(!VAULT_RELAYER_STAGING.is_zero());
+        assert!(!BARN_ETH_FLOW.is_zero());
+        assert!(!COMPOSABLE_COW.is_zero());
+        assert!(!DEPLOYER_CONTRACT.is_zero());
+    }
+
+    #[test]
+    fn buy_eth_address_is_all_ee() {
+        assert_eq!(BUY_ETH_ADDRESS, Address::new([0xee; 20]));
+    }
+
+    #[test]
+    fn prod_and_staging_addresses_differ() {
+        assert_ne!(SETTLEMENT_CONTRACT, SETTLEMENT_CONTRACT_STAGING);
+        assert_ne!(VAULT_RELAYER, VAULT_RELAYER_STAGING);
+        assert_ne!(ETH_FLOW_PROD, ETH_FLOW_STAGING);
+    }
+
+    #[test]
+    fn settlement_for_env_branches() {
+        let chain = SupportedChainId::Mainnet;
+        assert_eq!(settlement_contract_for_env(chain, Env::Prod), SETTLEMENT_CONTRACT);
+        assert_eq!(settlement_contract_for_env(chain, Env::Staging), SETTLEMENT_CONTRACT_STAGING);
+    }
+
+    #[test]
+    fn vault_relayer_for_env_branches() {
+        let chain = SupportedChainId::Mainnet;
+        assert_eq!(vault_relayer_for_env(chain, Env::Prod), VAULT_RELAYER);
+        assert_eq!(vault_relayer_for_env(chain, Env::Staging), VAULT_RELAYER_STAGING);
+    }
+
+    #[test]
+    fn eth_flow_for_env_branches() {
+        let chain = SupportedChainId::Mainnet;
+        assert_eq!(eth_flow_for_env(chain, Env::Prod), ETH_FLOW_PROD);
+        assert_eq!(eth_flow_for_env(chain, Env::Staging), BARN_ETH_FLOW);
+    }
+
+    #[test]
+    fn per_chain_lookups_return_correct_addresses() {
+        let chain = SupportedChainId::Mainnet;
+        assert_eq!(settlement_contract(chain), SETTLEMENT_CONTRACT);
+        assert_eq!(vault_relayer(chain), VAULT_RELAYER);
+        assert_eq!(composable_cow(chain), COMPOSABLE_COW);
+        assert_eq!(extensible_fallback_handler(chain), EXTENSIBLE_FALLBACK_HANDLER);
+        assert_eq!(composable_cow_contract_address(chain), COMPOSABLE_COW);
+        assert_eq!(cow_protocol_settlement_contract_address(chain), SETTLEMENT_CONTRACT);
+        assert_eq!(cow_protocol_vault_relayer_address(chain), VAULT_RELAYER);
+        assert_eq!(cow_protocol_vault_relayer_address_staging(chain), VAULT_RELAYER_STAGING);
+        assert_eq!(extensible_fallback_handler_contract_address(chain), EXTENSIBLE_FALLBACK_HANDLER);
+    }
+
+    #[test]
+    fn deterministic_deployment_is_deterministic() {
+        let a1 = deterministic_deployment_address(&[0xfe], &[]);
+        let a2 = deterministic_deployment_address(&[0xfe], &[]);
+        assert_eq!(a1, a2);
+        assert!(!a1.is_zero());
+    }
+
+    #[test]
+    fn deterministic_deployment_varies_with_bytecode() {
+        let a = deterministic_deployment_address(&[0xfe], &[]);
+        let b = deterministic_deployment_address(&[0xff], &[]);
+        assert_ne!(a, b);
+    }
+
+    #[test]
+    fn deterministic_deployment_varies_with_args() {
+        let a = deterministic_deployment_address(&[0xfe], &[]);
+        let b = deterministic_deployment_address(&[0xfe], &[0x01]);
+        assert_ne!(a, b);
+    }
+
+    #[test]
+    fn implementation_slot_returns_proxy_and_slot() {
+        let proxy = Address::ZERO;
+        let (addr, slot) = implementation_address_slot(proxy);
+        assert_eq!(addr, proxy);
+        assert_eq!(slot, IMPLEMENTATION_STORAGE_SLOT);
+    }
+
+    #[test]
+    fn owner_slot_returns_proxy_and_slot() {
+        let proxy = Address::ZERO;
+        let (addr, slot) = owner_address_slot(proxy);
+        assert_eq!(addr, proxy);
+        assert_eq!(slot, OWNER_STORAGE_SLOT);
+    }
+
+    #[test]
+    fn max_valid_to_epoch_is_u32_max() {
+        assert_eq!(MAX_VALID_TO_EPOCH, u32::MAX);
+    }
+
+    #[test]
+    fn salt_is_valid_hex() {
+        let stripped = SALT.trim_start_matches("0x");
+        assert!(alloy_primitives::hex::decode(stripped).is_ok());
+        assert_eq!(stripped.len(), 64);
+    }
+}
