@@ -770,7 +770,12 @@ mod tests {
 
     #[test]
     fn sell_order_has_sell_kind() {
-        let o = UnsignedOrder::sell(Address::ZERO, Address::ZERO, U256::from(100u64), U256::from(50u64));
+        let o = UnsignedOrder::sell(
+            Address::ZERO,
+            Address::ZERO,
+            U256::from(100u64),
+            U256::from(50u64),
+        );
         assert_eq!(o.kind, OrderKind::Sell);
         assert!(o.is_sell());
         assert!(!o.is_buy());
@@ -780,7 +785,8 @@ mod tests {
 
     #[test]
     fn buy_order_has_buy_kind() {
-        let o = UnsignedOrder::buy(Address::ZERO, Address::ZERO, U256::from(100u64), U256::from(50u64));
+        let o =
+            UnsignedOrder::buy(Address::ZERO, Address::ZERO, U256::from(100u64), U256::from(50u64));
         assert_eq!(o.kind, OrderKind::Buy);
         assert!(o.is_buy());
         assert!(!o.is_sell());

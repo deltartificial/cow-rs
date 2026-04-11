@@ -477,10 +477,7 @@ fn address_returns_signer_address() {
     let sdk = TradingSdk::new(config, TEST_KEY).unwrap();
     let addr = sdk.address();
     // Hardhat #0 address.
-    assert_eq!(
-        format!("{addr:#x}"),
-        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266"
-    );
+    assert_eq!(format!("{addr:#x}"), "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266");
 }
 
 // ── TradingSdk::get_order_link ───────────────────────────────────────────────
@@ -628,15 +625,9 @@ async fn get_quote_with_settings_uses_overrides() {
         .await;
 
     let sdk = make_sdk(&server);
-    let settings = cow_rs::SwapAdvancedSettings {
-        app_data: None,
-        slippage_bps: Some(100),
-        partner_fee: None,
-    };
-    let quote = sdk
-        .get_quote_with_settings(default_trade_params(), &settings)
-        .await
-        .unwrap();
+    let settings =
+        cow_rs::SwapAdvancedSettings { app_data: None, slippage_bps: Some(100), partner_fee: None };
+    let quote = sdk.get_quote_with_settings(default_trade_params(), &settings).await.unwrap();
     // The suggested slippage should reflect the override.
     assert_eq!(quote.suggested_slippage_bps, 100);
 }
@@ -661,15 +652,10 @@ async fn post_swap_order_with_settings_submits() {
         .await;
 
     let sdk = make_sdk(&server);
-    let settings = cow_rs::SwapAdvancedSettings {
-        app_data: None,
-        slippage_bps: Some(100),
-        partner_fee: None,
-    };
-    let result = sdk
-        .post_swap_order_with_settings(default_trade_params(), &settings)
-        .await
-        .unwrap();
+    let settings =
+        cow_rs::SwapAdvancedSettings { app_data: None, slippage_bps: Some(100), partner_fee: None };
+    let result =
+        sdk.post_swap_order_with_settings(default_trade_params(), &settings).await.unwrap();
     assert_eq!(result.order_id, uid);
 }
 
@@ -740,12 +726,10 @@ async fn get_quote_propagates_api_error() {
     let server = MockServer::start().await;
     Mock::given(matchers::method("POST"))
         .and(matchers::path("/api/v1/quote"))
-        .respond_with(
-            ResponseTemplate::new(400).set_body_json(serde_json::json!({
-                "errorType": "InvalidOrderPlacement",
-                "description": "sell amount too low"
-            })),
-        )
+        .respond_with(ResponseTemplate::new(400).set_body_json(serde_json::json!({
+            "errorType": "InvalidOrderPlacement",
+            "description": "sell amount too low"
+        })))
         .mount(&server)
         .await;
 
@@ -843,12 +827,8 @@ fn get_slippage_percent_sell_order() {
 
 #[test]
 fn get_slippage_percent_zero_amount_errors() {
-    let result = cow_rs::trading::get_slippage_percent(
-        true,
-        U256::ZERO,
-        U256::ZERO,
-        U256::from(1u64),
-    );
+    let result =
+        cow_rs::trading::get_slippage_percent(true, U256::ZERO, U256::ZERO, U256::from(1u64));
     assert!(result.is_err());
 }
 
@@ -924,9 +904,7 @@ async fn off_chain_cancel_order_sends_delete_request() {
         .await;
 
     let sdk = make_sdk(&server);
-    let result = sdk
-        .off_chain_cancel_order(uid, cow_rs::EcdsaSigningScheme::Eip712)
-        .await;
+    let result = sdk.off_chain_cancel_order(uid, cow_rs::EcdsaSigningScheme::Eip712).await;
     assert!(result.is_ok());
 }
 
@@ -945,9 +923,8 @@ async fn off_chain_cancel_orders_sends_delete_request() {
         .await;
 
     let sdk = make_sdk(&server);
-    let result = sdk
-        .off_chain_cancel_orders(vec![uid1, uid2], cow_rs::EcdsaSigningScheme::Eip712)
-        .await;
+    let result =
+        sdk.off_chain_cancel_orders(vec![uid1, uid2], cow_rs::EcdsaSigningScheme::Eip712).await;
     assert!(result.is_ok());
 }
 
@@ -1166,12 +1143,8 @@ async fn get_limit_trade_parameters_from_api() {
 #[test]
 fn get_eth_flow_cancellation_returns_calldata() {
     let uid = "0x".to_owned() + &"ab".repeat(56);
-    let tx = cow_rs::trading::get_eth_flow_cancellation(
-        SupportedChainId::Mainnet,
-        Env::Prod,
-        &uid,
-    )
-    .unwrap();
+    let tx = cow_rs::trading::get_eth_flow_cancellation(SupportedChainId::Mainnet, Env::Prod, &uid)
+        .unwrap();
     assert!(!tx.data.is_empty());
     assert_eq!(tx.value, U256::ZERO);
     assert_eq!(tx.gas_limit, cow_rs::GAS_LIMIT_DEFAULT);
@@ -1183,12 +1156,9 @@ fn get_eth_flow_cancellation_returns_calldata() {
 #[test]
 fn get_settlement_cancellation_returns_calldata() {
     let uid = "0x".to_owned() + &"cd".repeat(56);
-    let tx = cow_rs::trading::get_settlement_cancellation(
-        SupportedChainId::Mainnet,
-        Env::Prod,
-        &uid,
-    )
-    .unwrap();
+    let tx =
+        cow_rs::trading::get_settlement_cancellation(SupportedChainId::Mainnet, Env::Prod, &uid)
+            .unwrap();
     assert!(!tx.data.is_empty());
     assert_eq!(tx.value, U256::ZERO);
     assert_ne!(tx.to, Address::ZERO);
@@ -1326,10 +1296,8 @@ fn adjust_eth_flow_limit_order_params_replaces_sell_token() {
         app_data: None,
         partner_fee: None,
     };
-    let adjusted = cow_rs::trading::adjust_eth_flow_limit_order_params(
-        SupportedChainId::Mainnet,
-        params,
-    );
+    let adjusted =
+        cow_rs::trading::adjust_eth_flow_limit_order_params(SupportedChainId::Mainnet, params);
     assert_ne!(adjusted.sell_token, cow_rs::NATIVE_CURRENCY_ADDRESS);
 }
 
@@ -1351,10 +1319,8 @@ fn get_trade_parameters_after_quote_restores_sell_token() {
         partially_fillable: None,
         partner_fee: None,
     };
-    let restored = cow_rs::trading::get_trade_parameters_after_quote(
-        params,
-        cow_rs::NATIVE_CURRENCY_ADDRESS,
-    );
+    let restored =
+        cow_rs::trading::get_trade_parameters_after_quote(params, cow_rs::NATIVE_CURRENCY_ADDRESS);
     assert_eq!(restored.sell_token, cow_rs::NATIVE_CURRENCY_ADDRESS);
 }
 
@@ -1369,9 +1335,10 @@ fn config_with_utm_and_partner_fee() {
         utm_term: None,
         utm_content: None,
     };
-    let fee = cow_rs::PartnerFee::single(
-        cow_rs::PartnerFeeEntry::volume(10, "0x1111111111111111111111111111111111111111"),
-    );
+    let fee = cow_rs::PartnerFee::single(cow_rs::PartnerFeeEntry::volume(
+        10,
+        "0x1111111111111111111111111111111111111111",
+    ));
     let config = TradingSdkConfig::prod(SupportedChainId::Mainnet, "MyApp")
         .with_utm(utm)
         .with_partner_fee(fee);
@@ -1384,10 +1351,8 @@ fn config_with_utm_and_partner_fee() {
 #[test]
 fn get_order_deadline_from_now_is_in_future() {
     let deadline = cow_rs::trading::get_order_deadline_from_now(1800);
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_secs() as u32;
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs()
+        as u32;
     assert!(deadline > now);
 }
 
@@ -1395,9 +1360,10 @@ fn get_order_deadline_from_now_is_in_future() {
 
 #[test]
 fn build_app_data_with_partner_fee() {
-    let fee = cow_rs::PartnerFee::single(
-        cow_rs::PartnerFeeEntry::volume(100, "0x1111111111111111111111111111111111111111"),
-    );
+    let fee = cow_rs::PartnerFee::single(cow_rs::PartnerFeeEntry::volume(
+        100,
+        "0x1111111111111111111111111111111111111111",
+    ));
     let info =
         cow_rs::trading::build_app_data("MyDApp", 50, cow_rs::OrderClassKind::Limit, Some(&fee));
     assert!(!info.full_app_data.is_empty());

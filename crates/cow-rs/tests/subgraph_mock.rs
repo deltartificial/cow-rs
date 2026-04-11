@@ -441,10 +441,8 @@ async fn get_user_returns_parsed_user() {
         .mount(&server)
         .await;
 
-    let user: cow_rs::SubgraphUser = make_api(&server)
-        .get_user("0x1111111111111111111111111111111111111111")
-        .await
-        .unwrap();
+    let user: cow_rs::SubgraphUser =
+        make_api(&server).get_user("0x1111111111111111111111111111111111111111").await.unwrap();
     assert_eq!(user.address, "0x1111111111111111111111111111111111111111");
     assert_eq!(user.number_of_trades, "5");
 }

@@ -1672,9 +1672,9 @@ mod tests {
     #[test]
     fn get_chain_info_all_supported() {
         for &chain in SupportedChainId::all() {
-            let info = get_chain_info(chain.as_u64());
-            assert!(info.is_some(), "no chain info for {chain:?}");
-            let info = info.unwrap_or_else(|| supported_chain_info(chain));
+            let chain_info = get_chain_info(chain.as_u64());
+            assert!(chain_info.is_some(), "no chain info for {chain:?}");
+            let info = chain_info.unwrap_or_else(|| supported_chain_info(chain));
             assert_eq!(info.id(), chain.as_u64());
             assert!(!info.label().is_empty());
         }

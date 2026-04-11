@@ -765,9 +765,9 @@ async fn get_orders_by_tx_returns_list() {
     let uid = "0x".to_owned() + &"ff".repeat(56);
     Mock::given(matchers::method("GET"))
         .and(matchers::path_regex(r"/api/v1/transactions/.*/orders"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!([
-            make_order_json(&uid)
-        ])))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(serde_json::json!([make_order_json(&uid)])),
+        )
         .mount(&server)
         .await;
     let orders = make_api(&server).get_orders_by_tx("0xdeadbeef").await.unwrap();
@@ -789,10 +789,8 @@ async fn upload_app_data_returns_object() {
         })))
         .mount(&server)
         .await;
-    let result = make_api(&server)
-        .upload_app_data(&hash, "{\"appCode\":\"Uploaded\"}")
-        .await
-        .unwrap();
+    let result =
+        make_api(&server).upload_app_data(&hash, "{\"appCode\":\"Uploaded\"}").await.unwrap();
     assert!(result.full_app_data.contains("Uploaded"));
 }
 
@@ -809,10 +807,7 @@ async fn upload_app_data_auto_returns_object() {
         })))
         .mount(&server)
         .await;
-    let result = make_api(&server)
-        .upload_app_data_auto("{\"appCode\":\"Auto\"}")
-        .await
-        .unwrap();
+    let result = make_api(&server).upload_app_data_auto("{\"appCode\":\"Auto\"}").await.unwrap();
     assert!(result.full_app_data.contains("Auto"));
 }
 

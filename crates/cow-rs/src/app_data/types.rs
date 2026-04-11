@@ -2572,7 +2572,7 @@ mod tests {
     }
 
     #[test]
-    #[allow(deprecated)]
+    #[allow(deprecated, reason = "testing deprecated Referrer::new alias")]
     fn referrer_new_deprecated_alias() {
         let r = Referrer::new("0xAddr");
         assert_eq!(r.as_address(), Some("0xAddr"));

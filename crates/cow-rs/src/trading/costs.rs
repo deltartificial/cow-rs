@@ -116,10 +116,7 @@ pub(crate) fn compute_quote_amounts_and_costs(
 mod tests {
     use alloy_primitives::Address;
 
-    use crate::{
-        order_book::types::QuoteData,
-        types::TokenBalance,
-    };
+    use crate::{order_book::types::QuoteData, types::TokenBalance};
 
     use super::*;
 

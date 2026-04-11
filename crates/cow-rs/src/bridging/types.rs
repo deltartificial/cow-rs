@@ -783,7 +783,9 @@ mod tests {
 
     #[test]
     fn receiver_account_bridge_provider_is_receiver() {
-        assert!(BridgeProviderType::ReceiverAccountBridgeProvider.is_receiver_account_bridge_provider());
+        assert!(
+            BridgeProviderType::ReceiverAccountBridgeProvider.is_receiver_account_bridge_provider()
+        );
         assert!(!BridgeProviderType::ReceiverAccountBridgeProvider.is_hook_bridge_provider());
     }
 
@@ -1038,7 +1040,10 @@ mod tests {
 
     #[test]
     fn bridge_provider_type_serde_roundtrip() {
-        for v in [BridgeProviderType::HookBridgeProvider, BridgeProviderType::ReceiverAccountBridgeProvider] {
+        for v in [
+            BridgeProviderType::HookBridgeProvider,
+            BridgeProviderType::ReceiverAccountBridgeProvider,
+        ] {
             let json = serde_json::to_string(&v).unwrap();
             let back: BridgeProviderType = serde_json::from_str(&json).unwrap();
             assert_eq!(v, back);
@@ -1096,10 +1101,7 @@ mod tests {
 
     #[test]
     fn bungee_event_status_screaming_snake_case() {
-        assert_eq!(
-            serde_json::to_string(&BungeeEventStatus::Completed).unwrap(),
-            "\"COMPLETED\""
-        );
+        assert_eq!(serde_json::to_string(&BungeeEventStatus::Completed).unwrap(), "\"COMPLETED\"");
         assert_eq!(serde_json::to_string(&BungeeEventStatus::Pending).unwrap(), "\"PENDING\"");
     }
 

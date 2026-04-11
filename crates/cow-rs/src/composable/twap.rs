@@ -1056,6 +1056,7 @@ mod tests {
     // ── poll_validate ────────────────────────────────────────────────────
 
     #[test]
+    #[allow(clippy::wildcard_enum_match_arm, reason = "test catch-all for unexpected variants")]
     fn poll_validate_at_mining_time_always_success() {
         let order = TwapOrder::new(sample_data());
         match order.poll_validate(0) {
@@ -1065,6 +1066,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::wildcard_enum_match_arm, reason = "test catch-all for unexpected variants")]
     fn poll_validate_before_start() {
         let mut data = sample_data();
         data.start_time = TwapStartTime::At(1_000_000);
@@ -1076,6 +1078,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::wildcard_enum_match_arm, reason = "test catch-all for unexpected variants")]
     fn poll_validate_within_window() {
         let mut data = sample_data();
         data.start_time = TwapStartTime::At(1_000_000);
@@ -1088,6 +1091,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::wildcard_enum_match_arm, reason = "test catch-all for unexpected variants")]
     fn poll_validate_after_expiry() {
         let mut data = sample_data();
         data.start_time = TwapStartTime::At(1_000_000);

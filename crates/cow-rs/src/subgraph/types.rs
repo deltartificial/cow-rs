@@ -969,10 +969,7 @@ mod tests {
     #[test]
     fn token_display() {
         let t = sample_token();
-        assert_eq!(
-            t.to_string(),
-            "USDC (0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48)"
-        );
+        assert_eq!(t.to_string(), "USDC (0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48)");
     }
 
     #[test]
@@ -1101,7 +1098,7 @@ mod tests {
             executed_fee_amount: "0".into(),
             invalidate_timestamp: Some("100".into()),
             timestamp: "0".into(),
-            tx_hash: "".into(),
+            tx_hash: String::new(),
             is_signer_safe: true,
             signing_scheme: "eip1271".into(),
             uid: "short".into(),

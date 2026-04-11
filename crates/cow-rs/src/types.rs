@@ -586,7 +586,7 @@ mod tests {
         for kind in [OrderKind::Sell, OrderKind::Buy] {
             let parsed = OrderKind::try_from(kind.as_str());
             assert!(parsed.is_ok());
-            assert_eq!(parsed.unwrap_or(OrderKind::Sell), kind);
+            assert_eq!(parsed.unwrap_or_else(|_| OrderKind::Sell), kind);
         }
     }
 
@@ -601,7 +601,7 @@ mod tests {
     fn order_kind_serde_roundtrip() {
         let json = serde_json::to_string(&OrderKind::Sell).unwrap_or_default();
         assert_eq!(json, "\"sell\"");
-        let back: OrderKind = serde_json::from_str(&json).unwrap_or(OrderKind::Buy);
+        let back: OrderKind = serde_json::from_str(&json).unwrap_or_else(|_| OrderKind::Buy);
         assert_eq!(back, OrderKind::Sell);
     }
 
@@ -633,7 +633,7 @@ mod tests {
         for bal in [TokenBalance::Erc20, TokenBalance::External, TokenBalance::Internal] {
             let parsed = TokenBalance::try_from(bal.as_str());
             assert!(parsed.is_ok());
-            assert_eq!(parsed.unwrap_or(TokenBalance::Erc20), bal);
+            assert_eq!(parsed.unwrap_or_else(|_| TokenBalance::Erc20), bal);
         }
     }
 
@@ -685,7 +685,10 @@ mod tests {
             SigningScheme::Eip1271,
             SigningScheme::PreSign,
         ] {
-            assert_eq!(SigningScheme::try_from(s.as_str()).unwrap_or(SigningScheme::Eip712), s);
+            assert_eq!(
+                SigningScheme::try_from(s.as_str()).unwrap_or_else(|_| SigningScheme::Eip712),
+                s
+            );
         }
     }
 
@@ -730,7 +733,8 @@ mod tests {
     fn ecdsa_scheme_roundtrip() {
         for s in [EcdsaSigningScheme::Eip712, EcdsaSigningScheme::EthSign] {
             assert_eq!(
-                EcdsaSigningScheme::try_from(s.as_str()).unwrap_or(EcdsaSigningScheme::Eip712),
+                EcdsaSigningScheme::try_from(s.as_str())
+                    .unwrap_or_else(|_| EcdsaSigningScheme::Eip712),
                 s
             );
         }
@@ -771,7 +775,10 @@ mod tests {
     #[test]
     fn price_quality_roundtrip() {
         for q in [PriceQuality::Fast, PriceQuality::Optimal, PriceQuality::Verified] {
-            assert_eq!(PriceQuality::try_from(q.as_str()).unwrap_or(PriceQuality::Fast), q);
+            assert_eq!(
+                PriceQuality::try_from(q.as_str()).unwrap_or_else(|_| PriceQuality::Fast),
+                q
+            );
         }
     }
 

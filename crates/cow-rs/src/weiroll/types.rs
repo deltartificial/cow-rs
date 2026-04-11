@@ -529,8 +529,6 @@ pub fn get_static<T: Clone>(entries: &[(&str, T)], key: &str) -> Option<T> {
 
 #[cfg(test)]
 mod tests {
-    use alloy_primitives::{Address, U256};
-
     use super::*;
 
     // ── WeirollCommand::pack ─────────────────────────────────────────────────
@@ -609,10 +607,8 @@ mod tests {
 
     #[test]
     fn non_empty_script() {
-        let script = WeirollScript {
-            commands: vec![[0u8; 32], [1u8; 32]],
-            state: vec![vec![0xab]],
-        };
+        let script =
+            WeirollScript { commands: vec![[0u8; 32], [1u8; 32]], state: vec![vec![0xab]] };
         assert!(!script.is_empty());
         assert_eq!(script.command_count(), 2);
         assert_eq!(script.state_slot_count(), 1);

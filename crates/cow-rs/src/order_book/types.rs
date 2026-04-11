@@ -2296,7 +2296,11 @@ mod tests {
     #[test]
     fn quote_side_display_sell_none_amount() {
         // Deliberately construct with amount missing to exercise the fallback.
-        let side = QuoteSide { kind: OrderKind::Sell, sell_amount_before_fee: None, buy_amount_after_fee: None };
+        let side = QuoteSide {
+            kind: OrderKind::Sell,
+            sell_amount_before_fee: None,
+            buy_amount_after_fee: None,
+        };
         assert_eq!(side.to_string(), "sell ?");
     }
 
@@ -2313,7 +2317,12 @@ mod tests {
 
     #[test]
     fn order_quote_request_new_defaults() {
-        let req = OrderQuoteRequest::new(Address::ZERO, Address::ZERO, Address::ZERO, QuoteSide::sell("1"));
+        let req = OrderQuoteRequest::new(
+            Address::ZERO,
+            Address::ZERO,
+            Address::ZERO,
+            QuoteSide::sell("1"),
+        );
         assert!(!req.has_receiver());
         assert!(!req.has_valid_to());
         assert!(!req.is_partially_fillable());
@@ -2324,15 +2333,20 @@ mod tests {
     #[test]
     fn order_quote_request_builder_chain() {
         let receiver = Address::repeat_byte(0x01);
-        let req = OrderQuoteRequest::new(Address::ZERO, Address::ZERO, Address::ZERO, QuoteSide::buy("500"))
-            .with_receiver(receiver)
-            .with_valid_to(1_700_000_000)
-            .with_app_data("0xdeadbeef")
-            .with_partially_fillable()
-            .with_price_quality(PriceQuality::Fast)
-            .with_sell_token_balance(TokenBalance::Internal)
-            .with_buy_token_balance(TokenBalance::Internal)
-            .with_signing_scheme(EcdsaSigningScheme::EthSign);
+        let req = OrderQuoteRequest::new(
+            Address::ZERO,
+            Address::ZERO,
+            Address::ZERO,
+            QuoteSide::buy("500"),
+        )
+        .with_receiver(receiver)
+        .with_valid_to(1_700_000_000)
+        .with_app_data("0xdeadbeef")
+        .with_partially_fillable()
+        .with_price_quality(PriceQuality::Fast)
+        .with_sell_token_balance(TokenBalance::Internal)
+        .with_buy_token_balance(TokenBalance::Internal)
+        .with_signing_scheme(EcdsaSigningScheme::EthSign);
 
         assert!(req.has_receiver());
         assert!(req.has_valid_to());
@@ -2346,7 +2360,12 @@ mod tests {
 
     #[test]
     fn order_quote_request_display() {
-        let req = OrderQuoteRequest::new(Address::ZERO, Address::ZERO, Address::ZERO, QuoteSide::sell("100"));
+        let req = OrderQuoteRequest::new(
+            Address::ZERO,
+            Address::ZERO,
+            Address::ZERO,
+            QuoteSide::sell("100"),
+        );
         let s = req.to_string();
         assert!(s.starts_with("quote-req("));
         assert!(s.contains("sell 100"));
@@ -2354,7 +2373,12 @@ mod tests {
 
     #[test]
     fn order_quote_request_serde_roundtrip() {
-        let req = OrderQuoteRequest::new(Address::ZERO, Address::ZERO, Address::ZERO, QuoteSide::sell("1000"));
+        let req = OrderQuoteRequest::new(
+            Address::ZERO,
+            Address::ZERO,
+            Address::ZERO,
+            QuoteSide::sell("1000"),
+        );
         let json = serde_json::to_string(&req).unwrap();
         let back: OrderQuoteRequest = serde_json::from_str(&json).unwrap();
         assert!(back.is_sell());
@@ -2522,7 +2546,8 @@ mod tests {
         });
         let quote: QuoteData = serde_json::from_value(quote_json).unwrap();
         let from = Address::repeat_byte(0x11);
-        let creation = OrderCreation::from_quote(&quote, from, Address::ZERO, SigningScheme::Eip712, "0xsig");
+        let creation =
+            OrderCreation::from_quote(&quote, from, Address::ZERO, SigningScheme::Eip712, "0xsig");
         // When receiver is zero, should default to from.
         assert_eq!(creation.receiver, from);
         assert!(creation.is_sell());
@@ -2549,10 +2574,11 @@ mod tests {
         let quote: QuoteData = serde_json::from_value(quote_json).unwrap();
         let from = Address::repeat_byte(0x11);
         let receiver = Address::repeat_byte(0x22);
-        let creation = OrderCreation::from_quote(&quote, from, receiver, SigningScheme::Eip712, "0xsig")
-            .with_quote_id(42)
-            .with_sell_token_balance(TokenBalance::Internal)
-            .with_buy_token_balance(TokenBalance::Internal);
+        let creation =
+            OrderCreation::from_quote(&quote, from, receiver, SigningScheme::Eip712, "0xsig")
+                .with_quote_id(42)
+                .with_sell_token_balance(TokenBalance::Internal)
+                .with_buy_token_balance(TokenBalance::Internal);
         assert!(creation.has_quote_id());
         assert_eq!(creation.receiver, receiver);
         assert!(creation.is_buy());
@@ -2574,7 +2600,13 @@ mod tests {
             "buyTokenBalance": "erc20"
         });
         let quote: QuoteData = serde_json::from_value(quote_json).unwrap();
-        let creation = OrderCreation::from_quote(&quote, Address::ZERO, Address::ZERO, SigningScheme::Eip712, "0xsig");
+        let creation = OrderCreation::from_quote(
+            &quote,
+            Address::ZERO,
+            Address::ZERO,
+            SigningScheme::Eip712,
+            "0xsig",
+        );
         let s = creation.to_string();
         assert!(s.starts_with("order-creation("));
     }
@@ -2595,7 +2627,13 @@ mod tests {
             "buyTokenBalance": "erc20"
         });
         let quote: QuoteData = serde_json::from_value(quote_json).unwrap();
-        let creation = OrderCreation::from_quote(&quote, Address::ZERO, Address::ZERO, SigningScheme::Eip712, "0xsig");
+        let creation = OrderCreation::from_quote(
+            &quote,
+            Address::ZERO,
+            Address::ZERO,
+            SigningScheme::Eip712,
+            "0xsig",
+        );
         let json = serde_json::to_string(&creation).unwrap();
         let back: OrderCreation = serde_json::from_str(&json).unwrap();
         assert_eq!(back.sell_amount, "1000");
@@ -2641,7 +2679,10 @@ mod tests {
         assert_eq!(OrderStatus::try_from("fulfilled").unwrap(), OrderStatus::Fulfilled);
         assert_eq!(OrderStatus::try_from("cancelled").unwrap(), OrderStatus::Cancelled);
         assert_eq!(OrderStatus::try_from("expired").unwrap(), OrderStatus::Expired);
-        assert_eq!(OrderStatus::try_from("presignaturePending").unwrap(), OrderStatus::PresignaturePending);
+        assert_eq!(
+            OrderStatus::try_from("presignaturePending").unwrap(),
+            OrderStatus::PresignaturePending
+        );
         assert!(OrderStatus::try_from("bogus").is_err());
     }
 
@@ -2754,10 +2795,8 @@ mod tests {
 
     #[test]
     fn order_interactions_new_constructor() {
-        let interactions = OrderInteractions::new(
-            vec![InteractionData::new(Address::ZERO, "0x01")],
-            vec![],
-        );
+        let interactions =
+            OrderInteractions::new(vec![InteractionData::new(Address::ZERO, "0x01")], vec![]);
         assert!(interactions.has_pre());
         assert!(!interactions.has_post());
     }
@@ -2766,17 +2805,18 @@ mod tests {
     fn order_interactions_display() {
         let interactions = OrderInteractions::new(
             vec![InteractionData::new(Address::ZERO, "0x01")],
-            vec![InteractionData::new(Address::ZERO, "0x02"), InteractionData::new(Address::ZERO, "0x03")],
+            vec![
+                InteractionData::new(Address::ZERO, "0x02"),
+                InteractionData::new(Address::ZERO, "0x03"),
+            ],
         );
         assert_eq!(interactions.to_string(), "interactions(pre=1, post=2)");
     }
 
     #[test]
     fn order_interactions_serde_roundtrip() {
-        let interactions = OrderInteractions::new(
-            vec![InteractionData::new(Address::ZERO, "0x01")],
-            vec![],
-        );
+        let interactions =
+            OrderInteractions::new(vec![InteractionData::new(Address::ZERO, "0x01")], vec![]);
         let json = serde_json::to_string(&interactions).unwrap();
         let back: OrderInteractions = serde_json::from_str(&json).unwrap();
         assert!(back.has_pre());
@@ -2827,10 +2867,8 @@ mod tests {
     #[test]
     fn order_has_interactions_true_when_hooks_present() {
         let mut order = minimal_order();
-        order.interactions = Some(OrderInteractions::new(
-            vec![InteractionData::new(Address::ZERO, "0x01")],
-            vec![],
-        ));
+        order.interactions =
+            Some(OrderInteractions::new(vec![InteractionData::new(Address::ZERO, "0x01")], vec![]));
         assert!(order.has_interactions());
     }
 
@@ -3074,17 +3112,15 @@ mod tests {
 
     #[test]
     fn order_cancellations_display() {
-        let cancel = OrderCancellations::new(vec!["0xa".to_owned()], "0xsig", EcdsaSigningScheme::Eip712);
+        let cancel =
+            OrderCancellations::new(vec!["0xa".to_owned()], "0xsig", EcdsaSigningScheme::Eip712);
         assert_eq!(cancel.to_string(), "cancel(1 orders)");
     }
 
     #[test]
     fn order_cancellations_serde_roundtrip() {
-        let cancel = OrderCancellations::new(
-            vec!["0xabc".to_owned()],
-            "0xsig",
-            EcdsaSigningScheme::Eip712,
-        );
+        let cancel =
+            OrderCancellations::new(vec!["0xabc".to_owned()], "0xsig", EcdsaSigningScheme::Eip712);
         let json = serde_json::to_string(&cancel).unwrap();
         let back: OrderCancellations = serde_json::from_str(&json).unwrap();
         assert_eq!(back.order_count(), 1);
@@ -3172,10 +3208,7 @@ mod tests {
 
     #[test]
     fn competition_auction_empty() {
-        let auction = CompetitionAuction {
-            orders: vec![],
-            prices: HashMap::default(),
-        };
+        let auction = CompetitionAuction { orders: vec![], prices: HashMap::default() };
         assert!(auction.is_empty());
         assert!(!auction.has_orders());
         assert!(!auction.has_prices());
@@ -3186,10 +3219,7 @@ mod tests {
     fn competition_auction_with_data() {
         let mut prices = HashMap::default();
         prices.insert("0xtoken".to_owned(), "1000000".to_owned());
-        let auction = CompetitionAuction {
-            orders: vec!["0xorder1".to_owned()],
-            prices,
-        };
+        let auction = CompetitionAuction { orders: vec!["0xorder1".to_owned()], prices };
         assert!(!auction.is_empty());
         assert!(auction.has_orders());
         assert!(auction.has_prices());
@@ -3200,7 +3230,10 @@ mod tests {
 
     #[test]
     fn competition_auction_display() {
-        let auction = CompetitionAuction { orders: vec!["a".to_owned(), "b".to_owned()], prices: HashMap::default() };
+        let auction = CompetitionAuction {
+            orders: vec!["a".to_owned(), "b".to_owned()],
+            prices: HashMap::default(),
+        };
         assert_eq!(auction.to_string(), "comp-auction(2 orders)");
     }
 
@@ -3363,8 +3396,14 @@ mod tests {
 
     #[test]
     fn competition_order_status_kind_try_from() {
-        assert_eq!(CompetitionOrderStatusKind::try_from("open").unwrap(), CompetitionOrderStatusKind::Open);
-        assert_eq!(CompetitionOrderStatusKind::try_from("traded").unwrap(), CompetitionOrderStatusKind::Traded);
+        assert_eq!(
+            CompetitionOrderStatusKind::try_from("open").unwrap(),
+            CompetitionOrderStatusKind::Open
+        );
+        assert_eq!(
+            CompetitionOrderStatusKind::try_from("traded").unwrap(),
+            CompetitionOrderStatusKind::Traded
+        );
         assert!(CompetitionOrderStatusKind::try_from("bogus").is_err());
     }
 
@@ -3516,12 +3555,7 @@ mod tests {
 
     #[test]
     fn auction_empty() {
-        let auction = Auction {
-            id: None,
-            block: 100,
-            orders: vec![],
-            prices: HashMap::default(),
-        };
+        let auction = Auction { id: None, block: 100, orders: vec![], prices: HashMap::default() };
         assert!(auction.is_empty());
         assert_eq!(auction.len(), 0);
         assert!(!auction.has_prices());
@@ -3536,12 +3570,7 @@ mod tests {
         let uid = order.uid.clone();
         let mut prices = HashMap::default();
         prices.insert("0xtoken".to_owned(), "42".to_owned());
-        let auction = Auction {
-            id: Some(7),
-            block: 200,
-            orders: vec![order],
-            prices,
-        };
+        let auction = Auction { id: Some(7), block: 200, orders: vec![order], prices };
         assert!(!auction.is_empty());
         assert_eq!(auction.len(), 1);
         assert!(auction.has_prices());
@@ -3554,7 +3583,8 @@ mod tests {
 
     #[test]
     fn auction_display() {
-        let auction = Auction { id: Some(5), block: 300, orders: vec![], prices: HashMap::default() };
+        let auction =
+            Auction { id: Some(5), block: 300, orders: vec![], prices: HashMap::default() };
         assert_eq!(auction.to_string(), "auction(5, 0 orders, block=300)");
     }
 

@@ -28,17 +28,16 @@ use cow_rs::{
             to_bridge_quote_result,
         },
         bungee::{
-            BungeeApiUrlOptions, bungee_to_bridge_quote_result,
-            decode_amounts_bungee_tx_data, decode_bungee_bridge_tx_data,
-            get_bridging_status_from_events, get_bungee_bridge_from_display_name,
-            is_valid_bungee_events_response, is_valid_quote_response,
-            resolve_api_endpoint_from_options,
+            BungeeApiUrlOptions, bungee_to_bridge_quote_result, decode_amounts_bungee_tx_data,
+            decode_bungee_bridge_tx_data, get_bridging_status_from_events,
+            get_bungee_bridge_from_display_name, is_valid_bungee_events_response,
+            is_valid_quote_response, resolve_api_endpoint_from_options,
         },
         provider::QuoteFuture,
         types::{
             AcrossDepositStatus, AcrossPctFee, AcrossSuggestedFeesLimits,
-            AcrossSuggestedFeesResponse, BridgeError, BridgeStatus, BungeeBridge,
-            BungeeBridgeName, BungeeEvent, BungeeEventStatus,
+            AcrossSuggestedFeesResponse, BridgeError, BridgeStatus, BungeeBridge, BungeeBridgeName,
+            BungeeEvent, BungeeEventStatus,
         },
     },
 };
@@ -167,11 +166,7 @@ async fn bungee_provider_get_quote_parses_successful_response() {
     let resp = client.get(url).header("API-KEY", "test-key").send().await.unwrap();
     let json_val: serde_json::Value = resp.json().await.unwrap();
 
-    let route = json_val["result"]["routes"]
-        .as_array()
-        .unwrap()
-        .first()
-        .unwrap();
+    let route = json_val["result"]["routes"].as_array().unwrap().first().unwrap();
 
     let output_amount_str = route["outputAmount"].as_str().unwrap();
     let buy_amount: U256 = output_amount_str.parse().unwrap();
@@ -334,7 +329,8 @@ fn is_valid_bungee_events_response_rejects_success_false() {
 #[test]
 fn decode_bungee_bridge_tx_data_parses_valid_calldata() {
     // 4 bytes route ID + 4 bytes selector + some params
-    let tx_data = "0x11223344aabbccdd0000000000000000000000000000000000000000000000000000000000000001";
+    let tx_data =
+        "0x11223344aabbccdd0000000000000000000000000000000000000000000000000000000000000001";
     let decoded = decode_bungee_bridge_tx_data(tx_data).unwrap();
     assert_eq!(decoded.route_id, "0x11223344");
     assert_eq!(decoded.function_selector, "0xaabbccdd");
@@ -394,14 +390,8 @@ fn decode_amounts_rejects_no_prefix() {
 
 #[test]
 fn bungee_bridge_display_name_roundtrip() {
-    assert_eq!(
-        get_bungee_bridge_from_display_name("Across"),
-        Some(BungeeBridge::Across)
-    );
-    assert_eq!(
-        get_bungee_bridge_from_display_name("Circle CCTP"),
-        Some(BungeeBridge::CircleCctp)
-    );
+    assert_eq!(get_bungee_bridge_from_display_name("Across"), Some(BungeeBridge::Across));
+    assert_eq!(get_bungee_bridge_from_display_name("Circle CCTP"), Some(BungeeBridge::CircleCctp));
     assert_eq!(
         get_bungee_bridge_from_display_name("Gnosis Native"),
         Some(BungeeBridge::GnosisNative)
@@ -451,10 +441,7 @@ fn bungee_to_bridge_quote_result_zero_sell_amount() {
     .unwrap();
 
     // Fee in buy token should be zero when sell amount is zero (avoids division by zero).
-    assert_eq!(
-        result.amounts_and_costs.costs.bridging_fee.amount_in_buy_currency,
-        U256::ZERO
-    );
+    assert_eq!(result.amounts_and_costs.costs.bridging_fee.amount_in_buy_currency, U256::ZERO);
 }
 
 // ── Bridging status from events ──────────────────────────────────────────────
@@ -463,9 +450,7 @@ fn bungee_to_bridge_quote_result_zero_sell_amount() {
 async fn status_from_events_returns_unknown_when_no_events() {
     let dummy_across = |_: &str| async { Ok("pending".to_owned()) };
 
-    let result = get_bridging_status_from_events(None, dummy_across)
-        .await
-        .unwrap();
+    let result = get_bridging_status_from_events(None, dummy_across).await.unwrap();
     assert!(matches!(result.status, BridgeStatus::Unknown));
 }
 
@@ -474,9 +459,7 @@ async fn status_from_events_returns_unknown_for_empty_slice() {
     let dummy_across = |_: &str| async { Ok("pending".to_owned()) };
 
     let events: Vec<BungeeEvent> = vec![];
-    let result = get_bridging_status_from_events(Some(&events), dummy_across)
-        .await
-        .unwrap();
+    let result = get_bridging_status_from_events(Some(&events), dummy_across).await.unwrap();
     assert!(matches!(result.status, BridgeStatus::Unknown));
 }
 
@@ -489,9 +472,7 @@ async fn status_from_events_returns_in_progress_for_src_pending() {
         BungeeEventStatus::Pending,
         BungeeBridgeName::Across,
     );
-    let result = get_bridging_status_from_events(Some(&[event]), dummy_across)
-        .await
-        .unwrap();
+    let result = get_bridging_status_from_events(Some(&[event]), dummy_across).await.unwrap();
     assert!(matches!(result.status, BridgeStatus::InProgress));
 }
 
@@ -504,9 +485,7 @@ async fn status_from_events_returns_executed_when_both_complete() {
         BungeeEventStatus::Completed,
         BungeeBridgeName::Across,
     );
-    let result = get_bridging_status_from_events(Some(&[event]), dummy_across)
-        .await
-        .unwrap();
+    let result = get_bridging_status_from_events(Some(&[event]), dummy_across).await.unwrap();
     assert!(matches!(result.status, BridgeStatus::Executed));
     assert_eq!(result.deposit_tx_hash, Some("0xabc".to_owned()));
     assert_eq!(result.fill_tx_hash, Some("0xdef".to_owned()));
@@ -521,9 +500,7 @@ async fn status_from_events_returns_expired_from_across() {
         BungeeEventStatus::Pending,
         BungeeBridgeName::Across,
     );
-    let result = get_bridging_status_from_events(Some(&[event]), across_expired)
-        .await
-        .unwrap();
+    let result = get_bridging_status_from_events(Some(&[event]), across_expired).await.unwrap();
     assert!(matches!(result.status, BridgeStatus::Expired));
 }
 
@@ -536,9 +513,7 @@ async fn status_from_events_returns_refund_from_across() {
         BungeeEventStatus::Pending,
         BungeeBridgeName::Across,
     );
-    let result = get_bridging_status_from_events(Some(&[event]), across_refunded)
-        .await
-        .unwrap();
+    let result = get_bridging_status_from_events(Some(&[event]), across_refunded).await.unwrap();
     assert!(matches!(result.status, BridgeStatus::Refund));
 }
 
@@ -551,9 +526,7 @@ async fn status_from_events_src_complete_dest_pending_non_across() {
         BungeeEventStatus::Pending,
         BungeeBridgeName::Cctp,
     );
-    let result = get_bridging_status_from_events(Some(&[event]), dummy_across)
-        .await
-        .unwrap();
+    let result = get_bridging_status_from_events(Some(&[event]), dummy_across).await.unwrap();
     // Non-Across bridges with src complete + dest pending = InProgress.
     assert!(matches!(result.status, BridgeStatus::InProgress));
 }
@@ -575,8 +548,8 @@ fn across_to_bridge_quote_result_basic() {
     assert!(result.limits.max_deposit > U256::ZERO);
     // After fee should be less than before fee.
     assert!(
-        result.amounts_and_costs.after_fee.buy_amount
-            < result.amounts_and_costs.before_fee.buy_amount
+        result.amounts_and_costs.after_fee.buy_amount <
+            result.amounts_and_costs.before_fee.buy_amount
     );
 }
 
@@ -668,8 +641,10 @@ fn resolve_api_endpoint_uses_custom_url() {
 
 #[test]
 fn resolve_api_endpoint_uses_fallback_when_requested() {
-    let mut options = BungeeApiUrlOptions::default();
-    options.api_base_url = "https://overridden.example.com".to_owned();
+    let options = BungeeApiUrlOptions {
+        api_base_url: "https://overridden.example.com".to_owned(),
+        ..BungeeApiUrlOptions::default()
+    };
 
     let result = resolve_api_endpoint_from_options("api_base_url", &options, true, None);
     // Fallback always returns the hard-coded default.
@@ -679,21 +654,23 @@ fn resolve_api_endpoint_uses_fallback_when_requested() {
 
 #[test]
 fn resolve_api_endpoint_uses_options_value() {
-    let mut options = BungeeApiUrlOptions::default();
-    options.manual_api_base_url = "https://manual.example.com".to_owned();
+    let options = BungeeApiUrlOptions {
+        manual_api_base_url: "https://manual.example.com".to_owned(),
+        ..BungeeApiUrlOptions::default()
+    };
 
-    let result =
-        resolve_api_endpoint_from_options("manual_api_base_url", &options, false, None);
+    let result = resolve_api_endpoint_from_options("manual_api_base_url", &options, false, None);
     assert_eq!(result, "https://manual.example.com");
 }
 
 #[test]
 fn resolve_api_endpoint_falls_back_when_empty_option() {
-    let mut options = BungeeApiUrlOptions::default();
-    options.events_api_base_url = String::new();
+    let options = BungeeApiUrlOptions {
+        events_api_base_url: String::new(),
+        ..BungeeApiUrlOptions::default()
+    };
 
-    let result =
-        resolve_api_endpoint_from_options("events_api_base_url", &options, false, None);
+    let result = resolve_api_endpoint_from_options("events_api_base_url", &options, false, None);
     let defaults = BungeeApiUrlOptions::default();
     assert_eq!(result, defaults.events_api_base_url);
 }
@@ -702,8 +679,10 @@ fn resolve_api_endpoint_falls_back_when_empty_option() {
 
 #[test]
 fn resolve_api_endpoint_across_key() {
-    let mut options = BungeeApiUrlOptions::default();
-    options.across_api_base_url = "https://across.custom.com".to_owned();
+    let options = BungeeApiUrlOptions {
+        across_api_base_url: "https://across.custom.com".to_owned(),
+        ..BungeeApiUrlOptions::default()
+    };
 
     let result = resolve_api_endpoint_from_options("across_api_base_url", &options, false, None);
     assert_eq!(result, "https://across.custom.com");
@@ -842,7 +821,7 @@ fn get_token_by_address_and_chain_id_returns_none_for_unknown_chain() {
 
 #[test]
 fn get_across_deposit_events_empty_for_unknown_chain() {
-    use cow_rs::bridging::across::{EvmLogEntry, get_across_deposit_events};
+    use cow_rs::bridging::across::get_across_deposit_events;
     let events = get_across_deposit_events(99999, &[]);
     assert!(events.is_empty());
 }
@@ -886,9 +865,8 @@ fn bungee_approve_and_bridge_v1_addresses_contains_mainnet() {
 #[test]
 fn bungee_tx_data_bytes_index_across() {
     use cow_rs::bridging::bungee::bungee_tx_data_bytes_index;
-    let idx = bungee_tx_data_bytes_index(BungeeBridge::Across, "0xcc54d224");
-    assert!(idx.is_some());
-    let idx = idx.unwrap();
+    let idx = bungee_tx_data_bytes_index(BungeeBridge::Across, "0xcc54d224")
+        .expect("expected Some for Across bridge");
     assert_eq!(idx.bytes_start_index, 8);
     assert_eq!(idx.bytes_length, 32);
 }
@@ -953,10 +931,7 @@ fn get_display_name_from_bungee_bridge_roundtrip() {
     use cow_rs::bridging::bungee::get_display_name_from_bungee_bridge;
     assert_eq!(get_display_name_from_bungee_bridge(BungeeBridge::Across), "Across");
     assert_eq!(get_display_name_from_bungee_bridge(BungeeBridge::CircleCctp), "Circle CCTP");
-    assert_eq!(
-        get_display_name_from_bungee_bridge(BungeeBridge::GnosisNative),
-        "Gnosis Native"
-    );
+    assert_eq!(get_display_name_from_bungee_bridge(BungeeBridge::GnosisNative), "Gnosis Native");
 }
 
 // ── Bungee deposit call construction ────────────────────────────────────────
@@ -1011,9 +986,7 @@ async fn status_from_events_src_complete_dest_pending_across_error_returns_in_pr
         BungeeEventStatus::Pending,
         BungeeBridgeName::Across,
     );
-    let result = get_bridging_status_from_events(Some(&[event]), across_error)
-        .await
-        .unwrap();
+    let result = get_bridging_status_from_events(Some(&[event]), across_error).await.unwrap();
     assert!(matches!(result.status, BridgeStatus::InProgress));
 }
 
@@ -1151,10 +1124,7 @@ impl BridgeProvider for MockProvider {
         let should_fail = self.should_fail;
         Box::pin(async move {
             if should_fail {
-                return Err(cow_rs::CowError::Api {
-                    status: 500,
-                    body: "mock error".to_owned(),
-                });
+                return Err(cow_rs::CowError::Api { status: 500, body: "mock error".to_owned() });
             }
             Ok(QuoteBridgeResponse {
                 provider: "mock".to_owned(),

@@ -541,9 +541,7 @@ mod tests {
     #[test]
     fn create_with_context_calldata_has_correct_selector() {
         let expected_sel = {
-            let h = keccak256(
-                b"createWithContext((address,bytes32,bytes),address,bytes,bool)",
-            );
+            let h = keccak256(b"createWithContext((address,bytes32,bytes),address,bytes,bool)");
             [h[0], h[1], h[2], h[3]]
         };
         let cd = create_with_context_calldata(&dummy_params(), Address::ZERO, &[], true);
@@ -573,7 +571,7 @@ mod tests {
             false,
         );
         // Factory data should appear in the calldata
-        assert!(cd.windows(40).any(|w| w == &factory_data[..]));
+        assert!(cd.windows(40).any(|w| w == &*factory_data));
     }
 
     #[test]
@@ -640,7 +638,7 @@ mod tests {
     fn create_calldata_with_offchain_input() {
         let offchain = vec![0xddu8; 17];
         let cd = create_calldata(&dummy_params(), &[], &offchain);
-        assert!(cd.windows(17).any(|w| w == &offchain[..]));
+        assert!(cd.windows(17).any(|w| w == &*offchain));
         assert_eq!((cd.len() - 4) % 32, 0);
     }
 
@@ -708,6 +706,6 @@ mod tests {
         );
         assert_eq!((cd.len() - 4) % 32, 0);
         // Factory data should appear in the buffer
-        assert!(cd.windows(20).any(|w| w == &factory_data[..]));
+        assert!(cd.windows(20).any(|w| w == &*factory_data));
     }
 }

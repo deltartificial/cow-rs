@@ -896,7 +896,8 @@ mod tests {
 
     #[test]
     fn with_proof_location_builder() {
-        let mux = Multiplexer::new(ProofLocation::Private).with_proof_location(ProofLocation::Swarm);
+        let mux =
+            Multiplexer::new(ProofLocation::Private).with_proof_location(ProofLocation::Swarm);
         assert_eq!(mux.proof_location(), ProofLocation::Swarm);
     }
 

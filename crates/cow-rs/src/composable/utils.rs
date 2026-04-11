@@ -791,9 +791,6 @@ mod tests {
     fn get_domain_verifier_is_alias() {
         let safe = Address::new([0x11; 20]);
         let domain = B256::new([0x22; 32]);
-        assert_eq!(
-            get_domain_verifier(safe, domain),
-            get_domain_verifier_calldata(safe, domain)
-        );
+        assert_eq!(get_domain_verifier(safe, domain), get_domain_verifier_calldata(safe, domain));
     }
 }

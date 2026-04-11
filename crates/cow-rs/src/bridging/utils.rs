@@ -738,13 +738,9 @@ pub fn adapt_tokens(
 
 #[cfg(test)]
 mod tests {
-    use alloy_primitives::{Address, U256};
-    use foldhash::HashSet;
-
     use super::*;
     use crate::bridging::types::{
-        BridgeAmounts, BridgeCosts, BridgeError, BridgeQuoteAmountsAndCosts, BridgingFee,
-        MultiQuoteResult,
+        BridgeAmounts, BridgeCosts, BridgeQuoteAmountsAndCosts, BridgingFee,
     };
 
     // ── apply_bps ────────────────────────────────────────────────────────────
@@ -1262,8 +1258,7 @@ mod tests {
         let sell: Address = "0x2222222222222222222222222222222222222222".parse().unwrap();
         let usdc: Address = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48".parse().unwrap();
         let correlated = HashSet::default();
-        let result =
-            determine_intermediate_token(1, sell, &[usdc, sell], &correlated, true);
+        let result = determine_intermediate_token(1, sell, &[usdc, sell], &correlated, true);
         assert_eq!(result.unwrap(), sell);
     }
 
