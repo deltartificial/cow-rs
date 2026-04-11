@@ -498,3 +498,169 @@ pub const fn api_base_url(chain: SupportedChainId, env: Env) -> &'static str {
         (SupportedChainId::Ink, Env::Staging) => "https://barn.api.cow.fi/ink",
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── SupportedChainId ────────────────────────────────────────────────
+
+    #[test]
+    fn all_chains_roundtrip_u64() {
+        for &chain in SupportedChainId::all() {
+            let id = chain.as_u64();
+            assert_eq!(SupportedChainId::try_from_u64(id), Some(chain));
+            assert_eq!(u64::from(chain), id);
+            assert!(matches!(SupportedChainId::try_from(id), Ok(c) if c == chain));
+        }
+    }
+
+    #[test]
+    fn all_chains_roundtrip_str() {
+        for &chain in SupportedChainId::all() {
+            let s = chain.as_str();
+            assert!(!s.is_empty());
+            assert!(matches!(SupportedChainId::try_from(s), Ok(c) if c == chain));
+        }
+    }
+
+    #[test]
+    fn all_chains_have_display() {
+        for &chain in SupportedChainId::all() {
+            let display = format!("{chain}");
+            assert!(!display.is_empty());
+        }
+    }
+
+    #[test]
+    fn all_chains_have_explorer_network() {
+        for &chain in SupportedChainId::all() {
+            // Mainnet is empty, all others non-empty
+            let net = chain.explorer_network();
+            if chain == SupportedChainId::Mainnet {
+                assert!(net.is_empty());
+            } else {
+                assert!(!net.is_empty());
+            }
+        }
+    }
+
+    #[test]
+    fn unknown_chain_id_returns_none() {
+        assert_eq!(SupportedChainId::try_from_u64(9999), None);
+        assert!(SupportedChainId::try_from(0u64).is_err());
+    }
+
+    #[test]
+    fn unknown_chain_str_returns_err() {
+        assert!(SupportedChainId::try_from("unknown").is_err());
+    }
+
+    #[test]
+    fn only_sepolia_is_testnet() {
+        for &chain in SupportedChainId::all() {
+            if chain == SupportedChainId::Sepolia {
+                assert!(chain.is_testnet());
+                assert!(!chain.is_mainnet());
+            } else {
+                assert!(!chain.is_testnet());
+                assert!(chain.is_mainnet());
+            }
+        }
+    }
+
+    #[test]
+    fn layer2_chains() {
+        let l2s = [
+            SupportedChainId::ArbitrumOne,
+            SupportedChainId::Base,
+            SupportedChainId::Linea,
+            SupportedChainId::Ink,
+            SupportedChainId::Polygon,
+        ];
+        for &chain in &l2s {
+            assert!(chain.is_layer2(), "{chain:?} should be L2");
+        }
+        assert!(!SupportedChainId::Mainnet.is_layer2());
+        assert!(!SupportedChainId::GnosisChain.is_layer2());
+    }
+
+    #[test]
+    fn all_contains_every_variant() {
+        assert_eq!(SupportedChainId::all().len(), 12);
+    }
+
+    // ── Env ─────────────────────────────────────────────────────────────
+
+    #[test]
+    fn env_default_is_prod() {
+        assert_eq!(Env::default(), Env::Prod);
+    }
+
+    #[test]
+    fn env_predicates() {
+        assert!(Env::Prod.is_prod());
+        assert!(!Env::Prod.is_staging());
+        assert!(Env::Staging.is_staging());
+        assert!(!Env::Staging.is_prod());
+    }
+
+    #[test]
+    fn env_roundtrip_str() {
+        for &env in Env::all() {
+            assert!(matches!(Env::try_from(env.as_str()), Ok(e) if e == env));
+        }
+    }
+
+    #[test]
+    fn env_all_has_two() {
+        assert_eq!(Env::all().len(), 2);
+    }
+
+    #[test]
+    fn env_display() {
+        assert_eq!(format!("{}", Env::Prod), "prod");
+        assert_eq!(format!("{}", Env::Staging), "staging");
+    }
+
+    #[test]
+    fn env_invalid_str() {
+        assert!(Env::try_from("production").is_err());
+    }
+
+    // ── API URLs ────────────────────────────────────────────────────────
+
+    #[test]
+    fn api_base_url_all_chains_all_envs() {
+        for &chain in SupportedChainId::all() {
+            for &env in Env::all() {
+                let url = api_base_url(chain, env);
+                assert!(url.starts_with("https://"));
+                assert!(url.contains("cow.fi"));
+                if env.is_staging() {
+                    assert!(url.contains("barn."), "{url} should contain barn for staging");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn api_url_is_alias_for_api_base_url() {
+        let chain = SupportedChainId::Mainnet;
+        assert_eq!(api_url(chain, Env::Prod), api_base_url(chain, Env::Prod));
+    }
+
+    // ── Explorer links ──────────────────────────────────────────────────
+
+    #[test]
+    fn explorer_link_mainnet_no_network_prefix() {
+        let url = order_explorer_link(SupportedChainId::Mainnet, "0xabc");
+        assert_eq!(url, "https://explorer.cow.fi/orders/0xabc");
+    }
+
+    #[test]
+    fn explorer_link_non_mainnet_has_network() {
+        let url = order_explorer_link(SupportedChainId::Sepolia, "0xabc");
+        assert_eq!(url, "https://explorer.cow.fi/sepolia/orders/0xabc");
+    }
+}

@@ -526,3 +526,215 @@ pub fn define_read_only<T>(mut object: T, setter: impl FnOnce(&mut T)) -> T {
 pub fn get_static<T: Clone>(entries: &[(&str, T)], key: &str) -> Option<T> {
     entries.iter().find(|(k, _)| *k == key).map(|(_, v)| v.clone())
 }
+
+#[cfg(test)]
+mod tests {
+    use alloy_primitives::{Address, U256};
+
+    use super::*;
+
+    // ── WeirollCommand::pack ─────────────────────────────────────────────────
+
+    #[test]
+    fn pack_encodes_all_fields() {
+        let cmd = WeirollCommand {
+            flags: 0x01,
+            value: 0xFF,
+            gas: 21_000,
+            target: Address::ZERO,
+            selector: [0xde, 0xad, 0xbe, 0xef],
+            in_out: [0x01, 0x02, 0x03, 0x04],
+        };
+        let packed = cmd.pack();
+        assert_eq!(packed.len(), 32);
+        assert_eq!(packed[0], 0x01);
+        assert_eq!(packed[1], 0xFF);
+        assert_eq!(&packed[2..4], &21_000u16.to_be_bytes());
+        assert_eq!(&packed[4..24], Address::ZERO.as_slice());
+        assert_eq!(&packed[24..28], &[0xde, 0xad, 0xbe, 0xef]);
+        assert_eq!(&packed[28..32], &[0x01, 0x02, 0x03, 0x04]);
+    }
+
+    // ── WeirollCommand accessors ─────────────────────────────────────────────
+
+    #[test]
+    fn flags_ref_returns_flags() {
+        let cmd = WeirollCommand {
+            flags: 0x42,
+            value: 0,
+            gas: 0,
+            target: Address::ZERO,
+            selector: [0; 4],
+            in_out: [0; 4],
+        };
+        assert_eq!(cmd.flags_ref(), 0x42);
+    }
+
+    #[test]
+    fn target_ref_returns_address() {
+        let addr: Address = "0x1111111111111111111111111111111111111111".parse().unwrap();
+        let cmd = WeirollCommand {
+            flags: 0,
+            value: 0,
+            gas: 0,
+            target: addr,
+            selector: [0; 4],
+            in_out: [0; 4],
+        };
+        assert_eq!(*cmd.target_ref(), addr);
+    }
+
+    #[test]
+    fn selector_ref_returns_selector() {
+        let cmd = WeirollCommand {
+            flags: 0,
+            value: 0,
+            gas: 0,
+            target: Address::ZERO,
+            selector: [0xaa, 0xbb, 0xcc, 0xdd],
+            in_out: [0; 4],
+        };
+        assert_eq!(*cmd.selector_ref(), [0xaa, 0xbb, 0xcc, 0xdd]);
+    }
+
+    // ── WeirollScript ────────────────────────────────────────────────────────
+
+    #[test]
+    fn empty_script() {
+        let script = WeirollScript { commands: vec![], state: vec![] };
+        assert!(script.is_empty());
+        assert_eq!(script.command_count(), 0);
+        assert_eq!(script.state_slot_count(), 0);
+    }
+
+    #[test]
+    fn non_empty_script() {
+        let script = WeirollScript {
+            commands: vec![[0u8; 32], [1u8; 32]],
+            state: vec![vec![0xab]],
+        };
+        assert!(!script.is_empty());
+        assert_eq!(script.command_count(), 2);
+        assert_eq!(script.state_slot_count(), 1);
+    }
+
+    // ── WeirollCommandFlags constants ────────────────────────────────────────
+
+    #[test]
+    fn command_flags_values() {
+        assert_eq!(WeirollCommandFlags::DelegateCall as u8, 0x00);
+        assert_eq!(WeirollCommandFlags::Call as u8, 0x01);
+        assert_eq!(WeirollCommandFlags::StaticCall as u8, 0x02);
+        assert_eq!(WeirollCommandFlags::CallWithValue as u8, 0x03);
+    }
+
+    #[test]
+    fn calltype_mask_isolates_call_type() {
+        assert_eq!(
+            WeirollCommandFlags::Call as u8 & WeirollCommandFlags::CALLTYPE_MASK,
+            WeirollCommandFlags::Call as u8
+        );
+    }
+
+    #[test]
+    fn extended_command_and_tuple_return_bits() {
+        assert_eq!(WeirollCommandFlags::EXTENDED_COMMAND, 0x40);
+        assert_eq!(WeirollCommandFlags::TUPLE_RETURN, 0x80);
+    }
+
+    // ── create_weiroll_contract ──────────────────────────────────────────────
+
+    #[test]
+    fn create_contract_default_flags() {
+        let c = create_weiroll_contract(Address::ZERO, vec![], None);
+        assert_eq!(c.command_flags, WeirollCommandFlags::Call);
+    }
+
+    #[test]
+    fn create_contract_custom_flags() {
+        let c =
+            create_weiroll_contract(Address::ZERO, vec![], Some(WeirollCommandFlags::StaticCall));
+        assert_eq!(c.command_flags, WeirollCommandFlags::StaticCall);
+    }
+
+    // ── create_weiroll_library ───────────────────────────────────────────────
+
+    #[test]
+    fn create_library_uses_delegatecall() {
+        let lib = create_weiroll_library(Address::ZERO, vec![]);
+        assert_eq!(lib.command_flags, WeirollCommandFlags::DelegateCall);
+    }
+
+    // ── create_weiroll_delegate_call ─────────────────────────────────────────
+
+    #[test]
+    fn delegate_call_produces_valid_evm_call() {
+        let evm_call = create_weiroll_delegate_call(|planner| {
+            planner.add_command(WeirollCommand {
+                flags: 0,
+                value: 0,
+                gas: 0,
+                target: Address::ZERO,
+                selector: [0; 4],
+                in_out: [0; 4],
+            });
+        });
+        assert_eq!(evm_call.to, WEIROLL_CONTRACT_ADDRESS);
+        assert_eq!(evm_call.value, U256::ZERO);
+        // Selector is 0xde792be1
+        assert_eq!(&evm_call.data[..4], &[0xde, 0x79, 0x2b, 0xe1]);
+    }
+
+    #[test]
+    fn delegate_call_empty_planner() {
+        let evm_call = create_weiroll_delegate_call(|_| {});
+        assert_eq!(evm_call.to, WEIROLL_CONTRACT_ADDRESS);
+        assert!(!evm_call.data.is_empty());
+    }
+
+    // ── define_read_only ─────────────────────────────────────────────────────
+
+    #[test]
+    fn define_read_only_applies_mutation() {
+        let val = define_read_only(42u32, |v| *v = 100);
+        assert_eq!(val, 100);
+    }
+
+    #[test]
+    fn define_read_only_with_struct() {
+        #[derive(Default)]
+        struct S {
+            x: i32,
+        }
+        let s = define_read_only(S::default(), |s| s.x = 7);
+        assert_eq!(s.x, 7);
+    }
+
+    // ── get_static ───────────────────────────────────────────────────────────
+
+    #[test]
+    fn get_static_found() {
+        let entries: &[(&str, i32)] = &[("a", 1), ("b", 2)];
+        assert_eq!(get_static(entries, "b"), Some(2));
+    }
+
+    #[test]
+    fn get_static_not_found() {
+        let entries: &[(&str, i32)] = &[("a", 1)];
+        assert_eq!(get_static(entries, "z"), None);
+    }
+
+    #[test]
+    fn get_static_empty_entries() {
+        let entries: &[(&str, i32)] = &[];
+        assert_eq!(get_static(entries, "a"), None);
+    }
+
+    // ── WEIROLL_ADDRESS constant ─────────────────────────────────────────────
+
+    #[test]
+    fn weiroll_address_matches_constant() {
+        let parsed: Address = WEIROLL_ADDRESS.parse().unwrap();
+        assert_eq!(parsed, WEIROLL_CONTRACT_ADDRESS);
+    }
+}

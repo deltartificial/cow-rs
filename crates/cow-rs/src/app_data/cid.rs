@@ -417,3 +417,123 @@ pub fn extract_digest(cid: &str) -> Result<String, CowError> {
     let components = parse_cid(cid)?;
     Ok(format!("0x{}", alloy_primitives::hex::encode(&components.digest)))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const SAMPLE_HEX: &str =
+        "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890";
+
+    #[test]
+    fn appdata_hex_to_cid_produces_base16_cid() {
+        let cid = appdata_hex_to_cid(SAMPLE_HEX).unwrap_or_default();
+        assert!(cid.starts_with('f'));
+        // CID header (4 bytes) + digest (32 bytes) = 36 bytes → 72 hex chars + 'f' prefix
+        assert_eq!(cid.len(), 1 + 72);
+    }
+
+    #[test]
+    fn appdata_hex_to_cid_without_0x_prefix() {
+        let hex = SAMPLE_HEX.strip_prefix("0x").unwrap_or(SAMPLE_HEX);
+        let cid = appdata_hex_to_cid(hex).unwrap_or_default();
+        assert!(cid.starts_with('f'));
+    }
+
+    #[test]
+    fn cid_to_appdata_hex_roundtrip() {
+        let cid = appdata_hex_to_cid(SAMPLE_HEX).unwrap_or_default();
+        let recovered = cid_to_appdata_hex(&cid).unwrap_or_default();
+        assert!(recovered.starts_with("0x"));
+        assert_eq!(recovered.len(), 66);
+    }
+
+    #[test]
+    fn cid_to_appdata_hex_rejects_non_base16() {
+        assert!(cid_to_appdata_hex("Qmabc123").is_err());
+        assert!(cid_to_appdata_hex("babc123").is_err());
+    }
+
+    #[test]
+    fn cid_to_appdata_hex_rejects_too_short() {
+        assert!(cid_to_appdata_hex("f0155").is_err());
+    }
+
+    #[test]
+    fn parse_cid_components() {
+        let cid = appdata_hex_to_cid(SAMPLE_HEX).unwrap_or_default();
+        let c = parse_cid(&cid).unwrap_or_else(|_| CidComponents {
+            version: 0, codec: 0, hash_function: 0, hash_length: 0, digest: vec![],
+        });
+        assert_eq!(c.version, CID_VERSION);
+        assert_eq!(c.codec, MULTICODEC_RAW);
+        assert_eq!(c.hash_function, HASH_KECCAK256);
+        assert_eq!(c.hash_length, HASH_LEN);
+        assert_eq!(c.digest.len(), 32);
+    }
+
+    #[test]
+    fn parse_cid_rejects_non_base16() {
+        assert!(parse_cid("not_a_cid").is_err());
+    }
+
+    #[test]
+    fn parse_cid_rejects_too_short() {
+        assert!(parse_cid("f01").is_err());
+    }
+
+    #[test]
+    fn decode_cid_from_bytes() {
+        let mut bytes = vec![0x01, 0x55, 0x1b, 0x20];
+        bytes.extend_from_slice(&[0xaa; 32]);
+        let c = decode_cid(&bytes).unwrap_or_else(|_| CidComponents {
+            version: 0, codec: 0, hash_function: 0, hash_length: 0, digest: vec![],
+        });
+        assert_eq!(c.version, 1);
+        assert_eq!(c.codec, 0x55);
+        assert_eq!(c.digest.len(), 32);
+    }
+
+    #[test]
+    fn decode_cid_rejects_short_bytes() {
+        assert!(decode_cid(&[0x01, 0x02, 0x03]).is_err());
+        assert!(decode_cid(&[]).is_err());
+    }
+
+    #[test]
+    fn extract_digest_returns_0x_prefixed() {
+        let cid = appdata_hex_to_cid(SAMPLE_HEX).unwrap_or_default();
+        let digest = extract_digest(&cid).unwrap_or_default();
+        assert!(digest.starts_with("0x"));
+        assert_eq!(digest.len(), 66);
+    }
+
+    #[test]
+    fn assert_cid_accepts_nonempty() {
+        assert!(assert_cid("f01234", "0xabc").is_ok());
+    }
+
+    #[test]
+    fn assert_cid_rejects_empty() {
+        assert!(assert_cid("", "0xabc").is_err());
+    }
+
+    #[test]
+    #[allow(deprecated)]
+    fn legacy_cid_produces_base16_string() {
+        let cid = app_data_hex_to_cid_legacy(SAMPLE_HEX).unwrap_or_default();
+        assert!(cid.starts_with('f'));
+    }
+
+    #[test]
+    fn appdata_hex_to_cid_invalid_hex() {
+        assert!(appdata_hex_to_cid("0xZZZZ").is_err());
+    }
+
+    #[test]
+    fn deterministic_output() {
+        let cid1 = appdata_hex_to_cid(SAMPLE_HEX).unwrap_or_default();
+        let cid2 = appdata_hex_to_cid(SAMPLE_HEX).unwrap_or_default();
+        assert_eq!(cid1, cid2);
+    }
+}

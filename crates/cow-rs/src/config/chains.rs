@@ -1545,3 +1545,225 @@ pub struct EvmCall {
     /// The value to send (in wei).
     pub value: U256,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── EvmChains ───────────────────────────────────────────────────────
+
+    #[test]
+    fn evm_chains_roundtrip_u64() {
+        let chains = [
+            (EvmChains::Mainnet, 1),
+            (EvmChains::Optimism, 10),
+            (EvmChains::Bnb, 56),
+            (EvmChains::GnosisChain, 100),
+            (EvmChains::Polygon, 137),
+            (EvmChains::Base, 8_453),
+            (EvmChains::Plasma, 9_745),
+            (EvmChains::ArbitrumOne, 42_161),
+            (EvmChains::Avalanche, 43_114),
+            (EvmChains::Ink, 57_073),
+            (EvmChains::Linea, 59_144),
+            (EvmChains::Sepolia, 11_155_111),
+        ];
+        for (chain, id) in chains {
+            assert_eq!(chain.as_u64(), id);
+            assert_eq!(EvmChains::try_from_u64(id), Some(chain));
+        }
+    }
+
+    #[test]
+    fn evm_chains_unknown_returns_none() {
+        assert_eq!(EvmChains::try_from_u64(9999), None);
+    }
+
+    // ── NonEvmChains ────────────────────────────────────────────────────
+
+    #[test]
+    fn non_evm_chains_roundtrip() {
+        assert_eq!(NonEvmChains::Bitcoin.as_u64(), 1_000_000_000);
+        assert_eq!(NonEvmChains::Solana.as_u64(), 1_000_000_001);
+        assert_eq!(NonEvmChains::try_from_u64(1_000_000_000), Some(NonEvmChains::Bitcoin));
+        assert_eq!(NonEvmChains::try_from_u64(1_000_000_001), Some(NonEvmChains::Solana));
+        assert_eq!(NonEvmChains::try_from_u64(999), None);
+    }
+
+    // ── AdditionalTargetChainId ─────────────────────────────────────────
+
+    #[test]
+    fn additional_target_roundtrip() {
+        for &chain in AdditionalTargetChainId::all() {
+            let id = chain.as_u64();
+            assert_eq!(AdditionalTargetChainId::try_from_u64(id), Some(chain));
+        }
+    }
+
+    #[test]
+    fn additional_target_all_has_three() {
+        assert_eq!(AdditionalTargetChainId::all().len(), 3);
+    }
+
+    // ── TargetChainId ───────────────────────────────────────────────────
+
+    #[test]
+    fn target_chain_id_as_u64() {
+        let supported = TargetChainId::Supported(SupportedChainId::Mainnet);
+        assert_eq!(supported.as_u64(), 1);
+        let additional = TargetChainId::Additional(AdditionalTargetChainId::Bitcoin);
+        assert_eq!(additional.as_u64(), 1_000_000_000);
+    }
+
+    // ── Classification helpers ──────────────────────────────────────────
+
+    #[test]
+    fn is_evm_chain_correct() {
+        assert!(is_evm_chain(1));
+        assert!(is_evm_chain(10));
+        assert!(!is_evm_chain(1_000_000_000));
+        assert!(!is_evm_chain(9999));
+    }
+
+    #[test]
+    fn is_non_evm_chain_correct() {
+        assert!(is_non_evm_chain(1_000_000_000));
+        assert!(is_non_evm_chain(1_000_000_001));
+        assert!(!is_non_evm_chain(1));
+    }
+
+    #[test]
+    fn is_btc_chain_correct() {
+        assert!(is_btc_chain(1_000_000_000));
+        assert!(!is_btc_chain(1));
+    }
+
+    #[test]
+    fn is_supported_chain_correct() {
+        assert!(is_supported_chain(1));
+        assert!(is_supported_chain(100));
+        assert!(!is_supported_chain(10));
+        assert!(!is_supported_chain(9999));
+    }
+
+    #[test]
+    fn is_additional_target_chain_correct() {
+        assert!(is_additional_target_chain(10));
+        assert!(is_additional_target_chain(1_000_000_000));
+        assert!(!is_additional_target_chain(1));
+    }
+
+    #[test]
+    fn is_target_chain_id_correct() {
+        assert!(is_target_chain_id(1));
+        assert!(is_target_chain_id(10));
+        assert!(is_target_chain_id(1_000_000_000));
+        assert!(!is_target_chain_id(9999));
+    }
+
+    #[test]
+    fn is_zk_sync_chain_is_false_for_all() {
+        assert!(!is_zk_sync_chain(1));
+        assert!(!is_zk_sync_chain(100));
+    }
+
+    // ── ChainInfo ───────────────────────────────────────────────────────
+
+    #[test]
+    fn get_chain_info_all_supported() {
+        for &chain in SupportedChainId::all() {
+            let info = get_chain_info(chain.as_u64());
+            assert!(info.is_some(), "no chain info for {chain:?}");
+            let info = info.unwrap_or_else(|| supported_chain_info(chain));
+            assert_eq!(info.id(), chain.as_u64());
+            assert!(!info.label().is_empty());
+        }
+    }
+
+    #[test]
+    fn get_chain_info_additional_targets() {
+        for &chain in AdditionalTargetChainId::all() {
+            let info = get_chain_info(chain.as_u64());
+            assert!(info.is_some(), "no chain info for {chain:?}");
+        }
+    }
+
+    #[test]
+    fn get_chain_info_unknown_returns_none() {
+        assert!(get_chain_info(9999).is_none());
+    }
+
+    #[test]
+    fn chain_info_evm_predicates() {
+        let info = supported_chain_info(SupportedChainId::Mainnet);
+        assert!(info.is_evm());
+        assert!(!info.is_non_evm());
+        assert!(info.as_evm().is_some());
+        assert!(info.as_non_evm().is_none());
+    }
+
+    #[test]
+    fn chain_info_non_evm_predicates() {
+        let info = additional_target_chain_info(AdditionalTargetChainId::Bitcoin);
+        assert!(!info.is_evm());
+        assert!(info.is_non_evm());
+        assert!(info.as_non_evm().is_some());
+    }
+
+    #[test]
+    fn chain_info_native_currency() {
+        let info = supported_chain_info(SupportedChainId::Mainnet);
+        let currency = info.native_currency();
+        assert_eq!(currency.decimals, 18);
+    }
+
+    // ── Iteration helpers ───────────────────────────────────────────────
+
+    #[test]
+    fn all_supported_chain_ids_matches_all() {
+        let ids = all_supported_chain_ids();
+        assert_eq!(ids.len(), SupportedChainId::all().len());
+    }
+
+    #[test]
+    fn all_supported_chains_matches_all() {
+        let chains = all_supported_chains();
+        assert_eq!(chains.len(), SupportedChainId::all().len());
+    }
+
+    #[test]
+    fn tradable_chains_excludes_deprecated_and_dev() {
+        let tradable = tradable_supported_chain_ids();
+        assert!(!tradable.is_empty());
+        assert!(tradable.len() <= SupportedChainId::all().len());
+    }
+
+    #[test]
+    fn all_additional_target_chain_ids_has_three() {
+        assert_eq!(all_additional_target_chain_ids().len(), 3);
+    }
+
+    #[test]
+    fn all_chains_includes_supported_and_additional() {
+        let all = all_chains();
+        assert!(all.len() >= SupportedChainId::all().len());
+    }
+
+    #[test]
+    fn all_chain_ids_includes_both() {
+        let ids = all_chain_ids();
+        assert!(ids.len() >= SupportedChainId::all().len() + AdditionalTargetChainId::all().len());
+    }
+
+    #[test]
+    fn map_supported_networks_maps_all() {
+        let mapped = map_supported_networks(|c| c.as_u64());
+        assert_eq!(mapped.len(), SupportedChainId::all().len());
+    }
+
+    #[test]
+    fn map_address_to_supported_networks_produces_correct_count() {
+        let mapped = map_address_to_supported_networks(Address::ZERO);
+        assert_eq!(mapped.len(), SupportedChainId::all().len());
+    }
+}

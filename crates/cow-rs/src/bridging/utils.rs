@@ -735,3 +735,565 @@ pub fn adapt_tokens(
 ) -> Vec<Address> {
     tokens.iter().filter_map(|&addr| adapt_token(addr, source_chain_id, target_chain_id)).collect()
 }
+
+#[cfg(test)]
+mod tests {
+    use alloy_primitives::{Address, U256};
+    use foldhash::HashSet;
+
+    use super::*;
+    use crate::bridging::types::{
+        BridgeAmounts, BridgeCosts, BridgeError, BridgeQuoteAmountsAndCosts, BridgingFee,
+        MultiQuoteResult,
+    };
+
+    // ── apply_bps ────────────────────────────────────────────────────────────
+
+    #[test]
+    fn apply_bps_zero_bps_returns_full_amount() {
+        assert_eq!(apply_bps(U256::from(10_000u64), 0), U256::from(10_000u64));
+    }
+
+    #[test]
+    fn apply_bps_50_bps() {
+        assert_eq!(apply_bps(U256::from(10_000u64), 50), U256::from(9_950u64));
+    }
+
+    #[test]
+    fn apply_bps_full_10000_bps_returns_zero() {
+        assert_eq!(apply_bps(U256::from(10_000u64), 10_000), U256::ZERO);
+    }
+
+    // ── apply_pct_fee ────────────────────────────────────────────────────────
+
+    #[test]
+    fn apply_pct_fee_zero_fee() {
+        let result = apply_pct_fee(U256::from(1_000_000u64), 0).unwrap();
+        assert_eq!(result, U256::from(1_000_000u64));
+    }
+
+    #[test]
+    fn apply_pct_fee_50_percent() {
+        // 50% = 5e17
+        let pct = 500_000_000_000_000_000u128;
+        let result = apply_pct_fee(U256::from(1_000_000u64), pct).unwrap();
+        assert_eq!(result, U256::from(500_000u64));
+    }
+
+    #[test]
+    fn apply_pct_fee_exceeds_100_percent() {
+        let pct = 10u128.pow(18) + 1;
+        assert!(apply_pct_fee(U256::from(1_000u64), pct).is_err());
+    }
+
+    // ── pct_to_bps ───────────────────────────────────────────────────────────
+
+    #[test]
+    fn pct_to_bps_zero() {
+        assert_eq!(pct_to_bps(0).unwrap(), 0);
+    }
+
+    #[test]
+    fn pct_to_bps_100_percent() {
+        assert_eq!(pct_to_bps(10u128.pow(18)).unwrap(), 10_000);
+    }
+
+    #[test]
+    fn pct_to_bps_1_percent() {
+        // 1% = 1e16
+        assert_eq!(pct_to_bps(10u128.pow(16)).unwrap(), 100);
+    }
+
+    #[test]
+    fn pct_to_bps_exceeds_100_percent() {
+        assert!(pct_to_bps(10u128.pow(18) + 1).is_err());
+    }
+
+    // ── calculate_fee_bps ────────────────────────────────────────────────────
+
+    #[test]
+    fn calculate_fee_bps_basic() {
+        let bps = calculate_fee_bps(U256::from(50u64), U256::from(10_000u64)).unwrap();
+        assert_eq!(bps, 50);
+    }
+
+    #[test]
+    fn calculate_fee_bps_zero_fee() {
+        let bps = calculate_fee_bps(U256::ZERO, U256::from(10_000u64)).unwrap();
+        assert_eq!(bps, 0);
+    }
+
+    #[test]
+    fn calculate_fee_bps_zero_amount_errors() {
+        assert!(calculate_fee_bps(U256::from(1u64), U256::ZERO).is_err());
+    }
+
+    #[test]
+    fn calculate_fee_bps_fee_exceeds_amount_errors() {
+        assert!(calculate_fee_bps(U256::from(200u64), U256::from(100u64)).is_err());
+    }
+
+    // ── calculate_deadline ───────────────────────────────────────────────────
+
+    #[test]
+    fn calculate_deadline_basic() {
+        assert_eq!(calculate_deadline(1_700_000_000, 300), 1_700_000_300);
+    }
+
+    #[test]
+    fn calculate_deadline_saturates() {
+        assert_eq!(calculate_deadline(u64::MAX, 1), u64::MAX);
+    }
+
+    // ── are_hooks_equal ──────────────────────────────────────────────────────
+
+    #[test]
+    fn are_hooks_equal_identical() {
+        let hook = CowHook {
+            call_data: "0xabc".to_owned(),
+            gas_limit: "100000".to_owned(),
+            target: "0x1111111111111111111111111111111111111111".to_owned(),
+            dapp_id: None,
+        };
+        assert!(are_hooks_equal(&hook, &hook));
+    }
+
+    #[test]
+    fn are_hooks_equal_different_call_data() {
+        let a = CowHook {
+            call_data: "0xabc".to_owned(),
+            gas_limit: "100000".to_owned(),
+            target: "0x1111111111111111111111111111111111111111".to_owned(),
+            dapp_id: None,
+        };
+        let b = CowHook {
+            call_data: "0xdef".to_owned(),
+            gas_limit: "100000".to_owned(),
+            target: "0x1111111111111111111111111111111111111111".to_owned(),
+            dapp_id: None,
+        };
+        assert!(!are_hooks_equal(&a, &b));
+    }
+
+    #[test]
+    fn are_hooks_equal_ignores_dapp_id() {
+        let a = CowHook {
+            call_data: "0xabc".to_owned(),
+            gas_limit: "100000".to_owned(),
+            target: "0x1111111111111111111111111111111111111111".to_owned(),
+            dapp_id: Some("a".to_owned()),
+        };
+        let b = CowHook {
+            call_data: "0xabc".to_owned(),
+            gas_limit: "100000".to_owned(),
+            target: "0x1111111111111111111111111111111111111111".to_owned(),
+            dapp_id: Some("b".to_owned()),
+        };
+        assert!(are_hooks_equal(&a, &b));
+    }
+
+    // ── hook_mock_for_cost_estimation ─────────────────────────────────────────
+
+    #[test]
+    fn hook_mock_for_cost_estimation_has_expected_fields() {
+        let hook = hook_mock_for_cost_estimation(200_000);
+        assert_eq!(hook.call_data, "0x00");
+        assert_eq!(hook.gas_limit, "200000");
+        assert_eq!(hook.target, "0x0000000000000000000000000000000000000000");
+        assert!(hook.dapp_id.is_some());
+    }
+
+    // ── get_post_hooks ───────────────────────────────────────────────────────
+
+    #[test]
+    fn get_post_hooks_valid_json() {
+        let json = r#"{"version":"1.0","metadata":{"hooks":{"post":[{"target":"0x0000000000000000000000000000000000000000","callData":"0x00","gasLimit":"100000"}]}}}"#;
+        let hooks = get_post_hooks(json);
+        assert_eq!(hooks.len(), 1);
+    }
+
+    #[test]
+    fn get_post_hooks_invalid_json() {
+        assert!(get_post_hooks("not json").is_empty());
+    }
+
+    #[test]
+    fn get_post_hooks_no_hooks_key() {
+        assert!(get_post_hooks(r#"{"version":"1.0","metadata":{}}"#).is_empty());
+    }
+
+    // ── hash_quote ───────────────────────────────────────────────────────────
+
+    #[test]
+    fn hash_quote_deterministic() {
+        let h1 = hash_quote("provider", 1, 42161, "0xABC");
+        let h2 = hash_quote("provider", 1, 42161, "0xABC");
+        assert_eq!(h1, h2);
+    }
+
+    #[test]
+    fn hash_quote_lowercases_token() {
+        let h1 = hash_quote("provider", 1, 42161, "0xABC");
+        let h2 = hash_quote("provider", 1, 42161, "0xabc");
+        assert_eq!(h1, h2);
+    }
+
+    // ── object_to_search_params ──────────────────────────────────────────────
+
+    #[test]
+    fn object_to_search_params_single_value() {
+        let params = vec![("key".to_owned(), vec!["value".to_owned()])];
+        assert_eq!(object_to_search_params(&params), "key=value");
+    }
+
+    #[test]
+    fn object_to_search_params_multiple_values() {
+        let params = vec![("bridges".to_owned(), vec!["across".to_owned(), "cctp".to_owned()])];
+        assert_eq!(object_to_search_params(&params), "bridges=across,cctp");
+    }
+
+    #[test]
+    fn object_to_search_params_empty() {
+        assert_eq!(object_to_search_params(&[]), "");
+    }
+
+    // ── validate_cross_chain_request ─────────────────────────────────────────
+
+    #[test]
+    fn validate_cross_chain_request_different_chains_ok() {
+        assert!(validate_cross_chain_request(1, 42161).is_ok());
+    }
+
+    #[test]
+    fn validate_cross_chain_request_same_chain_err() {
+        assert!(validate_cross_chain_request(1, 1).is_err());
+    }
+
+    // ── find_bridge_provider_dapp_id ─────────────────────────────────────────
+
+    #[test]
+    fn find_bridge_provider_from_metadata() {
+        let json = r#"{"version":"1.0","metadata":{"bridging":{"providerId":"my-provider"}}}"#;
+        assert_eq!(find_bridge_provider_dapp_id(json), Some("my-provider".to_owned()));
+    }
+
+    #[test]
+    fn find_bridge_provider_from_post_hooks() {
+        let dapp_id = format!("{HOOK_DAPP_BRIDGE_PROVIDER_PREFIX}/test");
+        let json = format!(
+            r#"{{"version":"1.0","metadata":{{"hooks":{{"post":[{{"target":"0x0000000000000000000000000000000000000000","callData":"0x00","gasLimit":"100000","dappId":"{dapp_id}"}}]}}}}}}"#
+        );
+        assert_eq!(find_bridge_provider_dapp_id(&json), Some(dapp_id));
+    }
+
+    #[test]
+    fn find_bridge_provider_none_on_invalid_json() {
+        assert!(find_bridge_provider_dapp_id("not json").is_none());
+    }
+
+    // ── is_better_quote ──────────────────────────────────────────────────────
+
+    #[test]
+    fn is_better_quote_none_best_with_some_candidate() {
+        let candidate = MultiQuoteResult {
+            provider_dapp_id: "a".into(),
+            quote: Some(BridgeQuoteAmountsAndCosts {
+                costs: BridgeCosts {
+                    bridging_fee: BridgingFee {
+                        fee_bps: 0,
+                        amount_in_sell_currency: U256::ZERO,
+                        amount_in_buy_currency: U256::ZERO,
+                    },
+                },
+                before_fee: BridgeAmounts {
+                    sell_amount: U256::from(100u64),
+                    buy_amount: U256::from(100u64),
+                },
+                after_fee: BridgeAmounts {
+                    sell_amount: U256::from(100u64),
+                    buy_amount: U256::from(100u64),
+                },
+                after_slippage: BridgeAmounts {
+                    sell_amount: U256::from(100u64),
+                    buy_amount: U256::from(100u64),
+                },
+                slippage_bps: 0,
+            }),
+            error: None,
+        };
+        assert!(is_better_quote(&candidate, None));
+    }
+
+    #[test]
+    fn is_better_quote_no_quote_candidate_returns_false() {
+        let candidate = MultiQuoteResult {
+            provider_dapp_id: "a".into(),
+            quote: None,
+            error: Some("err".into()),
+        };
+        assert!(!is_better_quote(&candidate, None));
+    }
+
+    // ── is_better_error ──────────────────────────────────────────────────────
+
+    #[test]
+    fn is_better_error_some_vs_none() {
+        assert!(is_better_error(Some(&BridgeError::SameChain), None));
+    }
+
+    #[test]
+    fn is_better_error_none_vs_some() {
+        assert!(!is_better_error(None, Some(&BridgeError::SameChain)));
+    }
+
+    #[test]
+    fn is_better_error_higher_priority_wins() {
+        assert!(is_better_error(
+            Some(&BridgeError::SellAmountTooSmall),
+            Some(&BridgeError::SameChain),
+        ));
+    }
+
+    // ── fill_timeout_results ─────────────────────────────────────────────────
+
+    #[test]
+    fn fill_timeout_results_fills_missing_entries() {
+        let mut results = vec![];
+        let providers = vec!["p1".to_owned(), "p2".to_owned()];
+        fill_timeout_results(&mut results, &providers);
+        assert_eq!(results.len(), 2);
+        assert!(results[0].error.as_deref() == Some("provider request timed out"));
+        assert!(results[1].error.as_deref() == Some("provider request timed out"));
+    }
+
+    #[test]
+    fn fill_timeout_results_leaves_existing_entries() {
+        let mut results = vec![MultiQuoteResult {
+            provider_dapp_id: "p1".into(),
+            quote: None,
+            error: Some("custom error".into()),
+        }];
+        let providers = vec!["p1".to_owned()];
+        fill_timeout_results(&mut results, &providers);
+        assert_eq!(results[0].error.as_deref(), Some("custom error"));
+    }
+
+    // ── get_gas_limit_estimation_for_hook ─────────────────────────────────────
+
+    #[test]
+    fn gas_limit_proxy_deployed() {
+        use super::super::sdk::DEFAULT_GAS_COST_FOR_HOOK_ESTIMATION;
+        let result = get_gas_limit_estimation_for_hook(true, None, None);
+        assert_eq!(result, DEFAULT_GAS_COST_FOR_HOOK_ESTIMATION);
+    }
+
+    #[test]
+    fn gas_limit_proxy_not_deployed() {
+        use super::super::sdk::DEFAULT_GAS_COST_FOR_HOOK_ESTIMATION;
+        let result = get_gas_limit_estimation_for_hook(false, None, None);
+        assert_eq!(result, DEFAULT_GAS_COST_FOR_HOOK_ESTIMATION + COW_SHED_PROXY_CREATION_GAS);
+    }
+
+    #[test]
+    fn gas_limit_with_extra_gas() {
+        use super::super::sdk::DEFAULT_GAS_COST_FOR_HOOK_ESTIMATION;
+        let result = get_gas_limit_estimation_for_hook(true, Some(50_000), None);
+        assert_eq!(result, DEFAULT_GAS_COST_FOR_HOOK_ESTIMATION + 50_000);
+    }
+
+    #[test]
+    fn gas_limit_not_deployed_with_extra_proxy_gas() {
+        use super::super::sdk::DEFAULT_GAS_COST_FOR_HOOK_ESTIMATION;
+        let result = get_gas_limit_estimation_for_hook(false, None, Some(10_000));
+        assert_eq!(
+            result,
+            DEFAULT_GAS_COST_FOR_HOOK_ESTIMATION + COW_SHED_PROXY_CREATION_GAS + 10_000
+        );
+    }
+
+    // ── is_infrastructure_error ──────────────────────────────────────────────
+
+    #[test]
+    fn is_infrastructure_error_500() {
+        assert!(is_infrastructure_error(500));
+        assert!(is_infrastructure_error(503));
+    }
+
+    #[test]
+    fn is_infrastructure_error_429() {
+        assert!(is_infrastructure_error(429));
+    }
+
+    #[test]
+    fn is_infrastructure_error_200() {
+        assert!(!is_infrastructure_error(200));
+    }
+
+    #[test]
+    fn is_infrastructure_error_404() {
+        assert!(!is_infrastructure_error(404));
+    }
+
+    // ── is_client_fetch_error ────────────────────────────────────────────────
+
+    #[test]
+    fn is_client_fetch_error_matches() {
+        assert!(is_client_fetch_error("fetch failed"));
+        assert!(is_client_fetch_error("network error"));
+        assert!(is_client_fetch_error("dns resolution failed"));
+    }
+
+    #[test]
+    fn is_client_fetch_error_no_match() {
+        assert!(!is_client_fetch_error("timeout"));
+        assert!(!is_client_fetch_error("internal error"));
+    }
+
+    // ── is_app_doc ───────────────────────────────────────────────────────────
+
+    #[test]
+    fn is_app_doc_valid() {
+        assert!(is_app_doc(r#"{"version":"1.0","metadata":{}}"#));
+    }
+
+    #[test]
+    fn is_app_doc_missing_version() {
+        assert!(!is_app_doc(r#"{"metadata":{}}"#));
+    }
+
+    #[test]
+    fn is_app_doc_invalid_json() {
+        assert!(!is_app_doc("nope"));
+    }
+
+    // ── resolve_providers_to_query ───────────────────────────────────────────
+
+    #[test]
+    fn resolve_providers_none_returns_all() {
+        let available = vec!["a".to_owned(), "b".to_owned()];
+        let result = resolve_providers_to_query(None, &available).unwrap();
+        assert_eq!(result, vec!["a", "b"]);
+    }
+
+    #[test]
+    fn resolve_providers_specific_ids() {
+        let available = vec!["a".to_owned(), "b".to_owned(), "c".to_owned()];
+        let requested = vec!["b".to_owned()];
+        let result = resolve_providers_to_query(Some(&requested), &available).unwrap();
+        assert_eq!(result, vec!["b"]);
+    }
+
+    #[test]
+    fn resolve_providers_missing_id_errors() {
+        let available = vec!["a".to_owned()];
+        let requested = vec!["z".to_owned()];
+        assert!(resolve_providers_to_query(Some(&requested), &available).is_err());
+    }
+
+    // ── priority_stablecoin_tokens ───────────────────────────────────────────
+
+    #[test]
+    fn priority_stablecoin_tokens_includes_mainnet() {
+        let map = priority_stablecoin_tokens();
+        let mainnet = map.get(&1).unwrap();
+        let usdc: Address = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48".parse().unwrap();
+        assert!(mainnet.contains(&usdc));
+    }
+
+    // ── is_stablecoin_priority_token ─────────────────────────────────────────
+
+    #[test]
+    fn is_stablecoin_mainnet_usdc() {
+        let usdc: Address = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48".parse().unwrap();
+        assert!(is_stablecoin_priority_token(1, usdc));
+    }
+
+    #[test]
+    fn is_stablecoin_unknown_chain() {
+        let usdc: Address = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48".parse().unwrap();
+        assert!(!is_stablecoin_priority_token(999_999, usdc));
+    }
+
+    // ── is_correlated_token ──────────────────────────────────────────────────
+
+    #[test]
+    fn is_correlated_token_found() {
+        let addr: Address = "0x1111111111111111111111111111111111111111".parse().unwrap();
+        let mut set = HashSet::default();
+        set.insert(addr);
+        assert!(is_correlated_token(addr, &set));
+    }
+
+    #[test]
+    fn is_correlated_token_not_found() {
+        let addr: Address = "0x1111111111111111111111111111111111111111".parse().unwrap();
+        let set = HashSet::default();
+        assert!(!is_correlated_token(addr, &set));
+    }
+
+    // ── determine_intermediate_token ─────────────────────────────────────────
+
+    #[test]
+    fn determine_intermediate_token_empty_candidates_errors() {
+        let correlated = HashSet::default();
+        assert!(determine_intermediate_token(1, Address::ZERO, &[], &correlated, false).is_err());
+    }
+
+    #[test]
+    fn determine_intermediate_token_single_candidate() {
+        let addr: Address = "0x1111111111111111111111111111111111111111".parse().unwrap();
+        let correlated = HashSet::default();
+        let result = determine_intermediate_token(1, Address::ZERO, &[addr], &correlated, false);
+        assert_eq!(result.unwrap(), addr);
+    }
+
+    #[test]
+    fn determine_intermediate_token_prefers_stablecoin() {
+        let usdc: Address = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48".parse().unwrap();
+        let random: Address = "0x1111111111111111111111111111111111111111".parse().unwrap();
+        let correlated = HashSet::default();
+        let result =
+            determine_intermediate_token(1, Address::ZERO, &[random, usdc], &correlated, false);
+        assert_eq!(result.unwrap(), usdc);
+    }
+
+    #[test]
+    fn determine_intermediate_token_prefers_same_token() {
+        let sell: Address = "0x2222222222222222222222222222222222222222".parse().unwrap();
+        let usdc: Address = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48".parse().unwrap();
+        let correlated = HashSet::default();
+        let result =
+            determine_intermediate_token(1, sell, &[usdc, sell], &correlated, true);
+        assert_eq!(result.unwrap(), sell);
+    }
+
+    // ── adapt_token / adapt_tokens ───────────────────────────────────────────
+
+    #[test]
+    fn adapt_token_mainnet_usdc_to_arbitrum() {
+        let usdc: Address = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48".parse().unwrap();
+        assert!(adapt_token(usdc, 1, 42161).is_some());
+    }
+
+    #[test]
+    fn adapt_token_unknown_chain_returns_none() {
+        assert!(adapt_token(Address::ZERO, 999_999, 1).is_none());
+    }
+
+    #[test]
+    fn adapt_tokens_filters_unmapped() {
+        let usdc: Address = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48".parse().unwrap();
+        let results = adapt_tokens(&[usdc, Address::ZERO], 1, 42161);
+        assert_eq!(results.len(), 1);
+    }
+
+    // ── TokenPriority ordering ───────────────────────────────────────────────
+
+    #[test]
+    fn token_priority_ordering() {
+        assert!(TokenPriority::Highest > TokenPriority::High);
+        assert!(TokenPriority::High > TokenPriority::Medium);
+        assert!(TokenPriority::Medium > TokenPriority::Low);
+        assert!(TokenPriority::Low > TokenPriority::Lowest);
+    }
+}

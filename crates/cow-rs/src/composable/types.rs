@@ -1345,47 +1345,647 @@ impl fmt::Display for ProofStruct {
 mod tests {
     use super::*;
 
+    // ── Constants ────────────────────────────────────────────────────────────
+
+    #[test]
+    fn composable_cow_address_matches() {
+        assert_eq!(format!("{COMPOSABLE_COW_ADDRESS:#x}"), "0xfdafc9d1902f4e0b84f65f49f244b32b31013b74");
+    }
+
+    #[test]
+    fn twap_handler_address_matches() {
+        assert_eq!(format!("{TWAP_HANDLER_ADDRESS:#x}"), "0x6cf1e9ca41f7611def408122793c358a3d11e5a5");
+    }
+
+    #[test]
+    fn current_block_timestamp_factory_address_matches() {
+        assert_eq!(
+            format!("{CURRENT_BLOCK_TIMESTAMP_FACTORY_ADDRESS:#x}"),
+            "0x52ed56da04309aca4c3fecc595298d80c2f16bac"
+        );
+    }
+
+    #[test]
+    fn max_frequency_is_one_year() {
+        assert_eq!(MAX_FREQUENCY, 365 * 24 * 60 * 60);
+        assert_eq!(MAX_FREQUENCY, 31_536_000);
+    }
+
+    // ── ConditionalOrderParams ──────────────────────────────────────────────
+
+    #[test]
+    fn conditional_order_params_new() {
+        let p = ConditionalOrderParams::new(Address::ZERO, B256::ZERO, vec![1, 2, 3]);
+        assert_eq!(p.handler, Address::ZERO);
+        assert_eq!(p.salt, B256::ZERO);
+        assert_eq!(p.static_input, vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn conditional_order_params_with_handler() {
+        let p = ConditionalOrderParams::new(Address::ZERO, B256::ZERO, vec![])
+            .with_handler(TWAP_HANDLER_ADDRESS);
+        assert_eq!(p.handler, TWAP_HANDLER_ADDRESS);
+    }
+
+    #[test]
+    fn conditional_order_params_with_salt() {
+        let salt = B256::repeat_byte(0xAB);
+        let p = ConditionalOrderParams::new(Address::ZERO, B256::ZERO, vec![]).with_salt(salt);
+        assert_eq!(p.salt, salt);
+    }
+
+    #[test]
+    fn conditional_order_params_with_static_input() {
+        let p =
+            ConditionalOrderParams::new(Address::ZERO, B256::ZERO, vec![]).with_static_input(vec![0xDE, 0xAD]);
+        assert_eq!(p.static_input, vec![0xDE, 0xAD]);
+    }
+
+    #[test]
+    fn conditional_order_params_empty_static_input() {
+        let empty = ConditionalOrderParams::new(Address::ZERO, B256::ZERO, vec![]);
+        assert!(empty.is_empty_static_input());
+        assert_eq!(empty.static_input_len(), 0);
+
+        let non_empty = empty.with_static_input(vec![1]);
+        assert!(!non_empty.is_empty_static_input());
+        assert_eq!(non_empty.static_input_len(), 1);
+    }
+
+    #[test]
+    fn conditional_order_params_salt_ref() {
+        let salt = B256::repeat_byte(0x42);
+        let p = ConditionalOrderParams::new(Address::ZERO, salt, vec![]);
+        assert_eq!(p.salt_ref(), &salt);
+    }
+
+    #[test]
+    fn conditional_order_params_display() {
+        let p = ConditionalOrderParams::new(TWAP_HANDLER_ADDRESS, B256::ZERO, vec![]);
+        let s = p.to_string();
+        assert!(s.starts_with("params(handler=0x"));
+    }
+
+    // ── TwapStartTime ───────────────────────────────────────────────────────
+
+    #[test]
+    fn twap_start_time_as_str() {
+        assert_eq!(TwapStartTime::AtMiningTime.as_str(), "at-mining-time");
+        assert_eq!(TwapStartTime::At(100).as_str(), "at-unix");
+    }
+
+    #[test]
+    fn twap_start_time_is_at_mining_time() {
+        assert!(TwapStartTime::AtMiningTime.is_at_mining_time());
+        assert!(!TwapStartTime::At(42).is_at_mining_time());
+    }
+
+    #[test]
+    fn twap_start_time_is_fixed() {
+        assert!(TwapStartTime::At(42).is_fixed());
+        assert!(!TwapStartTime::AtMiningTime.is_fixed());
+    }
+
+    #[test]
+    fn twap_start_time_timestamp() {
+        assert_eq!(TwapStartTime::AtMiningTime.timestamp(), None);
+        assert_eq!(TwapStartTime::At(1_000).timestamp(), Some(1_000));
+    }
+
+    #[test]
+    fn twap_start_time_display() {
+        assert_eq!(TwapStartTime::AtMiningTime.to_string(), "at-mining-time");
+        assert_eq!(TwapStartTime::At(1_700_000_000).to_string(), "at-unix-1700000000");
+    }
+
+    #[test]
+    fn twap_start_time_from_u32() {
+        assert_eq!(TwapStartTime::from(0u32), TwapStartTime::AtMiningTime);
+        assert_eq!(TwapStartTime::from(42u32), TwapStartTime::At(42));
+    }
+
+    #[test]
+    fn twap_start_time_into_u32() {
+        let zero: u32 = TwapStartTime::AtMiningTime.into();
+        assert_eq!(zero, 0);
+        let ts: u32 = TwapStartTime::At(999).into();
+        assert_eq!(ts, 999);
+    }
+
+    #[test]
+    fn twap_start_time_from_option_u32() {
+        assert_eq!(TwapStartTime::from(None), TwapStartTime::AtMiningTime);
+        assert_eq!(TwapStartTime::from(Some(123)), TwapStartTime::At(123));
+    }
+
+    // ── DurationOfPart ──────────────────────────────────────────────────────
+
+    #[test]
+    fn duration_of_part_auto_defaults() {
+        let d = DurationOfPart::default();
+        assert!(d.is_auto());
+        assert!(!d.is_limit_duration());
+        assert_eq!(d.duration(), None);
+    }
+
+    #[test]
+    fn duration_of_part_limit() {
+        let d = DurationOfPart::limit(1_800);
+        assert!(!d.is_auto());
+        assert!(d.is_limit_duration());
+        assert_eq!(d.duration(), Some(1_800));
+    }
+
+    #[test]
+    fn duration_of_part_display() {
+        assert_eq!(DurationOfPart::Auto.to_string(), "auto");
+        assert_eq!(DurationOfPart::limit(600).to_string(), "limit-duration(600s)");
+    }
+
+    #[test]
+    fn duration_of_part_from_option() {
+        assert_eq!(DurationOfPart::from(None), DurationOfPart::Auto);
+        assert_eq!(DurationOfPart::from(Some(300)), DurationOfPart::LimitDuration { duration: 300 });
+    }
+
+    // ── TwapData constructors ───────────────────────────────────────────────
+
+    #[test]
+    fn twap_data_sell_constructor() {
+        let t = TwapData::sell(Address::ZERO, Address::ZERO, U256::from(1000u64), 4, 3600);
+        assert!(t.is_sell());
+        assert!(!t.is_buy());
+        assert_eq!(t.sell_amount, U256::from(1000u64));
+        assert_eq!(t.buy_amount, U256::ZERO);
+        assert_eq!(t.receiver, Address::ZERO);
+        assert_eq!(t.num_parts, 4);
+        assert_eq!(t.part_duration, 3600);
+        assert!(t.start_time.is_at_mining_time());
+        assert!(!t.partially_fillable);
+        assert!(t.duration_of_part.is_auto());
+        assert!(!t.has_app_data());
+    }
+
+    #[test]
+    fn twap_data_buy_constructor() {
+        let t = TwapData::buy(Address::ZERO, Address::ZERO, U256::from(500u64), 2, 1800);
+        assert!(t.is_buy());
+        assert!(!t.is_sell());
+        assert_eq!(t.sell_amount, U256::MAX);
+        assert_eq!(t.buy_amount, U256::from(500u64));
+        assert_eq!(t.num_parts, 2);
+        assert_eq!(t.part_duration, 1800);
+    }
+
+    // ── TwapData computed fields ────────────────────────────────────────────
+
+    #[test]
+    fn twap_data_total_duration_secs() {
+        let t = TwapData::sell(Address::ZERO, Address::ZERO, U256::ZERO, 4, 3600);
+        assert_eq!(t.total_duration_secs(), 14_400);
+    }
+
+    #[test]
+    fn twap_data_end_time_fixed() {
+        let t = TwapData::sell(Address::ZERO, Address::ZERO, U256::ZERO, 4, 3600)
+            .with_start_time(TwapStartTime::At(1_000_000));
+        assert_eq!(t.end_time(), Some(1_000_000 + 14_400));
+    }
+
+    #[test]
+    fn twap_data_end_time_at_mining() {
+        let t = TwapData::sell(Address::ZERO, Address::ZERO, U256::ZERO, 4, 3600);
+        assert_eq!(t.end_time(), None);
+    }
+
+    #[test]
+    fn twap_data_is_expired() {
+        let t = TwapData::sell(Address::ZERO, Address::ZERO, U256::ZERO, 4, 3600)
+            .with_start_time(TwapStartTime::At(1_000_000));
+        // end = 1_014_400
+        assert!(!t.is_expired(1_014_399));
+        assert!(t.is_expired(1_014_400));
+        assert!(t.is_expired(2_000_000));
+    }
+
+    #[test]
+    fn twap_data_is_expired_at_mining_time_always_false() {
+        let t = TwapData::sell(Address::ZERO, Address::ZERO, U256::ZERO, 4, 3600);
+        assert!(!t.is_expired(u64::MAX));
+    }
+
+    // ── TwapData builders ───────────────────────────────────────────────────
+
+    #[test]
+    fn twap_data_with_receiver() {
+        let recv = Address::repeat_byte(0x01);
+        let t = TwapData::sell(Address::ZERO, Address::ZERO, U256::ZERO, 1, 1).with_receiver(recv);
+        assert_eq!(t.receiver, recv);
+    }
+
+    #[test]
+    fn twap_data_with_buy_amount() {
+        let t = TwapData::sell(Address::ZERO, Address::ZERO, U256::ZERO, 1, 1)
+            .with_buy_amount(U256::from(42u64));
+        assert_eq!(t.buy_amount, U256::from(42u64));
+    }
+
+    #[test]
+    fn twap_data_with_sell_amount() {
+        let t = TwapData::buy(Address::ZERO, Address::ZERO, U256::ZERO, 1, 1)
+            .with_sell_amount(U256::from(99u64));
+        assert_eq!(t.sell_amount, U256::from(99u64));
+    }
+
+    #[test]
+    fn twap_data_with_start_time() {
+        let t = TwapData::sell(Address::ZERO, Address::ZERO, U256::ZERO, 1, 1)
+            .with_start_time(TwapStartTime::At(12345));
+        assert_eq!(t.start_time, TwapStartTime::At(12345));
+    }
+
+    #[test]
+    fn twap_data_with_app_data() {
+        let hash = B256::repeat_byte(0xAA);
+        let t =
+            TwapData::sell(Address::ZERO, Address::ZERO, U256::ZERO, 1, 1).with_app_data(hash);
+        assert!(t.has_app_data());
+        assert_eq!(t.app_data, hash);
+    }
+
+    #[test]
+    fn twap_data_has_app_data_zero_is_false() {
+        let t = TwapData::sell(Address::ZERO, Address::ZERO, U256::ZERO, 1, 1);
+        assert!(!t.has_app_data());
+    }
+
+    #[test]
+    fn twap_data_with_partially_fillable() {
+        let t = TwapData::sell(Address::ZERO, Address::ZERO, U256::ZERO, 1, 1)
+            .with_partially_fillable(true);
+        assert!(t.partially_fillable);
+    }
+
+    #[test]
+    fn twap_data_with_duration_of_part() {
+        let t = TwapData::sell(Address::ZERO, Address::ZERO, U256::ZERO, 1, 1)
+            .with_duration_of_part(DurationOfPart::limit(900));
+        assert!(t.duration_of_part.is_limit_duration());
+        assert_eq!(t.duration_of_part.duration(), Some(900));
+    }
+
+    // ── TwapData display ────────────────────────────────────────────────────
+
     #[test]
     fn twap_data_display_at_mining_time() {
-        let data = TwapData {
-            sell_token: Address::ZERO,
-            buy_token: Address::ZERO,
-            receiver: Address::ZERO,
-            sell_amount: U256::from(24_000u64),
-            buy_amount: U256::from(1_000u64),
-            start_time: TwapStartTime::AtMiningTime,
-            part_duration: 3_600,
-            num_parts: 24,
-            app_data: B256::ZERO,
-            partially_fillable: false,
-            kind: OrderKind::Sell,
-            duration_of_part: DurationOfPart::Auto,
-        };
-        let s = data.to_string();
-        assert!(s.contains("24 × 3600s"));
-        assert!(s.contains("at-mining-time"));
-        assert!(s.contains("24000"));
-        assert!(s.contains("1000"));
+        let t = TwapData::sell(Address::ZERO, Address::ZERO, U256::from(24_000u64), 24, 3_600)
+            .with_buy_amount(U256::from(1_000u64));
+        let s = t.to_string();
+        assert!(s.contains("24 × 3600s"), "got: {s}");
+        assert!(s.contains("at-mining-time"), "got: {s}");
+        assert!(s.contains("24000"), "got: {s}");
+        assert!(s.contains("1000"), "got: {s}");
     }
 
     #[test]
     fn twap_data_display_fixed_start() {
-        let data = TwapData {
+        let t = TwapData::sell(Address::ZERO, Address::ZERO, U256::from(1_000u64), 6, 7_200)
+            .with_start_time(TwapStartTime::At(1_700_000_000));
+        let s = t.to_string();
+        assert!(s.contains("at-unix-1700000000"), "got: {s}");
+    }
+
+    // ── TwapStruct ──────────────────────────────────────────────────────────
+
+    fn make_twap_struct() -> TwapStruct {
+        TwapStruct {
             sell_token: Address::ZERO,
             buy_token: Address::ZERO,
             receiver: Address::ZERO,
-            sell_amount: U256::from(1_000u64),
-            buy_amount: U256::from(500u64),
-            start_time: TwapStartTime::At(1_700_000_000),
-            part_duration: 7_200,
-            num_parts: 6,
+            part_sell_amount: U256::from(250u64),
+            min_part_limit: U256::from(100u64),
+            t0: 0,
+            n: 4,
+            t: 3600,
+            span: 0,
             app_data: B256::ZERO,
-            partially_fillable: false,
-            kind: OrderKind::Sell,
-            duration_of_part: DurationOfPart::Auto,
+        }
+    }
+
+    #[test]
+    fn twap_struct_has_app_data() {
+        let mut s = make_twap_struct();
+        assert!(!s.has_app_data());
+        s.app_data = B256::repeat_byte(0x01);
+        assert!(s.has_app_data());
+    }
+
+    #[test]
+    fn twap_struct_has_custom_receiver() {
+        let mut s = make_twap_struct();
+        assert!(!s.has_custom_receiver());
+        s.receiver = Address::repeat_byte(0x01);
+        assert!(s.has_custom_receiver());
+    }
+
+    #[test]
+    fn twap_struct_start_is_fixed() {
+        let mut s = make_twap_struct();
+        assert!(!s.start_is_fixed());
+        s.t0 = 1_000_000;
+        assert!(s.start_is_fixed());
+    }
+
+    #[test]
+    fn twap_struct_display() {
+        let s = make_twap_struct();
+        let d = s.to_string();
+        assert!(d.contains("twap-struct"), "got: {d}");
+        assert!(d.contains("4 × 3600s"), "got: {d}");
+    }
+
+    // ── TwapData <-> TwapStruct conversions ─────────────────────────────────
+
+    #[test]
+    fn twap_struct_try_from_twap_data() {
+        let data = TwapData::sell(Address::ZERO, Address::ZERO, U256::from(1000u64), 4, 3600)
+            .with_buy_amount(U256::from(400u64))
+            .with_start_time(TwapStartTime::At(5000))
+            .with_duration_of_part(DurationOfPart::limit(1800));
+        let s = TwapStruct::try_from(&data).unwrap();
+        assert_eq!(s.part_sell_amount, U256::from(250u64));
+        assert_eq!(s.min_part_limit, U256::from(100u64));
+        assert_eq!(s.t0, 5000);
+        assert_eq!(s.n, 4);
+        assert_eq!(s.t, 3600);
+        assert_eq!(s.span, 1800);
+    }
+
+    #[test]
+    fn twap_struct_try_from_twap_data_zero_parts_errors() {
+        let mut data = TwapData::sell(Address::ZERO, Address::ZERO, U256::from(1000u64), 4, 3600);
+        data.num_parts = 0;
+        assert!(TwapStruct::try_from(&data).is_err());
+    }
+
+    #[test]
+    fn twap_data_from_twap_struct() {
+        let s = TwapStruct {
+            sell_token: Address::ZERO,
+            buy_token: Address::ZERO,
+            receiver: Address::ZERO,
+            part_sell_amount: U256::from(250u64),
+            min_part_limit: U256::from(100u64),
+            t0: 5000,
+            n: 4,
+            t: 3600,
+            span: 1800,
+            app_data: B256::ZERO,
         };
-        let s = data.to_string();
-        assert!(s.contains("at-unix-1700000000"));
+        let data = TwapData::from(&s);
+        assert_eq!(data.sell_amount, U256::from(1000u64));
+        assert_eq!(data.buy_amount, U256::from(400u64));
+        assert_eq!(data.start_time, TwapStartTime::At(5000));
+        assert_eq!(data.num_parts, 4);
+        assert_eq!(data.part_duration, 3600);
+        assert!(data.duration_of_part.is_limit_duration());
+        assert_eq!(data.duration_of_part.duration(), Some(1800));
+    }
+
+    #[test]
+    fn twap_data_from_twap_struct_at_mining_time() {
+        let mut s = make_twap_struct();
+        s.t0 = 0;
+        s.span = 0;
+        let data = TwapData::from(&s);
+        assert!(data.start_time.is_at_mining_time());
+        assert!(data.duration_of_part.is_auto());
+    }
+
+    // ── GpV2OrderStruct ─────────────────────────────────────────────────────
+
+    fn make_gpv2_order() -> GpV2OrderStruct {
+        GpV2OrderStruct {
+            sell_token: Address::ZERO,
+            buy_token: Address::ZERO,
+            receiver: Address::ZERO,
+            sell_amount: U256::from(1000u64),
+            buy_amount: U256::from(500u64),
+            valid_to: 1_700_000_000,
+            app_data: B256::ZERO,
+            fee_amount: U256::ZERO,
+            kind: B256::ZERO,
+            partially_fillable: false,
+            sell_token_balance: B256::ZERO,
+            buy_token_balance: B256::ZERO,
+        }
+    }
+
+    #[test]
+    fn gpv2_order_has_custom_receiver() {
+        let mut o = make_gpv2_order();
+        assert!(!o.has_custom_receiver());
+        o.receiver = Address::repeat_byte(0x01);
+        assert!(o.has_custom_receiver());
+    }
+
+    #[test]
+    fn gpv2_order_is_partially_fillable() {
+        let mut o = make_gpv2_order();
+        assert!(!o.is_partially_fillable());
+        o.partially_fillable = true;
+        assert!(o.is_partially_fillable());
+    }
+
+    #[test]
+    fn gpv2_order_display() {
+        let o = make_gpv2_order();
+        let s = o.to_string();
+        assert!(s.contains("gpv2-order"), "got: {s}");
+        assert!(s.contains("1000"), "got: {s}");
+        assert!(s.contains("500"), "got: {s}");
+    }
+
+    // ── PollResult ──────────────────────────────────────────────────────────
+
+    #[test]
+    fn poll_result_success() {
+        let r = PollResult::Success { order: None, signature: None };
+        assert!(r.is_success());
+        assert!(!r.is_retryable());
+        assert!(!r.is_terminal());
+        assert!(r.order_ref().is_none());
+        assert!(r.as_error_message().is_none());
+    }
+
+    #[test]
+    fn poll_result_try_next_block() {
+        let r = PollResult::TryNextBlock;
+        assert!(r.is_try_next_block());
+        assert!(r.is_retryable());
+        assert!(!r.is_success());
+        assert_eq!(r.get_block_number(), None);
+        assert_eq!(r.get_epoch(), None);
+    }
+
+    #[test]
+    fn poll_result_try_on_block() {
+        let r = PollResult::TryOnBlock { block_number: 42 };
+        assert!(r.is_try_on_block());
+        assert!(r.is_retryable());
+        assert_eq!(r.get_block_number(), Some(42));
+    }
+
+    #[test]
+    fn poll_result_try_at_epoch() {
+        let r = PollResult::TryAtEpoch { epoch: 1_700_000_000 };
+        assert!(r.is_try_at_epoch());
+        assert!(r.is_retryable());
+        assert_eq!(r.get_epoch(), Some(1_700_000_000));
+    }
+
+    #[test]
+    fn poll_result_unexpected_error() {
+        let r = PollResult::UnexpectedError { message: "boom".into() };
+        assert!(r.is_unexpected_error());
+        assert!(!r.is_retryable());
+        assert_eq!(r.as_error_message(), Some("boom"));
+    }
+
+    #[test]
+    fn poll_result_dont_try_again() {
+        let r = PollResult::DontTryAgain { reason: "expired".into() };
+        assert!(r.is_dont_try_again());
+        assert!(r.is_terminal());
+        assert!(!r.is_retryable());
+        assert_eq!(r.as_error_message(), Some("expired"));
+    }
+
+    #[test]
+    fn poll_result_display() {
+        assert_eq!(PollResult::Success { order: None, signature: None }.to_string(), "success");
+        assert_eq!(PollResult::TryNextBlock.to_string(), "try-next-block");
+        assert_eq!(PollResult::TryOnBlock { block_number: 10 }.to_string(), "try-on-block(10)");
+        assert_eq!(PollResult::TryAtEpoch { epoch: 99 }.to_string(), "try-at-epoch(99)");
+        assert_eq!(
+            PollResult::UnexpectedError { message: "x".into() }.to_string(),
+            "unexpected-error(x)"
+        );
+        assert_eq!(PollResult::DontTryAgain { reason: "y".into() }.to_string(), "dont-try-again(y)");
+    }
+
+    // ── ProofLocation ───────────────────────────────────────────────────────
+
+    #[test]
+    fn proof_location_as_str() {
+        assert_eq!(ProofLocation::Private.as_str(), "private");
+        assert_eq!(ProofLocation::Emitted.as_str(), "emitted");
+        assert_eq!(ProofLocation::Swarm.as_str(), "swarm");
+        assert_eq!(ProofLocation::Waku.as_str(), "waku");
+        assert_eq!(ProofLocation::Reserved.as_str(), "reserved");
+        assert_eq!(ProofLocation::Ipfs.as_str(), "ipfs");
+    }
+
+    #[test]
+    fn proof_location_predicates() {
+        assert!(ProofLocation::Private.is_private());
+        assert!(ProofLocation::Emitted.is_emitted());
+        assert!(ProofLocation::Swarm.is_swarm());
+        assert!(ProofLocation::Waku.is_waku());
+        assert!(ProofLocation::Reserved.is_reserved());
+        assert!(ProofLocation::Ipfs.is_ipfs());
+        // Negative checks
+        assert!(!ProofLocation::Private.is_emitted());
+        assert!(!ProofLocation::Ipfs.is_private());
+    }
+
+    #[test]
+    fn proof_location_default_is_private() {
+        assert_eq!(ProofLocation::default(), ProofLocation::Private);
+    }
+
+    #[test]
+    fn proof_location_display() {
+        assert_eq!(ProofLocation::Ipfs.to_string(), "ipfs");
+        assert_eq!(ProofLocation::Waku.to_string(), "waku");
+    }
+
+    #[test]
+    fn proof_location_try_from_u8() {
+        assert_eq!(ProofLocation::try_from(0u8).unwrap(), ProofLocation::Private);
+        assert_eq!(ProofLocation::try_from(1u8).unwrap(), ProofLocation::Emitted);
+        assert_eq!(ProofLocation::try_from(5u8).unwrap(), ProofLocation::Ipfs);
+        assert!(ProofLocation::try_from(6u8).is_err());
+        assert!(ProofLocation::try_from(255u8).is_err());
+    }
+
+    #[test]
+    fn proof_location_try_from_str() {
+        assert_eq!(ProofLocation::try_from("private").unwrap(), ProofLocation::Private);
+        assert_eq!(ProofLocation::try_from("ipfs").unwrap(), ProofLocation::Ipfs);
+        assert!(ProofLocation::try_from("unknown").is_err());
+    }
+
+    #[test]
+    fn proof_location_into_u8() {
+        let v: u8 = ProofLocation::Private.into();
+        assert_eq!(v, 0);
+        let v: u8 = ProofLocation::Ipfs.into();
+        assert_eq!(v, 5);
+    }
+
+    // ── ProofStruct ─────────────────────────────────────────────────────────
+
+    #[test]
+    fn proof_struct_new() {
+        let p = ProofStruct::new(ProofLocation::Swarm, vec![1, 2, 3]);
+        assert!(p.is_swarm());
+        assert!(p.has_data());
+        assert_eq!(p.data_len(), 3);
+    }
+
+    #[test]
+    fn proof_struct_private() {
+        let p = ProofStruct::private();
+        assert!(p.is_private());
+        assert!(p.is_empty());
+        assert!(!p.has_data());
+        assert_eq!(p.data_len(), 0);
+    }
+
+    #[test]
+    fn proof_struct_emitted() {
+        let p = ProofStruct::emitted();
+        assert!(p.is_emitted());
+        assert!(p.is_empty());
+    }
+
+    #[test]
+    fn proof_struct_with_location() {
+        let p = ProofStruct::private().with_location(ProofLocation::Ipfs);
+        assert!(p.is_ipfs());
+    }
+
+    #[test]
+    fn proof_struct_with_data() {
+        let p = ProofStruct::private().with_data(vec![0xCA, 0xFE]);
+        assert!(p.has_data());
+        assert_eq!(p.data_len(), 2);
+    }
+
+    #[test]
+    fn proof_struct_delegated_predicates() {
+        assert!(ProofStruct::new(ProofLocation::Waku, vec![]).is_waku());
+        assert!(ProofStruct::new(ProofLocation::Reserved, vec![]).is_reserved());
+    }
+
+    #[test]
+    fn proof_struct_display() {
+        let p = ProofStruct::private();
+        assert_eq!(p.to_string(), "proof(private)");
+        let p = ProofStruct::new(ProofLocation::Ipfs, vec![1]);
+        assert_eq!(p.to_string(), "proof(ipfs)");
     }
 }
 

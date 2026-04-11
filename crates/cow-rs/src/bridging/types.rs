@@ -768,3 +768,344 @@ pub struct DecodedBungeeAmounts {
     /// Parsed input amount as U256.
     pub input_amount: U256,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── BridgeProviderType ──────────────────────────────────────────────
+
+    #[test]
+    fn hook_bridge_provider_is_hook() {
+        assert!(BridgeProviderType::HookBridgeProvider.is_hook_bridge_provider());
+        assert!(!BridgeProviderType::HookBridgeProvider.is_receiver_account_bridge_provider());
+    }
+
+    #[test]
+    fn receiver_account_bridge_provider_is_receiver() {
+        assert!(BridgeProviderType::ReceiverAccountBridgeProvider.is_receiver_account_bridge_provider());
+        assert!(!BridgeProviderType::ReceiverAccountBridgeProvider.is_hook_bridge_provider());
+    }
+
+    // ── BridgeProviderInfo delegation ───────────────────────────────────
+
+    #[test]
+    fn bridge_provider_info_delegates_hook() {
+        let info = BridgeProviderInfo {
+            name: "test".into(),
+            logo_url: String::new(),
+            dapp_id: String::new(),
+            website: String::new(),
+            provider_type: BridgeProviderType::HookBridgeProvider,
+        };
+        assert!(info.is_hook_bridge_provider());
+        assert!(!info.is_receiver_account_bridge_provider());
+    }
+
+    #[test]
+    fn bridge_provider_info_delegates_receiver() {
+        let info = BridgeProviderInfo {
+            name: "test".into(),
+            logo_url: String::new(),
+            dapp_id: String::new(),
+            website: String::new(),
+            provider_type: BridgeProviderType::ReceiverAccountBridgeProvider,
+        };
+        assert!(info.is_receiver_account_bridge_provider());
+        assert!(!info.is_hook_bridge_provider());
+    }
+
+    // ── BridgeStatus ────────────────────────────────────────────────────
+
+    #[test]
+    fn bridge_status_variants_are_distinct() {
+        let statuses = [
+            BridgeStatus::InProgress,
+            BridgeStatus::Executed,
+            BridgeStatus::Expired,
+            BridgeStatus::Refund,
+            BridgeStatus::Unknown,
+        ];
+        for (i, a) in statuses.iter().enumerate() {
+            for (j, b) in statuses.iter().enumerate() {
+                if i == j {
+                    assert_eq!(a, b);
+                } else {
+                    assert_ne!(a, b);
+                }
+            }
+        }
+    }
+
+    // ── BridgeStatusResult ──────────────────────────────────────────────
+
+    #[test]
+    fn bridge_status_result_new_sets_status_only() {
+        let r = BridgeStatusResult::new(BridgeStatus::Executed);
+        assert_eq!(r.status, BridgeStatus::Executed);
+        assert!(r.fill_time_in_seconds.is_none());
+        assert!(r.deposit_tx_hash.is_none());
+        assert!(r.fill_tx_hash.is_none());
+    }
+
+    #[test]
+    fn bridge_status_result_new_all_statuses() {
+        for status in [
+            BridgeStatus::InProgress,
+            BridgeStatus::Executed,
+            BridgeStatus::Expired,
+            BridgeStatus::Refund,
+            BridgeStatus::Unknown,
+        ] {
+            let r = BridgeStatusResult::new(status);
+            assert_eq!(r.status, status);
+        }
+    }
+
+    // ── QuoteBridgeResponse ─────────────────────────────────────────────
+
+    fn make_quote(hook: Option<CowHook>, fee: U256) -> QuoteBridgeResponse {
+        QuoteBridgeResponse {
+            provider: "across".into(),
+            sell_amount: U256::from(1000u64),
+            buy_amount: U256::from(950u64),
+            fee_amount: fee,
+            estimated_secs: 60,
+            bridge_hook: hook,
+        }
+    }
+
+    #[test]
+    fn has_bridge_hook_true_when_some() {
+        let hook = CowHook {
+            target: "0xdead".into(),
+            call_data: "0x".into(),
+            gas_limit: "100000".into(),
+            dapp_id: None,
+        };
+        let q = make_quote(Some(hook), U256::ZERO);
+        assert!(q.has_bridge_hook());
+    }
+
+    #[test]
+    fn has_bridge_hook_false_when_none() {
+        let q = make_quote(None, U256::ZERO);
+        assert!(!q.has_bridge_hook());
+    }
+
+    #[test]
+    fn provider_ref_returns_provider_name() {
+        let q = make_quote(None, U256::ZERO);
+        assert_eq!(q.provider_ref(), "across");
+    }
+
+    #[test]
+    fn net_buy_amount_subtracts_fee() {
+        let q = make_quote(None, U256::from(50u64));
+        assert_eq!(q.net_buy_amount(), U256::from(900u64));
+    }
+
+    #[test]
+    fn net_buy_amount_saturates_at_zero() {
+        let q = make_quote(None, U256::from(2000u64));
+        assert_eq!(q.net_buy_amount(), U256::ZERO);
+    }
+
+    #[test]
+    fn net_buy_amount_zero_fee() {
+        let q = make_quote(None, U256::ZERO);
+        assert_eq!(q.net_buy_amount(), U256::from(950u64));
+    }
+
+    // ── BungeeBridge ────────────────────────────────────────────────────
+
+    #[test]
+    fn bungee_bridge_as_str() {
+        assert_eq!(BungeeBridge::Across.as_str(), "across");
+        assert_eq!(BungeeBridge::CircleCctp.as_str(), "cctp");
+        assert_eq!(BungeeBridge::GnosisNative.as_str(), "gnosis-native-bridge");
+    }
+
+    #[test]
+    fn bungee_bridge_display_name() {
+        assert_eq!(BungeeBridge::Across.display_name(), "Across");
+        assert_eq!(BungeeBridge::CircleCctp.display_name(), "Circle CCTP");
+        assert_eq!(BungeeBridge::GnosisNative.display_name(), "Gnosis Native");
+    }
+
+    #[test]
+    fn bungee_bridge_from_display_name_valid() {
+        assert_eq!(BungeeBridge::from_display_name("Across"), Some(BungeeBridge::Across));
+        assert_eq!(BungeeBridge::from_display_name("Circle CCTP"), Some(BungeeBridge::CircleCctp));
+        assert_eq!(
+            BungeeBridge::from_display_name("Gnosis Native"),
+            Some(BungeeBridge::GnosisNative)
+        );
+    }
+
+    #[test]
+    fn bungee_bridge_from_display_name_invalid() {
+        assert_eq!(BungeeBridge::from_display_name("across"), None);
+        assert_eq!(BungeeBridge::from_display_name(""), None);
+        assert_eq!(BungeeBridge::from_display_name("Unknown"), None);
+    }
+
+    #[test]
+    fn bungee_bridge_roundtrip_display_name() {
+        for bridge in [BungeeBridge::Across, BungeeBridge::CircleCctp, BungeeBridge::GnosisNative] {
+            let name = bridge.display_name();
+            assert_eq!(BungeeBridge::from_display_name(name), Some(bridge));
+        }
+    }
+
+    // ── BridgeError priority ────────────────────────────────────────────
+
+    #[test]
+    fn sell_amount_too_small_has_highest_priority() {
+        assert_eq!(bridge_error_priority(&BridgeError::SellAmountTooSmall), 10);
+    }
+
+    #[test]
+    fn only_sell_order_supported_has_second_priority() {
+        assert_eq!(bridge_error_priority(&BridgeError::OnlySellOrderSupported), 9);
+    }
+
+    #[test]
+    fn other_errors_have_base_priority() {
+        let base_errors: Vec<BridgeError> = vec![
+            BridgeError::NoProviders,
+            BridgeError::NoQuote,
+            BridgeError::SameChain,
+            BridgeError::NoIntermediateTokens,
+            BridgeError::ApiError("test".into()),
+            BridgeError::InvalidApiResponse("test".into()),
+            BridgeError::TxBuildError("test".into()),
+            BridgeError::QuoteError("test".into()),
+            BridgeError::NoRoutes,
+            BridgeError::InvalidBridge("test".into()),
+            BridgeError::QuoteDoesNotMatchDepositAddress,
+            BridgeError::ProviderNotFound { dapp_id: "test".into() },
+            BridgeError::Timeout,
+        ];
+        for e in &base_errors {
+            assert_eq!(bridge_error_priority(e), 1, "expected priority 1 for {e}");
+        }
+    }
+
+    // ── BridgeError Display ─────────────────────────────────────────────
+
+    #[test]
+    fn bridge_error_display_messages() {
+        assert_eq!(BridgeError::NoProviders.to_string(), "no providers available");
+        assert_eq!(BridgeError::NoQuote.to_string(), "no quote available for this route");
+        assert_eq!(
+            BridgeError::SameChain.to_string(),
+            "sell and buy chains must be different for cross-chain bridging"
+        );
+        assert_eq!(
+            BridgeError::OnlySellOrderSupported.to_string(),
+            "bridging only supports SELL orders"
+        );
+        assert_eq!(
+            BridgeError::NoIntermediateTokens.to_string(),
+            "no intermediate tokens available"
+        );
+        assert_eq!(BridgeError::ApiError("oops".into()).to_string(), "bridge API error: oops");
+        assert_eq!(
+            BridgeError::InvalidApiResponse("bad".into()).to_string(),
+            "invalid API JSON response: bad"
+        );
+        assert_eq!(
+            BridgeError::TxBuildError("fail".into()).to_string(),
+            "transaction build error: fail"
+        );
+        assert_eq!(BridgeError::QuoteError("nope".into()).to_string(), "quote error: nope");
+        assert_eq!(BridgeError::NoRoutes.to_string(), "no routes available");
+        assert_eq!(BridgeError::InvalidBridge("x".into()).to_string(), "invalid bridge: x");
+        assert_eq!(
+            BridgeError::QuoteDoesNotMatchDepositAddress.to_string(),
+            "quote does not match deposit address"
+        );
+        assert_eq!(BridgeError::SellAmountTooSmall.to_string(), "sell amount too small");
+        assert_eq!(
+            BridgeError::ProviderNotFound { dapp_id: "foo".into() }.to_string(),
+            "provider not found: foo"
+        );
+        assert_eq!(BridgeError::Timeout.to_string(), "provider request timed out");
+    }
+
+    // ── Serde roundtrips ────────────────────────────────────────────────
+
+    #[test]
+    fn bridge_provider_type_serde_roundtrip() {
+        for v in [BridgeProviderType::HookBridgeProvider, BridgeProviderType::ReceiverAccountBridgeProvider] {
+            let json = serde_json::to_string(&v).unwrap();
+            let back: BridgeProviderType = serde_json::from_str(&json).unwrap();
+            assert_eq!(v, back);
+        }
+    }
+
+    #[test]
+    fn bridge_status_serde_roundtrip() {
+        for v in [
+            BridgeStatus::InProgress,
+            BridgeStatus::Executed,
+            BridgeStatus::Expired,
+            BridgeStatus::Refund,
+            BridgeStatus::Unknown,
+        ] {
+            let json = serde_json::to_string(&v).unwrap();
+            let back: BridgeStatus = serde_json::from_str(&json).unwrap();
+            assert_eq!(v, back);
+        }
+    }
+
+    #[test]
+    fn bungee_bridge_serde_roundtrip() {
+        for v in [BungeeBridge::Across, BungeeBridge::CircleCctp, BungeeBridge::GnosisNative] {
+            let json = serde_json::to_string(&v).unwrap();
+            let back: BungeeBridge = serde_json::from_str(&json).unwrap();
+            assert_eq!(v, back);
+        }
+    }
+
+    #[test]
+    fn across_deposit_status_serde_roundtrip() {
+        for v in [
+            AcrossDepositStatus::Filled,
+            AcrossDepositStatus::SlowFillRequested,
+            AcrossDepositStatus::Pending,
+            AcrossDepositStatus::Expired,
+            AcrossDepositStatus::Refunded,
+        ] {
+            let json = serde_json::to_string(&v).unwrap();
+            let back: AcrossDepositStatus = serde_json::from_str(&json).unwrap();
+            assert_eq!(v, back);
+        }
+    }
+
+    #[test]
+    fn across_deposit_status_camel_case_serialization() {
+        assert_eq!(serde_json::to_string(&AcrossDepositStatus::Filled).unwrap(), "\"filled\"");
+        assert_eq!(
+            serde_json::to_string(&AcrossDepositStatus::SlowFillRequested).unwrap(),
+            "\"slowFillRequested\""
+        );
+        assert_eq!(serde_json::to_string(&AcrossDepositStatus::Pending).unwrap(), "\"pending\"");
+    }
+
+    #[test]
+    fn bungee_event_status_screaming_snake_case() {
+        assert_eq!(
+            serde_json::to_string(&BungeeEventStatus::Completed).unwrap(),
+            "\"COMPLETED\""
+        );
+        assert_eq!(serde_json::to_string(&BungeeEventStatus::Pending).unwrap(), "\"PENDING\"");
+    }
+
+    #[test]
+    fn bungee_bridge_name_lowercase_serialization() {
+        assert_eq!(serde_json::to_string(&BungeeBridgeName::Across).unwrap(), "\"across\"");
+        assert_eq!(serde_json::to_string(&BungeeBridgeName::Cctp).unwrap(), "\"cctp\"");
+    }
+}

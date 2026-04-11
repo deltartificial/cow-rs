@@ -2225,3 +2225,1342 @@ impl fmt::Display for AppDataObject {
         write!(f, "app-data({short}\u{2026})")
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use alloy_primitives::Address;
+
+    use super::*;
+
+    // ── Helper ───────────────────────────────────────────────────────────
+
+    /// Build a minimal `Order` JSON value, then deserialize it.
+    fn minimal_order() -> Order {
+        let json = serde_json::json!({
+            "uid": "0xabc123def456",
+            "owner": "0x0000000000000000000000000000000000000001",
+            "creationDate": "2024-01-01T00:00:00Z",
+            "status": "open",
+            "sellToken": "0x0000000000000000000000000000000000000002",
+            "buyToken": "0x0000000000000000000000000000000000000003",
+            "sellAmount": "1000000",
+            "buyAmount": "990000",
+            "validTo": 1_700_000_000_u32,
+            "appData": "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "feeAmount": "1000",
+            "kind": "sell",
+            "partiallyFillable": false,
+            "executedSellAmount": "500000",
+            "executedBuyAmount": "495000",
+            "executedSellAmountBeforeFees": "499000",
+            "executedFeeAmount": "1000",
+            "invalidated": false,
+            "signingScheme": "eip712",
+            "signature": "0xdeadbeef"
+        });
+        serde_json::from_value(json).expect("minimal Order should deserialize")
+    }
+
+    // ── QuoteSide ────────────────────────────────────────────────────────
+
+    #[test]
+    fn quote_side_sell_constructor() {
+        let side = QuoteSide::sell("1000");
+        assert!(side.is_sell());
+        assert!(!side.is_buy());
+        assert_eq!(side.sell_amount_before_fee.as_deref(), Some("1000"));
+        assert!(side.buy_amount_after_fee.is_none());
+    }
+
+    #[test]
+    fn quote_side_buy_constructor() {
+        let side = QuoteSide::buy(500_u64);
+        assert!(side.is_buy());
+        assert!(!side.is_sell());
+        assert_eq!(side.buy_amount_after_fee.as_deref(), Some("500"));
+        assert!(side.sell_amount_before_fee.is_none());
+    }
+
+    #[test]
+    fn quote_side_display_sell() {
+        let side = QuoteSide::sell("42");
+        assert_eq!(side.to_string(), "sell 42");
+    }
+
+    #[test]
+    fn quote_side_display_buy() {
+        let side = QuoteSide::buy("99");
+        assert_eq!(side.to_string(), "buy 99");
+    }
+
+    #[test]
+    fn quote_side_display_sell_none_amount() {
+        // Deliberately construct with amount missing to exercise the fallback.
+        let side = QuoteSide { kind: OrderKind::Sell, sell_amount_before_fee: None, buy_amount_after_fee: None };
+        assert_eq!(side.to_string(), "sell ?");
+    }
+
+    #[test]
+    fn quote_side_serde_roundtrip() {
+        let side = QuoteSide::sell("1234");
+        let json = serde_json::to_string(&side).unwrap();
+        let back: QuoteSide = serde_json::from_str(&json).unwrap();
+        assert!(back.is_sell());
+        assert_eq!(back.sell_amount_before_fee.as_deref(), Some("1234"));
+    }
+
+    // ── OrderQuoteRequest ────────────────────────────────────────────────
+
+    #[test]
+    fn order_quote_request_new_defaults() {
+        let req = OrderQuoteRequest::new(Address::ZERO, Address::ZERO, Address::ZERO, QuoteSide::sell("1"));
+        assert!(!req.has_receiver());
+        assert!(!req.has_valid_to());
+        assert!(!req.is_partially_fillable());
+        assert!(req.is_sell());
+        assert!(!req.is_buy());
+    }
+
+    #[test]
+    fn order_quote_request_builder_chain() {
+        let receiver = Address::repeat_byte(0x01);
+        let req = OrderQuoteRequest::new(Address::ZERO, Address::ZERO, Address::ZERO, QuoteSide::buy("500"))
+            .with_receiver(receiver)
+            .with_valid_to(1_700_000_000)
+            .with_app_data("0xdeadbeef")
+            .with_partially_fillable()
+            .with_price_quality(PriceQuality::Fast)
+            .with_sell_token_balance(TokenBalance::Internal)
+            .with_buy_token_balance(TokenBalance::Internal)
+            .with_signing_scheme(EcdsaSigningScheme::EthSign);
+
+        assert!(req.has_receiver());
+        assert!(req.has_valid_to());
+        assert!(req.is_partially_fillable());
+        assert!(req.is_buy());
+        assert!(!req.is_sell());
+        assert_eq!(req.receiver, Some(receiver));
+        assert_eq!(req.valid_to, Some(1_700_000_000));
+        assert_eq!(req.app_data, "0xdeadbeef");
+    }
+
+    #[test]
+    fn order_quote_request_display() {
+        let req = OrderQuoteRequest::new(Address::ZERO, Address::ZERO, Address::ZERO, QuoteSide::sell("100"));
+        let s = req.to_string();
+        assert!(s.starts_with("quote-req("));
+        assert!(s.contains("sell 100"));
+    }
+
+    #[test]
+    fn order_quote_request_serde_roundtrip() {
+        let req = OrderQuoteRequest::new(Address::ZERO, Address::ZERO, Address::ZERO, QuoteSide::sell("1000"));
+        let json = serde_json::to_string(&req).unwrap();
+        let back: OrderQuoteRequest = serde_json::from_str(&json).unwrap();
+        assert!(back.is_sell());
+        assert_eq!(back.side.sell_amount_before_fee.as_deref(), Some("1000"));
+    }
+
+    // ── OrderQuoteResponse ───────────────────────────────────────────────
+
+    #[test]
+    fn order_quote_response_predicates_and_display() {
+        let json = serde_json::json!({
+            "quote": {
+                "sellToken": "0x0000000000000000000000000000000000000001",
+                "buyToken": "0x0000000000000000000000000000000000000002",
+                "sellAmount": "1000",
+                "buyAmount": "990",
+                "validTo": 1_700_000_000_u32,
+                "appData": "0x00",
+                "feeAmount": "10",
+                "kind": "sell",
+                "partiallyFillable": false,
+                "sellTokenBalance": "erc20",
+                "buyTokenBalance": "erc20"
+            },
+            "from": "0x0000000000000000000000000000000000000003",
+            "expiration": "2024-01-01T00:00:00Z",
+            "id": 42,
+            "verified": true
+        });
+        let resp: OrderQuoteResponse = serde_json::from_value(json).unwrap();
+        assert!(resp.has_id());
+        assert!(resp.is_verified());
+        assert!(!resp.has_protocol_fee_bps());
+        assert!(resp.to_string().starts_with("quote-resp("));
+    }
+
+    #[test]
+    fn order_quote_response_no_id() {
+        let json = serde_json::json!({
+            "quote": {
+                "sellToken": "0x0000000000000000000000000000000000000001",
+                "buyToken": "0x0000000000000000000000000000000000000002",
+                "sellAmount": "1000",
+                "buyAmount": "990",
+                "validTo": 1_700_000_000_u32,
+                "appData": "0x00",
+                "feeAmount": "10",
+                "kind": "buy",
+                "partiallyFillable": true,
+                "sellTokenBalance": "erc20",
+                "buyTokenBalance": "erc20"
+            },
+            "from": "0x0000000000000000000000000000000000000003",
+            "expiration": "2024-01-01T00:00:00Z",
+            "id": null,
+            "verified": false,
+            "protocolFeeBps": "50"
+        });
+        let resp: OrderQuoteResponse = serde_json::from_value(json).unwrap();
+        assert!(!resp.has_id());
+        assert!(!resp.is_verified());
+        assert!(resp.has_protocol_fee_bps());
+    }
+
+    // ── QuoteData ────────────────────────────────────────────────────────
+
+    #[test]
+    fn quote_data_predicates() {
+        let json = serde_json::json!({
+            "sellToken": "0x0000000000000000000000000000000000000001",
+            "buyToken": "0x0000000000000000000000000000000000000002",
+            "receiver": "0x0000000000000000000000000000000000000099",
+            "sellAmount": "1000",
+            "buyAmount": "990",
+            "validTo": 1_700_000_000_u32,
+            "appData": "0x00",
+            "feeAmount": "10",
+            "kind": "sell",
+            "partiallyFillable": true,
+            "sellTokenBalance": "erc20",
+            "buyTokenBalance": "erc20"
+        });
+        let qd: QuoteData = serde_json::from_value(json).unwrap();
+        assert!(qd.is_sell());
+        assert!(!qd.is_buy());
+        assert!(qd.is_partially_fillable());
+        assert!(qd.has_receiver());
+        assert!(qd.to_string().contains("sell=1000"));
+    }
+
+    #[test]
+    fn quote_data_no_receiver() {
+        let json = serde_json::json!({
+            "sellToken": "0x0000000000000000000000000000000000000001",
+            "buyToken": "0x0000000000000000000000000000000000000002",
+            "sellAmount": "1000",
+            "buyAmount": "990",
+            "validTo": 1_700_000_000_u32,
+            "appData": "0x00",
+            "feeAmount": "10",
+            "kind": "buy",
+            "partiallyFillable": false,
+            "sellTokenBalance": "erc20",
+            "buyTokenBalance": "erc20"
+        });
+        let qd: QuoteData = serde_json::from_value(json).unwrap();
+        assert!(!qd.has_receiver());
+        assert!(qd.is_buy());
+        assert!(!qd.is_partially_fillable());
+    }
+
+    // ── EthflowData ──────────────────────────────────────────────────────
+
+    #[test]
+    fn ethflow_data_new_and_display() {
+        let data = EthflowData::new(1_700_000_000, false);
+        assert_eq!(data.user_valid_to, 1_700_000_000);
+        assert!(!data.is_refund_claimed);
+        assert!(data.to_string().contains("valid_to=1700000000"));
+        assert!(data.to_string().contains("refunded=false"));
+    }
+
+    #[test]
+    fn ethflow_data_serde_roundtrip() {
+        let data = EthflowData::new(1_234_567, true);
+        let json = serde_json::to_string(&data).unwrap();
+        let back: EthflowData = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.user_valid_to, 1_234_567);
+        assert!(back.is_refund_claimed);
+    }
+
+    // ── OnchainOrderData ─────────────────────────────────────────────────
+
+    #[test]
+    fn onchain_order_data_new_and_predicate() {
+        let data = OnchainOrderData::new(Address::ZERO);
+        assert!(!data.has_placement_error());
+        assert!(data.to_string().contains("onchain(sender="));
+    }
+
+    #[test]
+    fn onchain_order_data_serde_roundtrip() {
+        let data = OnchainOrderData::new(Address::repeat_byte(0xaa));
+        let json = serde_json::to_string(&data).unwrap();
+        let back: OnchainOrderData = serde_json::from_str(&json).unwrap();
+        assert!(!back.has_placement_error());
+    }
+
+    // ── OrderCreation ────────────────────────────────────────────────────
+
+    #[test]
+    fn order_creation_from_quote() {
+        let quote_json = serde_json::json!({
+            "sellToken": "0x0000000000000000000000000000000000000001",
+            "buyToken": "0x0000000000000000000000000000000000000002",
+            "sellAmount": "1000",
+            "buyAmount": "990",
+            "validTo": 1_700_000_000_u32,
+            "appData": "0x00",
+            "feeAmount": "10",
+            "kind": "sell",
+            "partiallyFillable": false,
+            "sellTokenBalance": "erc20",
+            "buyTokenBalance": "erc20"
+        });
+        let quote: QuoteData = serde_json::from_value(quote_json).unwrap();
+        let from = Address::repeat_byte(0x11);
+        let creation = OrderCreation::from_quote(&quote, from, Address::ZERO, SigningScheme::Eip712, "0xsig");
+        // When receiver is zero, should default to from.
+        assert_eq!(creation.receiver, from);
+        assert!(creation.is_sell());
+        assert!(!creation.is_buy());
+        assert!(!creation.has_quote_id());
+        assert!(!creation.is_partially_fillable());
+    }
+
+    #[test]
+    fn order_creation_builder_methods() {
+        let quote_json = serde_json::json!({
+            "sellToken": "0x0000000000000000000000000000000000000001",
+            "buyToken": "0x0000000000000000000000000000000000000002",
+            "sellAmount": "1000",
+            "buyAmount": "990",
+            "validTo": 1_700_000_000_u32,
+            "appData": "0x00",
+            "feeAmount": "10",
+            "kind": "buy",
+            "partiallyFillable": false,
+            "sellTokenBalance": "erc20",
+            "buyTokenBalance": "erc20"
+        });
+        let quote: QuoteData = serde_json::from_value(quote_json).unwrap();
+        let from = Address::repeat_byte(0x11);
+        let receiver = Address::repeat_byte(0x22);
+        let creation = OrderCreation::from_quote(&quote, from, receiver, SigningScheme::Eip712, "0xsig")
+            .with_quote_id(42)
+            .with_sell_token_balance(TokenBalance::Internal)
+            .with_buy_token_balance(TokenBalance::Internal);
+        assert!(creation.has_quote_id());
+        assert_eq!(creation.receiver, receiver);
+        assert!(creation.is_buy());
+    }
+
+    #[test]
+    fn order_creation_display() {
+        let quote_json = serde_json::json!({
+            "sellToken": "0x0000000000000000000000000000000000000001",
+            "buyToken": "0x0000000000000000000000000000000000000002",
+            "sellAmount": "1000",
+            "buyAmount": "990",
+            "validTo": 1_700_000_000_u32,
+            "appData": "0x00",
+            "feeAmount": "10",
+            "kind": "sell",
+            "partiallyFillable": false,
+            "sellTokenBalance": "erc20",
+            "buyTokenBalance": "erc20"
+        });
+        let quote: QuoteData = serde_json::from_value(quote_json).unwrap();
+        let creation = OrderCreation::from_quote(&quote, Address::ZERO, Address::ZERO, SigningScheme::Eip712, "0xsig");
+        let s = creation.to_string();
+        assert!(s.starts_with("order-creation("));
+    }
+
+    #[test]
+    fn order_creation_serde_roundtrip() {
+        let quote_json = serde_json::json!({
+            "sellToken": "0x0000000000000000000000000000000000000001",
+            "buyToken": "0x0000000000000000000000000000000000000002",
+            "sellAmount": "1000",
+            "buyAmount": "990",
+            "validTo": 1_700_000_000_u32,
+            "appData": "0x00",
+            "feeAmount": "10",
+            "kind": "sell",
+            "partiallyFillable": false,
+            "sellTokenBalance": "erc20",
+            "buyTokenBalance": "erc20"
+        });
+        let quote: QuoteData = serde_json::from_value(quote_json).unwrap();
+        let creation = OrderCreation::from_quote(&quote, Address::ZERO, Address::ZERO, SigningScheme::Eip712, "0xsig");
+        let json = serde_json::to_string(&creation).unwrap();
+        let back: OrderCreation = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.sell_amount, "1000");
+        assert!(back.is_sell());
+    }
+
+    // ── OrderStatus ──────────────────────────────────────────────────────
+
+    #[test]
+    fn order_status_as_str() {
+        assert_eq!(OrderStatus::PresignaturePending.as_str(), "presignaturePending");
+        assert_eq!(OrderStatus::Open.as_str(), "open");
+        assert_eq!(OrderStatus::Fulfilled.as_str(), "fulfilled");
+        assert_eq!(OrderStatus::Cancelled.as_str(), "cancelled");
+        assert_eq!(OrderStatus::Expired.as_str(), "expired");
+    }
+
+    #[test]
+    fn order_status_predicates() {
+        assert!(OrderStatus::Open.is_pending());
+        assert!(OrderStatus::PresignaturePending.is_pending());
+        assert!(!OrderStatus::Fulfilled.is_pending());
+
+        assert!(OrderStatus::Fulfilled.is_fulfilled());
+        assert!(OrderStatus::Cancelled.is_cancelled());
+        assert!(OrderStatus::Expired.is_expired());
+
+        assert!(OrderStatus::Fulfilled.is_terminal());
+        assert!(OrderStatus::Cancelled.is_terminal());
+        assert!(OrderStatus::Expired.is_terminal());
+        assert!(!OrderStatus::Open.is_terminal());
+    }
+
+    #[test]
+    fn order_status_display() {
+        assert_eq!(OrderStatus::Open.to_string(), "open");
+        assert_eq!(OrderStatus::Fulfilled.to_string(), "fulfilled");
+    }
+
+    #[test]
+    fn order_status_try_from_str() {
+        assert_eq!(OrderStatus::try_from("open").unwrap(), OrderStatus::Open);
+        assert_eq!(OrderStatus::try_from("fulfilled").unwrap(), OrderStatus::Fulfilled);
+        assert_eq!(OrderStatus::try_from("cancelled").unwrap(), OrderStatus::Cancelled);
+        assert_eq!(OrderStatus::try_from("expired").unwrap(), OrderStatus::Expired);
+        assert_eq!(OrderStatus::try_from("presignaturePending").unwrap(), OrderStatus::PresignaturePending);
+        assert!(OrderStatus::try_from("bogus").is_err());
+    }
+
+    #[test]
+    fn order_status_serde_roundtrip() {
+        let status = OrderStatus::Fulfilled;
+        let json = serde_json::to_string(&status).unwrap();
+        assert_eq!(json, "\"fulfilled\"");
+        let back: OrderStatus = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, OrderStatus::Fulfilled);
+    }
+
+    // ── OrderClass ───────────────────────────────────────────────────────
+
+    #[test]
+    fn order_class_as_str() {
+        assert_eq!(OrderClass::Market.as_str(), "market");
+        assert_eq!(OrderClass::Limit.as_str(), "limit");
+        assert_eq!(OrderClass::Liquidity.as_str(), "liquidity");
+    }
+
+    #[test]
+    fn order_class_predicates() {
+        assert!(OrderClass::Market.is_market());
+        assert!(!OrderClass::Market.is_limit());
+        assert!(OrderClass::Limit.is_limit());
+        assert!(OrderClass::Liquidity.is_liquidity());
+    }
+
+    #[test]
+    fn order_class_try_from_str() {
+        assert_eq!(OrderClass::try_from("market").unwrap(), OrderClass::Market);
+        assert_eq!(OrderClass::try_from("limit").unwrap(), OrderClass::Limit);
+        assert_eq!(OrderClass::try_from("liquidity").unwrap(), OrderClass::Liquidity);
+        assert!(OrderClass::try_from("unknown").is_err());
+    }
+
+    #[test]
+    fn order_class_serde_roundtrip() {
+        let class = OrderClass::Limit;
+        let json = serde_json::to_string(&class).unwrap();
+        assert_eq!(json, "\"limit\"");
+        let back: OrderClass = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, OrderClass::Limit);
+    }
+
+    // ── InteractionData ──────────────────────────────────────────────────
+
+    #[test]
+    fn interaction_data_new_defaults_value_zero() {
+        let interaction = InteractionData::new(Address::ZERO, "0xdeadbeef");
+        assert_eq!(interaction.value, "0");
+        assert!(!interaction.has_value());
+        assert_eq!(interaction.call_data, "0xdeadbeef");
+    }
+
+    #[test]
+    fn interaction_data_with_value() {
+        let interaction = InteractionData::new(Address::ZERO, "0xaa").with_value("1000");
+        assert!(interaction.has_value());
+        assert_eq!(interaction.value, "1000");
+    }
+
+    #[test]
+    fn interaction_data_display() {
+        let interaction = InteractionData::new(Address::ZERO, "0x");
+        assert!(interaction.to_string().starts_with("interaction(target="));
+    }
+
+    #[test]
+    fn interaction_data_serde_roundtrip() {
+        let interaction = InteractionData::new(Address::ZERO, "0xcafe").with_value("42");
+        let json = serde_json::to_string(&interaction).unwrap();
+        let back: InteractionData = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.value, "42");
+        assert_eq!(back.call_data, "0xcafe");
+    }
+
+    // ── OrderInteractions ────────────────────────────────────────────────
+
+    #[test]
+    fn order_interactions_default_is_empty() {
+        let interactions = OrderInteractions::default();
+        assert!(interactions.is_empty());
+        assert!(!interactions.has_pre());
+        assert!(!interactions.has_post());
+        assert_eq!(interactions.total(), 0);
+    }
+
+    #[test]
+    fn order_interactions_add_hooks() {
+        let mut interactions = OrderInteractions::default();
+        interactions.add_pre(InteractionData::new(Address::ZERO, "0x01"));
+        interactions.add_post(InteractionData::new(Address::ZERO, "0x02"));
+        interactions.add_post(InteractionData::new(Address::ZERO, "0x03"));
+
+        assert!(!interactions.is_empty());
+        assert!(interactions.has_pre());
+        assert!(interactions.has_post());
+        assert_eq!(interactions.total(), 3);
+    }
+
+    #[test]
+    fn order_interactions_builder() {
+        let pre = vec![InteractionData::new(Address::ZERO, "0x01")];
+        let post = vec![InteractionData::new(Address::ZERO, "0x02")];
+        let interactions = OrderInteractions::default().with_pre(pre).with_post(post);
+        assert_eq!(interactions.total(), 2);
+    }
+
+    #[test]
+    fn order_interactions_new_constructor() {
+        let interactions = OrderInteractions::new(
+            vec![InteractionData::new(Address::ZERO, "0x01")],
+            vec![],
+        );
+        assert!(interactions.has_pre());
+        assert!(!interactions.has_post());
+    }
+
+    #[test]
+    fn order_interactions_display() {
+        let interactions = OrderInteractions::new(
+            vec![InteractionData::new(Address::ZERO, "0x01")],
+            vec![InteractionData::new(Address::ZERO, "0x02"), InteractionData::new(Address::ZERO, "0x03")],
+        );
+        assert_eq!(interactions.to_string(), "interactions(pre=1, post=2)");
+    }
+
+    #[test]
+    fn order_interactions_serde_roundtrip() {
+        let interactions = OrderInteractions::new(
+            vec![InteractionData::new(Address::ZERO, "0x01")],
+            vec![],
+        );
+        let json = serde_json::to_string(&interactions).unwrap();
+        let back: OrderInteractions = serde_json::from_str(&json).unwrap();
+        assert!(back.has_pre());
+        assert!(!back.has_post());
+    }
+
+    // ── Order ────────────────────────────────────────────────────────────
+
+    #[test]
+    fn order_deserializes_from_json() {
+        let order = minimal_order();
+        assert_eq!(order.uid, "0xabc123def456");
+        assert!(order.is_sell());
+        assert!(!order.is_buy());
+        assert!(!order.is_partially_fillable());
+        assert!(!order.is_invalidated());
+    }
+
+    #[test]
+    fn order_effective_receiver_falls_back_to_owner() {
+        let order = minimal_order();
+        assert!(!order.has_receiver());
+        assert_eq!(order.effective_receiver(), order.owner);
+    }
+
+    #[test]
+    fn order_effective_receiver_uses_receiver_when_set() {
+        let mut order = minimal_order();
+        let custom_receiver = Address::repeat_byte(0xff);
+        order.receiver = Some(custom_receiver);
+        assert!(order.has_receiver());
+        assert_eq!(order.effective_receiver(), custom_receiver);
+    }
+
+    #[test]
+    fn order_has_interactions_false_when_none() {
+        let order = minimal_order();
+        assert!(!order.has_interactions());
+    }
+
+    #[test]
+    fn order_has_interactions_false_when_empty() {
+        let mut order = minimal_order();
+        order.interactions = Some(OrderInteractions::default());
+        assert!(!order.has_interactions());
+    }
+
+    #[test]
+    fn order_has_interactions_true_when_hooks_present() {
+        let mut order = minimal_order();
+        order.interactions = Some(OrderInteractions::new(
+            vec![InteractionData::new(Address::ZERO, "0x01")],
+            vec![],
+        ));
+        assert!(order.has_interactions());
+    }
+
+    #[test]
+    fn order_optional_field_predicates() {
+        let order = minimal_order();
+        assert!(!order.has_surplus());
+        assert!(!order.has_executed_fee());
+        assert!(!order.has_available_balance());
+        assert!(!order.has_full_app_data());
+        assert!(!order.has_ethflow_data());
+        assert!(!order.has_onchain_data());
+        assert!(!order.has_onchain_user());
+        assert!(!order.has_class());
+        assert!(!order.has_quote_id());
+        assert!(!order.has_full_fee_amount());
+        assert!(!order.is_eth_flow());
+    }
+
+    #[test]
+    fn order_total_executed_fee() {
+        let mut order = minimal_order();
+        order.executed_fee_amount = "1000".to_owned();
+        order.executed_fee = Some("500".to_owned());
+        let total = order.total_executed_fee().unwrap();
+        assert_eq!(total, U256::from(1500));
+    }
+
+    #[test]
+    fn order_total_executed_fee_without_extra() {
+        let mut order = minimal_order();
+        order.executed_fee_amount = "1000".to_owned();
+        order.executed_fee = None;
+        let total = order.total_executed_fee().unwrap();
+        assert_eq!(total, U256::from(1000));
+    }
+
+    #[test]
+    fn order_total_executed_fee_invalid_returns_none() {
+        let mut order = minimal_order();
+        order.executed_fee_amount = "not_a_number".to_owned();
+        assert!(order.total_executed_fee().is_none());
+    }
+
+    #[test]
+    fn order_is_liquidity_order_defaults_false() {
+        let order = minimal_order();
+        assert!(!order.is_liquidity_order());
+    }
+
+    #[test]
+    fn order_is_liquidity_order_when_true() {
+        let mut order = minimal_order();
+        order.is_liquidity_order = Some(true);
+        assert!(order.is_liquidity_order());
+    }
+
+    #[test]
+    fn order_is_liquidity_order_explicit_false() {
+        let mut order = minimal_order();
+        order.is_liquidity_order = Some(false);
+        assert!(!order.is_liquidity_order());
+    }
+
+    #[test]
+    fn order_transform_eth_flow_noop_for_regular_order() {
+        let order = minimal_order();
+        let sell_token = order.sell_token;
+        let transformed = order.transform_eth_flow(1);
+        assert_eq!(transformed.sell_token, sell_token);
+    }
+
+    #[test]
+    fn order_transform_eth_flow_replaces_sell_token_and_owner() {
+        let mut order = minimal_order();
+        let real_user = Address::repeat_byte(0xaa);
+        order.onchain_order_data = Some(OnchainOrderData::new(Address::ZERO));
+        order.onchain_user = Some(real_user);
+        let transformed = order.transform_eth_flow(1);
+        assert_eq!(transformed.sell_token, crate::config::NATIVE_CURRENCY_ADDRESS);
+        assert_eq!(transformed.owner, real_user);
+    }
+
+    #[test]
+    fn order_display() {
+        let order = minimal_order();
+        let s = order.to_string();
+        assert!(s.starts_with("order("));
+        assert!(s.contains("sell"));
+        assert!(s.contains("open"));
+    }
+
+    #[test]
+    fn order_serde_roundtrip() {
+        let order = minimal_order();
+        let json = serde_json::to_string(&order).unwrap();
+        let back: Order = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.uid, order.uid);
+        assert_eq!(back.sell_amount, order.sell_amount);
+    }
+
+    #[test]
+    fn is_eth_flow_order_free_function() {
+        let order = minimal_order();
+        assert!(!is_eth_flow_order(&order));
+        let mut order2 = minimal_order();
+        order2.onchain_order_data = Some(OnchainOrderData::new(Address::ZERO));
+        assert!(is_eth_flow_order(&order2));
+    }
+
+    // ── GetOrdersRequest ─────────────────────────────────────────────────
+
+    #[test]
+    fn get_orders_request_for_owner() {
+        let req = GetOrdersRequest::for_owner(Address::ZERO);
+        assert!(!req.has_offset());
+        assert!(!req.has_limit());
+    }
+
+    #[test]
+    fn get_orders_request_builder() {
+        let req = GetOrdersRequest::for_owner(Address::ZERO).with_offset(10).with_limit(50);
+        assert!(req.has_offset());
+        assert!(req.has_limit());
+        assert_eq!(req.offset, Some(10));
+        assert_eq!(req.limit, Some(50));
+    }
+
+    #[test]
+    fn get_orders_request_display() {
+        let req = GetOrdersRequest::for_owner(Address::ZERO);
+        assert!(req.to_string().starts_with("orders(owner="));
+    }
+
+    // ── GetTradesRequest ─────────────────────────────────────────────────
+
+    #[test]
+    fn get_trades_request_default() {
+        let req = GetTradesRequest::default();
+        assert!(!req.has_owner());
+        assert!(!req.has_order_uid());
+        assert!(!req.has_offset());
+        assert!(!req.has_limit());
+    }
+
+    #[test]
+    fn get_trades_request_for_owner() {
+        let req = GetTradesRequest::for_owner(Address::ZERO);
+        assert!(req.has_owner());
+        assert!(!req.has_order_uid());
+    }
+
+    #[test]
+    fn get_trades_request_for_order_uid() {
+        let req = GetTradesRequest::for_order_uid("0xabc");
+        assert!(req.has_order_uid());
+        assert!(!req.has_owner());
+    }
+
+    #[test]
+    fn get_trades_request_pagination() {
+        let req = GetTradesRequest::for_owner(Address::ZERO).with_offset(5).with_limit(20);
+        assert!(req.has_offset());
+        assert!(req.has_limit());
+    }
+
+    #[test]
+    fn get_trades_request_display_by_uid() {
+        let req = GetTradesRequest::for_order_uid("0xabc");
+        assert!(req.to_string().contains("uid=0xabc"));
+    }
+
+    #[test]
+    fn get_trades_request_display_by_owner() {
+        let req = GetTradesRequest::for_owner(Address::ZERO);
+        assert!(req.to_string().contains("owner="));
+    }
+
+    #[test]
+    fn get_trades_request_display_all() {
+        let req = GetTradesRequest::default();
+        assert_eq!(req.to_string(), "trades(all)");
+    }
+
+    // ── OrderUid ─────────────────────────────────────────────────────────
+
+    #[test]
+    fn order_uid_from_str() {
+        let uid = OrderUid::from("0xabc123");
+        assert_eq!(uid.as_str(), "0xabc123");
+        assert_eq!(uid.len(), 8);
+        assert!(!uid.is_empty());
+    }
+
+    #[test]
+    fn order_uid_from_string() {
+        let uid = OrderUid::from("hello".to_owned());
+        assert_eq!(uid.as_str(), "hello");
+    }
+
+    #[test]
+    fn order_uid_into_string() {
+        let uid = OrderUid::from("test");
+        let s: String = uid.into();
+        assert_eq!(s, "test");
+    }
+
+    #[test]
+    fn order_uid_empty() {
+        let uid = OrderUid::from("");
+        assert!(uid.is_empty());
+        assert_eq!(uid.len(), 0);
+    }
+
+    #[test]
+    fn order_uid_display() {
+        let uid = OrderUid::from("0xabc");
+        assert_eq!(uid.to_string(), "0xabc");
+    }
+
+    #[test]
+    fn order_uid_serde_roundtrip() {
+        let uid = OrderUid::from("0xdeadbeef");
+        let json = serde_json::to_string(&uid).unwrap();
+        let back: OrderUid = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.as_str(), "0xdeadbeef");
+    }
+
+    // ── OrderCancellations ───────────────────────────────────────────────
+
+    #[test]
+    fn order_cancellations_new() {
+        let cancel = OrderCancellations::new(
+            vec!["0xabc".to_owned(), "0xdef".to_owned()],
+            "0xsig",
+            EcdsaSigningScheme::Eip712,
+        );
+        assert_eq!(cancel.order_count(), 2);
+        assert_eq!(cancel.signature, "0xsig");
+    }
+
+    #[test]
+    fn order_cancellations_display() {
+        let cancel = OrderCancellations::new(vec!["0xa".to_owned()], "0xsig", EcdsaSigningScheme::Eip712);
+        assert_eq!(cancel.to_string(), "cancel(1 orders)");
+    }
+
+    #[test]
+    fn order_cancellations_serde_roundtrip() {
+        let cancel = OrderCancellations::new(
+            vec!["0xabc".to_owned()],
+            "0xsig",
+            EcdsaSigningScheme::Eip712,
+        );
+        let json = serde_json::to_string(&cancel).unwrap();
+        let back: OrderCancellations = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.order_count(), 1);
+    }
+
+    // ── Trade ────────────────────────────────────────────────────────────
+
+    #[test]
+    fn trade_deserialize_and_predicates() {
+        let json = serde_json::json!({
+            "blockNumber": 12345,
+            "logIndex": 0,
+            "orderUid": "0xabc123def456",
+            "owner": "0x0000000000000000000000000000000000000001",
+            "sellToken": "0x0000000000000000000000000000000000000002",
+            "buyToken": "0x0000000000000000000000000000000000000003",
+            "sellAmount": "1000",
+            "sellAmountBeforeFees": "990",
+            "buyAmount": "500",
+            "txHash": "0xdeadbeef"
+        });
+        let trade: Trade = serde_json::from_value(json).unwrap();
+        assert!(trade.has_tx_hash());
+        assert_eq!(trade.block_number, 12345);
+    }
+
+    #[test]
+    fn trade_without_tx_hash() {
+        let json = serde_json::json!({
+            "blockNumber": 100,
+            "logIndex": 1,
+            "orderUid": "0xabc",
+            "owner": "0x01",
+            "sellToken": "0x02",
+            "buyToken": "0x03",
+            "sellAmount": "1000",
+            "sellAmountBeforeFees": "990",
+            "buyAmount": "500",
+            "txHash": null
+        });
+        let trade: Trade = serde_json::from_value(json).unwrap();
+        assert!(!trade.has_tx_hash());
+    }
+
+    #[test]
+    fn trade_display() {
+        let json = serde_json::json!({
+            "blockNumber": 999,
+            "logIndex": 0,
+            "orderUid": "0xabc123def456",
+            "owner": "0x01",
+            "sellToken": "0x02",
+            "buyToken": "0x03",
+            "sellAmount": "1000",
+            "sellAmountBeforeFees": "990",
+            "buyAmount": "500",
+            "txHash": null
+        });
+        let trade: Trade = serde_json::from_value(json).unwrap();
+        assert!(trade.to_string().contains("block=999"));
+    }
+
+    #[test]
+    fn trade_serde_roundtrip() {
+        let json = serde_json::json!({
+            "blockNumber": 100,
+            "logIndex": 5,
+            "orderUid": "0xuid",
+            "owner": "0x01",
+            "sellToken": "0x02",
+            "buyToken": "0x03",
+            "sellAmount": "1000",
+            "sellAmountBeforeFees": "990",
+            "buyAmount": "500",
+            "txHash": "0xhash"
+        });
+        let trade: Trade = serde_json::from_value(json).unwrap();
+        let serialized = serde_json::to_string(&trade).unwrap();
+        let back: Trade = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(back.block_number, 100);
+        assert_eq!(back.log_index, 5);
+    }
+
+    // ── CompetitionAuction ───────────────────────────────────────────────
+
+    #[test]
+    fn competition_auction_empty() {
+        let auction = CompetitionAuction {
+            orders: vec![],
+            prices: HashMap::default(),
+        };
+        assert!(auction.is_empty());
+        assert!(!auction.has_orders());
+        assert!(!auction.has_prices());
+        assert_eq!(auction.len(), 0);
+    }
+
+    #[test]
+    fn competition_auction_with_data() {
+        let mut prices = HashMap::default();
+        prices.insert("0xtoken".to_owned(), "1000000".to_owned());
+        let auction = CompetitionAuction {
+            orders: vec!["0xorder1".to_owned()],
+            prices,
+        };
+        assert!(!auction.is_empty());
+        assert!(auction.has_orders());
+        assert!(auction.has_prices());
+        assert_eq!(auction.len(), 1);
+        assert_eq!(auction.get_price("0xtoken"), Some("1000000"));
+        assert!(auction.get_price("0xnonexistent").is_none());
+    }
+
+    #[test]
+    fn competition_auction_display() {
+        let auction = CompetitionAuction { orders: vec!["a".to_owned(), "b".to_owned()], prices: HashMap::default() };
+        assert_eq!(auction.to_string(), "comp-auction(2 orders)");
+    }
+
+    // ── SolverSettlement ─────────────────────────────────────────────────
+
+    #[test]
+    fn solver_settlement_defaults_none() {
+        let json = serde_json::json!({});
+        let settlement: SolverSettlement = serde_json::from_value(json).unwrap();
+        assert!(!settlement.is_winner());
+        assert!(!settlement.has_ranking());
+        assert!(!settlement.has_solver_address());
+        assert!(!settlement.has_score());
+        assert!(!settlement.has_reference_score());
+        assert!(!settlement.has_tx_hash());
+        assert!(!settlement.has_clearing_prices());
+        assert!(!settlement.is_filtered_out());
+        assert!(settlement.get_clearing_price("0xtoken").is_none());
+    }
+
+    #[test]
+    fn solver_settlement_full() {
+        let mut clearing = HashMap::default();
+        clearing.insert("0xtoken".to_owned(), "999".to_owned());
+        let json = serde_json::json!({
+            "ranking": 1.0,
+            "solverAddress": "0x0000000000000000000000000000000000000001",
+            "score": "42",
+            "referenceScore": "40",
+            "txHash": "0xdeadbeef",
+            "clearingPrices": clearing,
+            "isWinner": true,
+            "filteredOut": false
+        });
+        let settlement: SolverSettlement = serde_json::from_value(json).unwrap();
+        assert!(settlement.is_winner());
+        assert!(settlement.has_ranking());
+        assert!(settlement.has_solver_address());
+        assert!(settlement.has_score());
+        assert!(settlement.has_reference_score());
+        assert!(settlement.has_tx_hash());
+        assert!(settlement.has_clearing_prices());
+        assert!(!settlement.is_filtered_out());
+        assert_eq!(settlement.get_clearing_price("0xtoken"), Some("999"));
+        assert!(settlement.get_clearing_price("0xother").is_none());
+    }
+
+    #[test]
+    fn solver_settlement_display() {
+        let json = serde_json::json!({"ranking": 3.0});
+        let settlement: SolverSettlement = serde_json::from_value(json).unwrap();
+        assert_eq!(settlement.to_string(), "settlement(rank=3)");
+    }
+
+    #[test]
+    fn solver_settlement_display_no_rank() {
+        let json = serde_json::json!({});
+        let settlement: SolverSettlement = serde_json::from_value(json).unwrap();
+        assert_eq!(settlement.to_string(), "settlement(rank=?)");
+    }
+
+    // ── SolverCompetition ────────────────────────────────────────────────
+
+    #[test]
+    fn solver_competition_empty() {
+        let json = serde_json::json!({});
+        let comp: SolverCompetition = serde_json::from_value(json).unwrap();
+        assert!(!comp.has_auction_id());
+        assert!(!comp.has_start_block());
+        assert!(!comp.has_deadline_block());
+        assert!(!comp.is_settled());
+        assert!(!comp.has_auction());
+        assert!(!comp.has_solutions());
+        assert!(!comp.has_transaction_hashes());
+        assert_eq!(comp.num_solutions(), 0);
+        assert!(comp.winning_solution().is_none());
+    }
+
+    #[test]
+    fn solver_competition_with_winner() {
+        let json = serde_json::json!({
+            "auctionId": 100,
+            "auctionStartBlock": 1000,
+            "auctionDeadlineBlock": 1010,
+            "transactionHashes": ["0xhash"],
+            "auction": {
+                "orders": ["0xorder1"],
+                "prices": {}
+            },
+            "solutions": [
+                {"isWinner": false},
+                {"isWinner": true, "ranking": 1.0}
+            ]
+        });
+        let comp: SolverCompetition = serde_json::from_value(json).unwrap();
+        assert!(comp.has_auction_id());
+        assert!(comp.has_start_block());
+        assert!(comp.has_deadline_block());
+        assert!(comp.is_settled());
+        assert!(comp.has_auction());
+        assert!(comp.has_solutions());
+        assert_eq!(comp.num_solutions(), 2);
+        let winner = comp.winning_solution().unwrap();
+        assert!(winner.is_winner());
+    }
+
+    #[test]
+    fn solver_competition_not_settled_empty_hashes() {
+        let json = serde_json::json!({
+            "transactionHashes": []
+        });
+        let comp: SolverCompetition = serde_json::from_value(json).unwrap();
+        assert!(!comp.is_settled());
+    }
+
+    #[test]
+    fn solver_competition_display() {
+        let json = serde_json::json!({"auctionId": 42});
+        let comp: SolverCompetition = serde_json::from_value(json).unwrap();
+        assert_eq!(comp.to_string(), "competition(auction=42)");
+    }
+
+    #[test]
+    fn solver_competition_display_no_id() {
+        let json = serde_json::json!({});
+        let comp: SolverCompetition = serde_json::from_value(json).unwrap();
+        assert_eq!(comp.to_string(), "competition(auction=-1)");
+    }
+
+    // ── CompetitionOrderStatusKind ───────────────────────────────────────
+
+    #[test]
+    fn competition_order_status_kind_as_str() {
+        assert_eq!(CompetitionOrderStatusKind::Open.as_str(), "open");
+        assert_eq!(CompetitionOrderStatusKind::Scheduled.as_str(), "scheduled");
+        assert_eq!(CompetitionOrderStatusKind::Active.as_str(), "active");
+        assert_eq!(CompetitionOrderStatusKind::Solved.as_str(), "solved");
+        assert_eq!(CompetitionOrderStatusKind::Executing.as_str(), "executing");
+        assert_eq!(CompetitionOrderStatusKind::Traded.as_str(), "traded");
+        assert_eq!(CompetitionOrderStatusKind::Cancelled.as_str(), "cancelled");
+    }
+
+    #[test]
+    fn competition_order_status_kind_predicates() {
+        assert!(CompetitionOrderStatusKind::Open.is_open());
+        assert!(CompetitionOrderStatusKind::Scheduled.is_scheduled());
+        assert!(CompetitionOrderStatusKind::Active.is_active());
+        assert!(CompetitionOrderStatusKind::Solved.is_solved());
+        assert!(CompetitionOrderStatusKind::Executing.is_executing());
+        assert!(CompetitionOrderStatusKind::Traded.is_traded());
+        assert!(CompetitionOrderStatusKind::Cancelled.is_cancelled());
+
+        assert!(CompetitionOrderStatusKind::Traded.is_terminal());
+        assert!(CompetitionOrderStatusKind::Cancelled.is_terminal());
+        assert!(!CompetitionOrderStatusKind::Open.is_terminal());
+
+        assert!(CompetitionOrderStatusKind::Open.is_pending());
+        assert!(!CompetitionOrderStatusKind::Traded.is_pending());
+    }
+
+    #[test]
+    fn competition_order_status_kind_try_from() {
+        assert_eq!(CompetitionOrderStatusKind::try_from("open").unwrap(), CompetitionOrderStatusKind::Open);
+        assert_eq!(CompetitionOrderStatusKind::try_from("traded").unwrap(), CompetitionOrderStatusKind::Traded);
+        assert!(CompetitionOrderStatusKind::try_from("bogus").is_err());
+    }
+
+    #[test]
+    fn competition_order_status_kind_serde_roundtrip() {
+        let kind = CompetitionOrderStatusKind::Executing;
+        let json = serde_json::to_string(&kind).unwrap();
+        assert_eq!(json, "\"executing\"");
+        let back: CompetitionOrderStatusKind = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, CompetitionOrderStatusKind::Executing);
+    }
+
+    // ── SolverExecution ──────────────────────────────────────────────────
+
+    #[test]
+    fn solver_execution_predicates() {
+        let json = serde_json::json!({
+            "solver": "test_solver",
+            "executedSellAmount": "1000",
+            "executedBuyAmount": "500"
+        });
+        let exec: SolverExecution = serde_json::from_value(json).unwrap();
+        assert!(exec.has_executed_sell_amount());
+        assert!(exec.has_executed_buy_amount());
+        assert!(exec.both_amounts_available());
+    }
+
+    #[test]
+    fn solver_execution_partial() {
+        let json = serde_json::json!({
+            "solver": "test_solver"
+        });
+        let exec: SolverExecution = serde_json::from_value(json).unwrap();
+        assert!(!exec.has_executed_sell_amount());
+        assert!(!exec.has_executed_buy_amount());
+        assert!(!exec.both_amounts_available());
+    }
+
+    #[test]
+    fn solver_execution_display() {
+        let json = serde_json::json!({"solver": "my_solver"});
+        let exec: SolverExecution = serde_json::from_value(json).unwrap();
+        assert_eq!(exec.to_string(), "exec(my_solver)");
+    }
+
+    // ── CompetitionOrderStatus ───────────────────────────────────────────
+
+    #[test]
+    fn competition_order_status_no_value() {
+        let json = serde_json::json!({
+            "type": "open"
+        });
+        let status: CompetitionOrderStatus = serde_json::from_value(json).unwrap();
+        assert!(!status.has_value());
+        assert_eq!(status.value_len(), 0);
+        assert_eq!(status.to_string(), "open");
+    }
+
+    #[test]
+    fn competition_order_status_with_value() {
+        let json = serde_json::json!({
+            "type": "solved",
+            "value": [{"solver": "s1"}]
+        });
+        let status: CompetitionOrderStatus = serde_json::from_value(json).unwrap();
+        assert!(status.has_value());
+        assert_eq!(status.value_len(), 1);
+        assert_eq!(status.to_string(), "solved");
+    }
+
+    // ── TotalSurplus ─────────────────────────────────────────────────────
+
+    #[test]
+    fn total_surplus_new() {
+        let s = TotalSurplus::new("12345678");
+        assert_eq!(s.as_str(), "12345678");
+    }
+
+    #[test]
+    fn total_surplus_display() {
+        let s = TotalSurplus::new("42");
+        assert_eq!(s.to_string(), "surplus(42)");
+    }
+
+    #[test]
+    fn total_surplus_serde_roundtrip() {
+        let s = TotalSurplus::new("99999");
+        let json = serde_json::to_string(&s).unwrap();
+        let back: TotalSurplus = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.as_str(), "99999");
+    }
+
+    // ── AppDataObject ────────────────────────────────────────────────────
+
+    #[test]
+    fn app_data_object_new() {
+        let obj = AppDataObject::new("{\"version\":\"1.0.0\"}");
+        assert_eq!(obj.as_str(), "{\"version\":\"1.0.0\"}");
+        assert!(!obj.is_empty());
+        assert_eq!(obj.len(), 19);
+    }
+
+    #[test]
+    fn app_data_object_empty() {
+        let obj = AppDataObject::new("");
+        assert!(obj.is_empty());
+        assert_eq!(obj.len(), 0);
+    }
+
+    #[test]
+    fn app_data_object_from_string() {
+        let obj: AppDataObject = "test".to_owned().into();
+        assert_eq!(obj.as_str(), "test");
+    }
+
+    #[test]
+    fn app_data_object_into_string() {
+        let obj = AppDataObject::new("hello");
+        let s: String = obj.into();
+        assert_eq!(s, "hello");
+    }
+
+    #[test]
+    fn app_data_object_display_short() {
+        let obj = AppDataObject::new("{}");
+        let s = obj.to_string();
+        assert!(s.contains("{}"));
+    }
+
+    #[test]
+    fn app_data_object_display_truncates_long() {
+        let long = "a]".repeat(20);
+        let obj = AppDataObject::new(long);
+        let s = obj.to_string();
+        // The display should only show the first 20 chars of the content.
+        assert!(s.starts_with("app-data("));
+        assert!(s.len() < 50);
+    }
+
+    #[test]
+    fn app_data_object_serde_roundtrip() {
+        let obj = AppDataObject::new("{\"version\":\"1.0.0\"}");
+        let json = serde_json::to_string(&obj).unwrap();
+        let back: AppDataObject = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.as_str(), "{\"version\":\"1.0.0\"}");
+    }
+
+    // ── Auction ──────────────────────────────────────────────────────────
+
+    #[test]
+    fn auction_empty() {
+        let auction = Auction {
+            id: None,
+            block: 100,
+            orders: vec![],
+            prices: HashMap::default(),
+        };
+        assert!(auction.is_empty());
+        assert_eq!(auction.len(), 0);
+        assert!(!auction.has_prices());
+        assert!(auction.get_price("0xtoken").is_none());
+        assert!(auction.order_at(0).is_none());
+        assert!(auction.find_order_by_uid("0xabc").is_none());
+    }
+
+    #[test]
+    fn auction_with_orders_and_prices() {
+        let order = minimal_order();
+        let uid = order.uid.clone();
+        let mut prices = HashMap::default();
+        prices.insert("0xtoken".to_owned(), "42".to_owned());
+        let auction = Auction {
+            id: Some(7),
+            block: 200,
+            orders: vec![order],
+            prices,
+        };
+        assert!(!auction.is_empty());
+        assert_eq!(auction.len(), 1);
+        assert!(auction.has_prices());
+        assert_eq!(auction.get_price("0xtoken"), Some("42"));
+        assert!(auction.order_at(0).is_some());
+        assert!(auction.order_at(1).is_none());
+        assert!(auction.find_order_by_uid(&uid).is_some());
+        assert!(auction.find_order_by_uid("nonexistent").is_none());
+    }
+
+    #[test]
+    fn auction_display() {
+        let auction = Auction { id: Some(5), block: 300, orders: vec![], prices: HashMap::default() };
+        assert_eq!(auction.to_string(), "auction(5, 0 orders, block=300)");
+    }
+
+    #[test]
+    fn auction_display_no_id() {
+        let auction = Auction { id: None, block: 100, orders: vec![], prices: HashMap::default() };
+        assert_eq!(auction.to_string(), "auction(-1, 0 orders, block=100)");
+    }
+}

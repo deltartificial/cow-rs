@@ -362,3 +362,229 @@ fn eth_sign_digest(hash: B256) -> B256 {
     buf[28..].copy_from_slice(hash.as_slice());
     alloy_primitives::keccak256(buf)
 }
+
+#[cfg(test)]
+mod tests {
+    use alloy_primitives::U256;
+
+    use super::*;
+
+    fn default_order() -> UnsignedOrder {
+        UnsignedOrder::sell(Address::ZERO, Address::ZERO, U256::ZERO, U256::ZERO)
+    }
+
+    // ── presign_result ──────────────────────────────────────────────────
+
+    #[test]
+    fn presign_result_has_presign_scheme() {
+        let r = presign_result(Address::ZERO);
+        assert_eq!(r.signing_scheme, SigningScheme::PreSign);
+    }
+
+    #[test]
+    fn presign_result_signature_is_hex_address() {
+        let r = presign_result(Address::ZERO);
+        assert_eq!(r.signature, format!("0x{}", "00".repeat(20)));
+        assert_eq!(r.signature.len(), 2 + 40); // "0x" + 20 bytes hex
+    }
+
+    #[test]
+    fn presign_result_nonzero_address() {
+        let addr = "0000000000000000000000000000000000000001".parse::<Address>().unwrap();
+        let r = presign_result(addr);
+        assert!(r.signature.ends_with("01"));
+        assert!(r.is_presign());
+    }
+
+    // ── eip1271_result ──────────────────────────────────────────────────
+
+    #[test]
+    fn eip1271_result_has_eip1271_scheme() {
+        let r = eip1271_result(&[0xde, 0xad, 0xbe, 0xef]);
+        assert_eq!(r.signing_scheme, SigningScheme::Eip1271);
+    }
+
+    #[test]
+    fn eip1271_result_encodes_bytes() {
+        let r = eip1271_result(&[0xde, 0xad, 0xbe, 0xef]);
+        assert_eq!(r.signature, "0xdeadbeef");
+    }
+
+    #[test]
+    fn eip1271_result_empty_bytes() {
+        let r = eip1271_result(&[]);
+        assert_eq!(r.signature, "0x");
+        assert!(r.is_eip1271());
+    }
+
+    // ── compute_order_uid ───────────────────────────────────────────────
+
+    #[test]
+    fn compute_order_uid_length() {
+        let uid = compute_order_uid(1, &default_order(), Address::ZERO);
+        assert!(uid.starts_with("0x"));
+        assert_eq!(uid.len(), 2 + 112); // "0x" + 56 bytes hex
+    }
+
+    #[test]
+    fn compute_order_uid_deterministic() {
+        let order = default_order().with_valid_to(1_800_000_000);
+        let uid1 = compute_order_uid(1, &order, Address::ZERO);
+        let uid2 = compute_order_uid(1, &order, Address::ZERO);
+        assert_eq!(uid1, uid2);
+    }
+
+    #[test]
+    fn compute_order_uid_different_chains_differ() {
+        let order = default_order();
+        let uid1 = compute_order_uid(1, &order, Address::ZERO);
+        let uid2 = compute_order_uid(100, &order, Address::ZERO);
+        assert_ne!(uid1, uid2);
+    }
+
+    #[test]
+    fn compute_order_uid_different_owners_differ() {
+        let order = default_order();
+        let owner1 = Address::ZERO;
+        let owner2 = "0000000000000000000000000000000000000001".parse::<Address>().unwrap();
+        let uid1 = compute_order_uid(1, &order, owner1);
+        let uid2 = compute_order_uid(1, &order, owner2);
+        assert_ne!(uid1, uid2);
+    }
+
+    #[test]
+    fn compute_order_uid_different_valid_to_differ() {
+        let o1 = default_order().with_valid_to(100);
+        let o2 = default_order().with_valid_to(200);
+        let uid1 = compute_order_uid(1, &o1, Address::ZERO);
+        let uid2 = compute_order_uid(1, &o2, Address::ZERO);
+        assert_ne!(uid1, uid2);
+    }
+
+    // ── generate_order_id ───────────────────────────────────────────────
+
+    #[test]
+    fn generate_order_id_matches_compute_order_uid() {
+        let order = default_order().with_valid_to(12345);
+        let uid = compute_order_uid(1, &order, Address::ZERO);
+        let id = generate_order_id(1, &order, Address::ZERO);
+        assert_eq!(uid, id);
+    }
+
+    // ── get_domain ──────────────────────────────────────────────────────
+
+    #[test]
+    fn get_domain_returns_correct_chain() {
+        let d = get_domain(42);
+        assert_eq!(d.chain_id, 42);
+        assert_eq!(d.name, "Gnosis Protocol v2");
+        assert_eq!(d.version, "v2");
+    }
+
+    // ── sign_order (async) ──────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn sign_order_eip712_produces_valid_signature() {
+        let signer: PrivateKeySigner =
+            "0x4c0883a69102937d6231471b5dbb6204fe512961708279f99ae5f1e7b8a6c5e1"
+                .parse()
+                .unwrap();
+        let order = default_order().with_valid_to(1_000_000);
+        let result = sign_order(&order, 1, &signer, EcdsaSigningScheme::Eip712).await.unwrap();
+        assert!(result.signature.starts_with("0x"));
+        // 65 bytes = 130 hex chars + "0x" prefix
+        assert_eq!(result.signature.len(), 132);
+        assert!(result.is_eip712());
+    }
+
+    #[tokio::test]
+    async fn sign_order_eth_sign_produces_valid_signature() {
+        let signer: PrivateKeySigner =
+            "0x4c0883a69102937d6231471b5dbb6204fe512961708279f99ae5f1e7b8a6c5e1"
+                .parse()
+                .unwrap();
+        let order = default_order().with_valid_to(1_000_000);
+        let result = sign_order(&order, 1, &signer, EcdsaSigningScheme::EthSign).await.unwrap();
+        assert!(result.signature.starts_with("0x"));
+        assert_eq!(result.signature.len(), 132);
+        assert!(result.is_eth_sign());
+    }
+
+    #[tokio::test]
+    async fn sign_order_different_schemes_produce_different_signatures() {
+        let signer: PrivateKeySigner =
+            "0x4c0883a69102937d6231471b5dbb6204fe512961708279f99ae5f1e7b8a6c5e1"
+                .parse()
+                .unwrap();
+        let order = default_order().with_valid_to(1_000_000);
+        let r1 = sign_order(&order, 1, &signer, EcdsaSigningScheme::Eip712).await.unwrap();
+        let r2 = sign_order(&order, 1, &signer, EcdsaSigningScheme::EthSign).await.unwrap();
+        assert_ne!(r1.signature, r2.signature);
+    }
+
+    // ── sign_order_cancellation ─────────────────────────────────────────
+
+    #[tokio::test]
+    async fn sign_order_cancellation_produces_valid_signature() {
+        let signer: PrivateKeySigner =
+            "0x4c0883a69102937d6231471b5dbb6204fe512961708279f99ae5f1e7b8a6c5e1"
+                .parse()
+                .unwrap();
+        let order = default_order().with_valid_to(1_000_000);
+        let uid = compute_order_uid(1, &order, signer.address());
+        let result =
+            sign_order_cancellation(&uid, 1, &signer, EcdsaSigningScheme::Eip712).await.unwrap();
+        assert!(result.signature.starts_with("0x"));
+        assert_eq!(result.signature.len(), 132);
+        assert!(result.is_eip712());
+    }
+
+    // ── sign_order_cancellations ────────────────────────────────────────
+
+    #[tokio::test]
+    async fn sign_order_cancellations_multiple_uids() {
+        let signer: PrivateKeySigner =
+            "0x4c0883a69102937d6231471b5dbb6204fe512961708279f99ae5f1e7b8a6c5e1"
+                .parse()
+                .unwrap();
+        let o1 = default_order().with_valid_to(100);
+        let o2 = default_order().with_valid_to(200);
+        let uid1 = compute_order_uid(1, &o1, signer.address());
+        let uid2 = compute_order_uid(1, &o2, signer.address());
+        let result = sign_order_cancellations(
+            &[uid1.as_str(), uid2.as_str()],
+            1,
+            &signer,
+            EcdsaSigningScheme::Eip712,
+        )
+        .await
+        .unwrap();
+        assert!(result.signature.starts_with("0x"));
+        assert_eq!(result.signature.len(), 132);
+    }
+
+    // ── eth_sign_digest ─────────────────────────────────────────────────
+
+    #[test]
+    fn eth_sign_digest_is_deterministic() {
+        let hash = B256::from([0xab; 32]);
+        let d1 = eth_sign_digest(hash);
+        let d2 = eth_sign_digest(hash);
+        assert_eq!(d1, d2);
+        assert_ne!(d1, B256::ZERO);
+    }
+
+    #[test]
+    fn eth_sign_digest_differs_from_input() {
+        let hash = B256::from([0xab; 32]);
+        let d = eth_sign_digest(hash);
+        assert_ne!(d, hash);
+    }
+
+    #[test]
+    fn eth_sign_digest_different_inputs_differ() {
+        let d1 = eth_sign_digest(B256::from([0x01; 32]));
+        let d2 = eth_sign_digest(B256::from([0x02; 32]));
+        assert_ne!(d1, d2);
+    }
+}

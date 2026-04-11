@@ -291,4 +291,97 @@ mod tests {
         assert_eq!(TypedDataVersion::V3.as_str(), "v3");
         assert_eq!(TypedDataVersion::V4.as_str(), "v4");
     }
+
+    #[test]
+    fn typed_data_version_equality() {
+        assert_eq!(TypedDataVersion::V3, TypedDataVersion::V3);
+        assert_eq!(TypedDataVersion::V4, TypedDataVersion::V4);
+        assert_ne!(TypedDataVersion::V3, TypedDataVersion::V4);
+    }
+
+    #[test]
+    fn grant_required_roles_calldata_starts_with_selector() {
+        let authorizer: Address = "0x1111111111111111111111111111111111111111".parse().unwrap();
+        let relayer: Address = "0x2222222222222222222222222222222222222222".parse().unwrap();
+        let calls = grant_required_roles(authorizer, relayer);
+        let expected_selector = &keccak256("grantRole(bytes32,address)")[..4];
+        for (_, data) in &calls {
+            assert_eq!(&data[..4], expected_selector);
+        }
+    }
+
+    #[test]
+    fn grant_required_roles_embeds_relayer_address() {
+        let authorizer: Address = "0x1111111111111111111111111111111111111111".parse().unwrap();
+        let relayer: Address = "0x2222222222222222222222222222222222222222".parse().unwrap();
+        let calls = grant_required_roles(authorizer, relayer);
+        for (_, data) in &calls {
+            // Last 20 bytes of the 68-byte calldata should be the relayer address
+            assert_eq!(&data[48..68], relayer.as_slice());
+        }
+    }
+
+    #[test]
+    fn get_typed_data_versioned_signer_v3() {
+        let signer = PrivateKeySigner::random();
+        let versioned = get_typed_data_versioned_signer(signer, TypedDataVersion::V3);
+        assert_eq!(versioned.version, TypedDataVersion::V3);
+    }
+
+    #[test]
+    fn get_typed_data_v3_signer_returns_v3() {
+        let signer = PrivateKeySigner::random();
+        let versioned = get_typed_data_v3_signer(signer);
+        assert_eq!(versioned.version, TypedDataVersion::V3);
+    }
+
+    #[test]
+    fn get_int_chain_id_typed_data_v4_signer_returns_v4() {
+        let signer = PrivateKeySigner::random();
+        let versioned = get_int_chain_id_typed_data_v4_signer(signer);
+        assert_eq!(versioned.version, TypedDataVersion::V4);
+    }
+
+    #[tokio::test]
+    async fn ecdsa_sign_typed_data_eip712() {
+        let signer = PrivateKeySigner::random();
+        let domain_sep = B256::ZERO;
+        let struct_hash = B256::ZERO;
+        let sig =
+            ecdsa_sign_typed_data(EcdsaSigningScheme::Eip712, domain_sep, struct_hash, &signer)
+                .await
+                .unwrap();
+        assert!(sig.starts_with("0x"));
+        // 65 bytes = 130 hex chars + "0x" prefix
+        assert_eq!(sig.len(), 132);
+    }
+
+    #[tokio::test]
+    async fn ecdsa_sign_typed_data_ethsign() {
+        let signer = PrivateKeySigner::random();
+        let domain_sep = B256::ZERO;
+        let struct_hash = B256::ZERO;
+        let sig =
+            ecdsa_sign_typed_data(EcdsaSigningScheme::EthSign, domain_sep, struct_hash, &signer)
+                .await
+                .unwrap();
+        assert!(sig.starts_with("0x"));
+        assert_eq!(sig.len(), 132);
+    }
+
+    #[tokio::test]
+    async fn ecdsa_sign_typed_data_different_schemes_produce_different_sigs() {
+        let signer = PrivateKeySigner::random();
+        let domain_sep = keccak256("test domain");
+        let struct_hash = keccak256("test struct");
+        let sig712 =
+            ecdsa_sign_typed_data(EcdsaSigningScheme::Eip712, domain_sep, struct_hash, &signer)
+                .await
+                .unwrap();
+        let sig_eth =
+            ecdsa_sign_typed_data(EcdsaSigningScheme::EthSign, domain_sep, struct_hash, &signer)
+                .await
+                .unwrap();
+        assert_ne!(sig712, sig_eth);
+    }
 }
