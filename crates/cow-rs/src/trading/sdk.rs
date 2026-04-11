@@ -424,6 +424,36 @@ impl TradingSdk {
         Ok(Self { config: Arc::new(config), api: Arc::new(api), signer: Arc::new(signer) })
     }
 
+    /// Create a new [`TradingSdk`] with a custom base URL for the orderbook API.
+    ///
+    /// Useful in tests that point at a local mock server.
+    ///
+    /// # Arguments
+    ///
+    /// * `config` — SDK configuration (chain, environment, app code, etc.).
+    /// * `private_key_hex` — the signer's private key as a hex string.
+    /// * `base_url` — the custom base URL (no trailing slash).
+    ///
+    /// # Returns
+    ///
+    /// A configured [`TradingSdk`] instance with a custom API base URL.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`CowError::Signing`] if the private key cannot be parsed.
+    pub fn new_with_url(
+        config: TradingSdkConfig,
+        private_key_hex: &str,
+        base_url: impl Into<String>,
+    ) -> Result<Self, CowError> {
+        let key = private_key_hex.trim_start_matches("0x");
+        let signer: PrivateKeySigner = key
+            .parse()
+            .map_err(|e: alloy_signer_local::LocalSignerError| CowError::Signing(e.to_string()))?;
+        let api = OrderBookApi::new_with_url(config.chain_id, config.env, base_url);
+        Ok(Self { config: Arc::new(config), api: Arc::new(api), signer: Arc::new(signer) })
+    }
+
     /// Fetch a price quote from the `CoW` Protocol orderbook.
     ///
     /// Builds an order-quote request from `params`, submits it to the orderbook
