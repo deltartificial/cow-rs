@@ -675,7 +675,7 @@ mod tests {
             let doc = AppDataDoc::new("TestApp");
             // Minimal doc should validate under most schemas (may fail on older ones
             // if they have different shape, but 1.0.0 was already tested above)
-            let _ = validate_with(&doc, version);
+            drop(validate_with(&doc, version));
         }
     }
 }
