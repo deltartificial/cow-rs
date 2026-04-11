@@ -243,22 +243,15 @@ pub async fn wasm_sign_order_with_browser_wallet(
     let digest_hex = hex_b256(digest);
 
     // Call the JS signer function with the digest
-    let promise = signer_fn
-        .call1(&JsValue::NULL, &JsValue::from_str(&digest_hex))
-        .map_err(|e| {
-            to_js_err(format!(
-                "signer_fn call failed: {}",
-                e.as_string().unwrap_or_default()
-            ))
+    let promise =
+        signer_fn.call1(&JsValue::NULL, &JsValue::from_str(&digest_hex)).map_err(|e| {
+            to_js_err(format!("signer_fn call failed: {}", e.as_string().unwrap_or_default()))
         })?;
 
     // Await the Promise
     let future = wasm_bindgen_futures::JsFuture::from(js_sys::Promise::from(promise));
     let signature = future.await.map_err(|e| {
-        to_js_err(format!(
-            "signer rejected: {}",
-            e.as_string().unwrap_or_default()
-        ))
+        to_js_err(format!("signer rejected: {}", e.as_string().unwrap_or_default()))
     })?;
 
     let sig_str = signature

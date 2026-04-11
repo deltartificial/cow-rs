@@ -1,28 +1,35 @@
 //! Conformance tests: verify that the Rust SDK produces identical results
-//! to the TypeScript SDK at the pinned upstream commit.
+//! to the `TypeScript` SDK at the pinned upstream commit.
 //!
 //! Fixtures in `conformance/fixtures/*.json` contain test vectors extracted
-//! from the TypeScript SDK. Each test loads a fixture case by ID and
-//! asserts the Rust output matches the expected TypeScript output.
+//! from the `TypeScript` SDK. Each test loads a fixture case by ID and
+//! asserts the Rust output matches the expected `TypeScript` output.
+#![allow(
+    clippy::tests_outside_test_module,
+    reason = "integration test file; all functions are tests"
+)]
+#![allow(
+    clippy::panic_in_result_fn,
+    clippy::panic,
+    reason = "test helpers use panic for fixture loading failures"
+)]
 
 use cow_rs::{
     Env, OrderKind, SigningScheme, SupportedChainId, TokenBalance,
     app_data::{
         cid::{appdata_hex_to_cid, cid_to_appdata_hex, parse_cid},
-        hash::appdata_hex,
         types::{AppDataDoc, LATEST_APP_DATA_VERSION, Referrer},
     },
     config::{
-        chain::{api_base_url, order_explorer_link},
+        chain::api_base_url,
         contracts::{
             BUY_ETH_ADDRESS, IMPLEMENTATION_STORAGE_SLOT, MAX_VALID_TO_EPOCH, OWNER_STORAGE_SLOT,
             SETTLEMENT_CONTRACT, VAULT_RELAYER, deterministic_deployment_address,
-            settlement_contract,
         },
     },
     order_book::types::{OrderClass, OrderStatus, QuoteSide},
     order_signing::{
-        eip712::{domain_separator, order_hash, signing_digest},
+        eip712::domain_separator,
         utils::{compute_order_uid, presign_result},
     },
     trading::{
@@ -75,7 +82,7 @@ fn conformance_core_settlement_address() {
     let fixture = load_fixture("core");
     let case = find_case(&fixture, "core-settlement-address");
     let expected = case["expected"]["address"].as_str().unwrap();
-    assert_eq!(format!("{:#x}", SETTLEMENT_CONTRACT), expected.to_lowercase());
+    assert_eq!(format!("{SETTLEMENT_CONTRACT:#x}"), expected.to_lowercase());
 }
 
 #[test]
@@ -83,7 +90,7 @@ fn conformance_core_vault_relayer_address() {
     let fixture = load_fixture("core");
     let case = find_case(&fixture, "core-vault-relayer-address");
     let expected = case["expected"]["address"].as_str().unwrap();
-    assert_eq!(format!("{:#x}", VAULT_RELAYER), expected.to_lowercase());
+    assert_eq!(format!("{VAULT_RELAYER:#x}"), expected.to_lowercase());
 }
 
 #[test]
@@ -91,7 +98,7 @@ fn conformance_core_buy_eth_address() {
     let fixture = load_fixture("core");
     let case = find_case(&fixture, "core-buy-eth-address");
     let expected = case["expected"]["address"].as_str().unwrap();
-    assert_eq!(format!("{:#x}", BUY_ETH_ADDRESS), expected.to_lowercase());
+    assert_eq!(format!("{BUY_ETH_ADDRESS:#x}"), expected.to_lowercase());
 }
 
 #[test]
@@ -198,7 +205,7 @@ fn conformance_signing_presign_result() {
         result.signing_scheme.as_str(),
         case["expected"]["signing_scheme"].as_str().unwrap()
     );
-    assert!(result.signature.to_lowercase().contains(&format!("{:x}", owner).to_lowercase()));
+    assert!(result.signature.to_lowercase().contains(&format!("{owner:x}").to_lowercase()));
 }
 
 // ── App-data surface ────────────────────────────────────────────────────────
@@ -394,7 +401,7 @@ fn conformance_orderbook_quote_request_defaults() {
     let expected = &case["expected"];
 
     // Default values verified against the struct definition.
-    assert_eq!(false, expected["partially_fillable_default"].as_bool().unwrap());
+    assert!(!expected["partially_fillable_default"].as_bool().unwrap());
     assert_eq!(
         TokenBalance::Erc20.as_str(),
         expected["sell_token_balance_default"].as_str().unwrap()
