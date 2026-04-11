@@ -1349,12 +1349,18 @@ mod tests {
 
     #[test]
     fn composable_cow_address_matches() {
-        assert_eq!(format!("{COMPOSABLE_COW_ADDRESS:#x}"), "0xfdafc9d1902f4e0b84f65f49f244b32b31013b74");
+        assert_eq!(
+            format!("{COMPOSABLE_COW_ADDRESS:#x}"),
+            "0xfdafc9d1902f4e0b84f65f49f244b32b31013b74"
+        );
     }
 
     #[test]
     fn twap_handler_address_matches() {
-        assert_eq!(format!("{TWAP_HANDLER_ADDRESS:#x}"), "0x6cf1e9ca41f7611def408122793c358a3d11e5a5");
+        assert_eq!(
+            format!("{TWAP_HANDLER_ADDRESS:#x}"),
+            "0x6cf1e9ca41f7611def408122793c358a3d11e5a5"
+        );
     }
 
     #[test]
@@ -1397,8 +1403,8 @@ mod tests {
 
     #[test]
     fn conditional_order_params_with_static_input() {
-        let p =
-            ConditionalOrderParams::new(Address::ZERO, B256::ZERO, vec![]).with_static_input(vec![0xDE, 0xAD]);
+        let p = ConditionalOrderParams::new(Address::ZERO, B256::ZERO, vec![])
+            .with_static_input(vec![0xDE, 0xAD]);
         assert_eq!(p.static_input, vec![0xDE, 0xAD]);
     }
 
@@ -1506,7 +1512,10 @@ mod tests {
     #[test]
     fn duration_of_part_from_option() {
         assert_eq!(DurationOfPart::from(None), DurationOfPart::Auto);
-        assert_eq!(DurationOfPart::from(Some(300)), DurationOfPart::LimitDuration { duration: 300 });
+        assert_eq!(
+            DurationOfPart::from(Some(300)),
+            DurationOfPart::LimitDuration { duration: 300 }
+        );
     }
 
     // ── TwapData constructors ───────────────────────────────────────────────
@@ -1608,8 +1617,7 @@ mod tests {
     #[test]
     fn twap_data_with_app_data() {
         let hash = B256::repeat_byte(0xAA);
-        let t =
-            TwapData::sell(Address::ZERO, Address::ZERO, U256::ZERO, 1, 1).with_app_data(hash);
+        let t = TwapData::sell(Address::ZERO, Address::ZERO, U256::ZERO, 1, 1).with_app_data(hash);
         assert!(t.has_app_data());
         assert_eq!(t.app_data, hash);
     }
@@ -1872,7 +1880,10 @@ mod tests {
             PollResult::UnexpectedError { message: "x".into() }.to_string(),
             "unexpected-error(x)"
         );
-        assert_eq!(PollResult::DontTryAgain { reason: "y".into() }.to_string(), "dont-try-again(y)");
+        assert_eq!(
+            PollResult::DontTryAgain { reason: "y".into() }.to_string(),
+            "dont-try-again(y)"
+        );
     }
 
     // ── ProofLocation ───────────────────────────────────────────────────────

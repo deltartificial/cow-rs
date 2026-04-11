@@ -233,38 +233,24 @@ pub fn apply_percentage(value: U256, percentage: Decimal) -> U256 {
 
 #[cfg(test)]
 mod tests {
-    use alloy_primitives::U256;
-    use rust_decimal::Decimal;
-
     use super::*;
-    use crate::trading::types::{
-        Amounts, NetworkFee, PartnerFeeCost, ProtocolFeeCost, QuoteAmountsAndCosts,
-    };
+    use crate::trading::types::{Amounts, NetworkFee, PartnerFeeCost, ProtocolFeeCost};
 
     // ── suggest_slippage_from_fee ────────────────────────────────────────────
 
     #[test]
     fn slippage_from_fee_50_percent() {
-        assert_eq!(
-            suggest_slippage_from_fee(U256::from(1_000u32), 50),
-            U256::from(500u32)
-        );
+        assert_eq!(suggest_slippage_from_fee(U256::from(1_000u32), 50), U256::from(500u32));
     }
 
     #[test]
     fn slippage_from_fee_zero_factor() {
-        assert_eq!(
-            suggest_slippage_from_fee(U256::from(1_000u32), 0),
-            U256::ZERO
-        );
+        assert_eq!(suggest_slippage_from_fee(U256::from(1_000u32), 0), U256::ZERO);
     }
 
     #[test]
     fn slippage_from_fee_100_percent() {
-        assert_eq!(
-            suggest_slippage_from_fee(U256::from(1_000u32), 100),
-            U256::from(1_000u32)
-        );
+        assert_eq!(suggest_slippage_from_fee(U256::from(1_000u32), 100), U256::from(1_000u32));
     }
 
     // ── suggest_slippage_from_volume ─────────────────────────────────────────
@@ -272,24 +258,16 @@ mod tests {
     #[test]
     fn slippage_from_volume_sell_order() {
         // Sell order uses sell_after (net). 10_000 * 50 / 10_000 = 50
-        let result = suggest_slippage_from_volume(
-            U256::from(10_000u32),
-            U256::from(9_000u32),
-            true,
-            50,
-        );
+        let result =
+            suggest_slippage_from_volume(U256::from(10_000u32), U256::from(9_000u32), true, 50);
         assert_eq!(result, U256::from(45u32)); // 9_000 * 50 / 10_000
     }
 
     #[test]
     fn slippage_from_volume_buy_order() {
         // Buy order uses sell_before (gross). 10_000 * 50 / 10_000 = 50
-        let result = suggest_slippage_from_volume(
-            U256::from(10_000u32),
-            U256::from(9_000u32),
-            false,
-            50,
-        );
+        let result =
+            suggest_slippage_from_volume(U256::from(10_000u32), U256::from(9_000u32), false, 50);
         assert_eq!(result, U256::from(50u32));
     }
 
@@ -398,18 +376,12 @@ mod tests {
     #[test]
     fn apply_percentage_half_percent() {
         // 0.5% -> 50 bps -> 200 * 50 / 100 = 100
-        assert_eq!(
-            apply_percentage(U256::from(200u32), Decimal::new(5, 1)),
-            U256::from(100u32)
-        );
+        assert_eq!(apply_percentage(U256::from(200u32), Decimal::new(5, 1)), U256::from(100u32));
     }
 
     #[test]
     fn apply_percentage_zero() {
-        assert_eq!(
-            apply_percentage(U256::from(1_000u32), Decimal::ZERO),
-            U256::ZERO
-        );
+        assert_eq!(apply_percentage(U256::from(1_000u32), Decimal::ZERO), U256::ZERO);
     }
 
     // ── Roundtrip conversion ─────────────────────────────────────────────────

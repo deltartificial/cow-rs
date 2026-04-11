@@ -422,8 +422,7 @@ pub fn extract_digest(cid: &str) -> Result<String, CowError> {
 mod tests {
     use super::*;
 
-    const SAMPLE_HEX: &str =
-        "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890";
+    const SAMPLE_HEX: &str = "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890";
 
     #[test]
     fn appdata_hex_to_cid_produces_base16_cid() {
@@ -435,7 +434,7 @@ mod tests {
 
     #[test]
     fn appdata_hex_to_cid_without_0x_prefix() {
-        let hex = SAMPLE_HEX.strip_prefix("0x").unwrap_or(SAMPLE_HEX);
+        let hex = SAMPLE_HEX.strip_prefix("0x").unwrap_or_else(|| SAMPLE_HEX);
         let cid = appdata_hex_to_cid(hex).unwrap_or_default();
         assert!(cid.starts_with('f'));
     }
@@ -463,7 +462,11 @@ mod tests {
     fn parse_cid_components() {
         let cid = appdata_hex_to_cid(SAMPLE_HEX).unwrap_or_default();
         let c = parse_cid(&cid).unwrap_or_else(|_| CidComponents {
-            version: 0, codec: 0, hash_function: 0, hash_length: 0, digest: vec![],
+            version: 0,
+            codec: 0,
+            hash_function: 0,
+            hash_length: 0,
+            digest: vec![],
         });
         assert_eq!(c.version, CID_VERSION);
         assert_eq!(c.codec, MULTICODEC_RAW);
@@ -487,7 +490,11 @@ mod tests {
         let mut bytes = vec![0x01, 0x55, 0x1b, 0x20];
         bytes.extend_from_slice(&[0xaa; 32]);
         let c = decode_cid(&bytes).unwrap_or_else(|_| CidComponents {
-            version: 0, codec: 0, hash_function: 0, hash_length: 0, digest: vec![],
+            version: 0,
+            codec: 0,
+            hash_function: 0,
+            hash_length: 0,
+            digest: vec![],
         });
         assert_eq!(c.version, 1);
         assert_eq!(c.codec, 0x55);
@@ -519,7 +526,7 @@ mod tests {
     }
 
     #[test]
-    #[allow(deprecated)]
+    #[allow(deprecated, reason = "testing legacy API surface")]
     fn legacy_cid_produces_base16_string() {
         let cid = app_data_hex_to_cid_legacy(SAMPLE_HEX).unwrap_or_default();
         assert!(cid.starts_with('f'));

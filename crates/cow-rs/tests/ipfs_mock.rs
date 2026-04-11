@@ -124,9 +124,7 @@ async fn upload_to_pinata_success() {
         .await;
 
     let doc = AppDataDoc::new("TestApp");
-    let ipfs = Ipfs::default()
-        .with_write_uri(&server.uri())
-        .with_pinata("test-key", "test-secret");
+    let ipfs = Ipfs::default().with_write_uri(server.uri()).with_pinata("test-key", "test-secret");
 
     let cid = upload_app_data_to_pinata(&doc, &ipfs).await.unwrap();
     assert_eq!(cid, "QmTestHash123");
@@ -165,9 +163,7 @@ async fn upload_to_pinata_handles_api_error() {
         .await;
 
     let doc = AppDataDoc::new("TestApp");
-    let ipfs = Ipfs::default()
-        .with_write_uri(&server.uri())
-        .with_pinata("bad-key", "bad-secret");
+    let ipfs = Ipfs::default().with_write_uri(server.uri()).with_pinata("bad-key", "bad-secret");
 
     let result = upload_app_data_to_pinata(&doc, &ipfs).await;
     assert!(result.is_err());
@@ -179,16 +175,12 @@ async fn upload_to_pinata_handles_malformed_response() {
 
     Mock::given(matchers::method("POST"))
         .and(matchers::path("/pinning/pinJSONToIPFS"))
-        .respond_with(
-            ResponseTemplate::new(200).set_body_string("{\"unexpected\": \"format\"}"),
-        )
+        .respond_with(ResponseTemplate::new(200).set_body_string("{\"unexpected\": \"format\"}"))
         .mount(&server)
         .await;
 
     let doc = AppDataDoc::new("TestApp");
-    let ipfs = Ipfs::default()
-        .with_write_uri(&server.uri())
-        .with_pinata("key", "secret");
+    let ipfs = Ipfs::default().with_write_uri(server.uri()).with_pinata("key", "secret");
 
     let result = upload_app_data_to_pinata(&doc, &ipfs).await;
     assert!(result.is_err());
@@ -211,9 +203,7 @@ async fn upload_to_pinata_sends_correct_headers() {
         .await;
 
     let doc = AppDataDoc::new("HeaderTest");
-    let ipfs = Ipfs::default()
-        .with_write_uri(&server.uri())
-        .with_pinata("my-key", "my-secret");
+    let ipfs = Ipfs::default().with_write_uri(server.uri()).with_pinata("my-key", "my-secret");
 
     let cid = upload_app_data_to_pinata(&doc, &ipfs).await.unwrap();
     assert_eq!(cid, "QmCorrectHeaders");
@@ -434,9 +424,7 @@ fn metadata_api_new_default() {
 
 #[test]
 fn metadata_api_with_ipfs() {
-    let ipfs = Ipfs::default()
-        .with_read_uri("https://custom.io/ipfs")
-        .with_pinata("key", "secret");
+    let ipfs = Ipfs::default().with_read_uri("https://custom.io/ipfs").with_pinata("key", "secret");
     let api = cow_rs::app_data::MetadataApi::with_ipfs(ipfs);
     assert_eq!(api.ipfs.read_uri.as_deref(), Some("https://custom.io/ipfs"));
 }
@@ -510,7 +498,7 @@ async fn metadata_api_fetch_doc_from_cid_success() {
         .mount(&server)
         .await;
 
-    let ipfs = Ipfs::default().with_read_uri(&server.uri());
+    let ipfs = Ipfs::default().with_read_uri(server.uri());
     let api = cow_rs::app_data::MetadataApi::with_ipfs(ipfs);
     let doc = api.fetch_doc_from_cid("test-cid").await.unwrap();
     assert_eq!(doc.app_code.as_deref(), Some("FetchTest"));
@@ -532,7 +520,7 @@ async fn metadata_api_fetch_doc_from_app_data_hex_success() {
         .mount(&server)
         .await;
 
-    let ipfs = Ipfs::default().with_read_uri(&server.uri());
+    let ipfs = Ipfs::default().with_read_uri(server.uri());
     let api = cow_rs::app_data::MetadataApi::with_ipfs(ipfs);
     // Use a real appdata hex from a known doc to generate a valid CID.
     let info = get_app_data_info(&AppDataDoc::new("HexFetchTest")).unwrap();
@@ -554,9 +542,7 @@ async fn metadata_api_upload_to_pinata_success() {
         .mount(&server)
         .await;
 
-    let ipfs = Ipfs::default()
-        .with_write_uri(&server.uri())
-        .with_pinata("api-key", "api-secret");
+    let ipfs = Ipfs::default().with_write_uri(server.uri()).with_pinata("api-key", "api-secret");
     let api = cow_rs::app_data::MetadataApi::with_ipfs(ipfs);
     let doc = AppDataDoc::new("UploadTest");
     let cid = api.upload_app_data(&doc).await.unwrap();
@@ -567,10 +553,8 @@ async fn metadata_api_upload_to_pinata_success() {
 
 #[test]
 fn ipfs_upload_result_display() {
-    let result = cow_rs::IpfsUploadResult {
-        app_data: "0xdeadbeef".to_owned(),
-        cid: "QmTestCid".to_owned(),
-    };
+    let result =
+        cow_rs::IpfsUploadResult { app_data: "0xdeadbeef".to_owned(), cid: "QmTestCid".to_owned() };
     let display = format!("{result}");
     assert!(display.contains("QmTestCid"));
     assert!(display.contains("0xdeadbeef"));
@@ -595,9 +579,7 @@ async fn fetch_doc_from_app_data_hex_via_free_function() {
         .await;
 
     let info = get_app_data_info(&AppDataDoc::new("FreeFnTest")).unwrap();
-    let doc = fetch_doc_from_app_data_hex(&info.app_data_hex, Some(&server.uri()))
-        .await
-        .unwrap();
+    let doc = fetch_doc_from_app_data_hex(&info.app_data_hex, Some(&server.uri())).await.unwrap();
     assert_eq!(doc.app_code.as_deref(), Some("FreeFnTest"));
 }
 
@@ -605,7 +587,7 @@ async fn fetch_doc_from_app_data_hex_via_free_function() {
 
 #[test]
 fn validate_rejects_app_code_too_long() {
-    let doc = AppDataDoc::new(&"A".repeat(1000));
+    let doc = AppDataDoc::new("A".repeat(1000));
     // AppDataDoc validation might flag very long app codes.
     let result = validate_app_data_doc(&doc);
     // This test just exercises the validation path.

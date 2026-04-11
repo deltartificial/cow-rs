@@ -486,9 +486,7 @@ mod tests {
     #[tokio::test]
     async fn sign_order_eip712_produces_valid_signature() {
         let signer: PrivateKeySigner =
-            "0x4c0883a69102937d6231471b5dbb6204fe512961708279f99ae5f1e7b8a6c5e1"
-                .parse()
-                .unwrap();
+            "0x4c0883a69102937d6231471b5dbb6204fe512961708279f99ae5f1e7b8a6c5e1".parse().unwrap();
         let order = default_order().with_valid_to(1_000_000);
         let result = sign_order(&order, 1, &signer, EcdsaSigningScheme::Eip712).await.unwrap();
         assert!(result.signature.starts_with("0x"));
@@ -500,9 +498,7 @@ mod tests {
     #[tokio::test]
     async fn sign_order_eth_sign_produces_valid_signature() {
         let signer: PrivateKeySigner =
-            "0x4c0883a69102937d6231471b5dbb6204fe512961708279f99ae5f1e7b8a6c5e1"
-                .parse()
-                .unwrap();
+            "0x4c0883a69102937d6231471b5dbb6204fe512961708279f99ae5f1e7b8a6c5e1".parse().unwrap();
         let order = default_order().with_valid_to(1_000_000);
         let result = sign_order(&order, 1, &signer, EcdsaSigningScheme::EthSign).await.unwrap();
         assert!(result.signature.starts_with("0x"));
@@ -513,9 +509,7 @@ mod tests {
     #[tokio::test]
     async fn sign_order_different_schemes_produce_different_signatures() {
         let signer: PrivateKeySigner =
-            "0x4c0883a69102937d6231471b5dbb6204fe512961708279f99ae5f1e7b8a6c5e1"
-                .parse()
-                .unwrap();
+            "0x4c0883a69102937d6231471b5dbb6204fe512961708279f99ae5f1e7b8a6c5e1".parse().unwrap();
         let order = default_order().with_valid_to(1_000_000);
         let r1 = sign_order(&order, 1, &signer, EcdsaSigningScheme::Eip712).await.unwrap();
         let r2 = sign_order(&order, 1, &signer, EcdsaSigningScheme::EthSign).await.unwrap();
@@ -527,9 +521,7 @@ mod tests {
     #[tokio::test]
     async fn sign_order_cancellation_produces_valid_signature() {
         let signer: PrivateKeySigner =
-            "0x4c0883a69102937d6231471b5dbb6204fe512961708279f99ae5f1e7b8a6c5e1"
-                .parse()
-                .unwrap();
+            "0x4c0883a69102937d6231471b5dbb6204fe512961708279f99ae5f1e7b8a6c5e1".parse().unwrap();
         let order = default_order().with_valid_to(1_000_000);
         let uid = compute_order_uid(1, &order, signer.address());
         let result =
@@ -544,9 +536,7 @@ mod tests {
     #[tokio::test]
     async fn sign_order_cancellations_multiple_uids() {
         let signer: PrivateKeySigner =
-            "0x4c0883a69102937d6231471b5dbb6204fe512961708279f99ae5f1e7b8a6c5e1"
-                .parse()
-                .unwrap();
+            "0x4c0883a69102937d6231471b5dbb6204fe512961708279f99ae5f1e7b8a6c5e1".parse().unwrap();
         let o1 = default_order().with_valid_to(100);
         let o2 = default_order().with_valid_to(200);
         let uid1 = compute_order_uid(1, &o1, signer.address());

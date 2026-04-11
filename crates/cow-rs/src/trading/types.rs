@@ -2054,7 +2054,7 @@ mod tests {
         assert!(s.contains("sell"));
         assert!(s.contains("buy"));
         assert!(s.contains("42"));
-        assert!(s.contains("7"));
+        assert!(s.contains('7'));
     }
 
     #[test]
@@ -2404,7 +2404,7 @@ mod tests {
             U256::from(1000u32),
             U256::from(900u32),
         );
-        let result = apply_settings_to_limit_trade_parameters(params.clone(), None);
+        let result = apply_settings_to_limit_trade_parameters(params, None);
         assert_eq!(result.sell_amount, U256::from(1000u32));
         assert!(!result.partially_fillable);
     }
@@ -2691,7 +2691,7 @@ mod tests {
         // bps preserved
         assert_eq!(doubled.partner_fee.bps, 50);
         assert_eq!(doubled.protocol_fee.bps, 30);
-        assert_eq!(doubled.is_sell, true);
+        assert!(doubled.is_sell);
     }
 
     // ── OrderPostingResult ──────────────────────────────────────────────────
@@ -2727,50 +2727,30 @@ mod tests {
 
     #[test]
     fn order_posting_result_signing_scheme_predicates() {
-        let eip712 = OrderPostingResult::new(
-            "a",
-            SigningScheme::Eip712,
-            "",
-            sample_unsigned_order(),
-        );
+        let eip712 =
+            OrderPostingResult::new("a", SigningScheme::Eip712, "", sample_unsigned_order());
         assert!(eip712.is_eip712());
         assert!(!eip712.is_eth_sign());
         assert!(!eip712.is_eip1271());
         assert!(!eip712.is_presign());
 
-        let eth_sign = OrderPostingResult::new(
-            "b",
-            SigningScheme::EthSign,
-            "",
-            sample_unsigned_order(),
-        );
+        let eth_sign =
+            OrderPostingResult::new("b", SigningScheme::EthSign, "", sample_unsigned_order());
         assert!(eth_sign.is_eth_sign());
 
-        let eip1271 = OrderPostingResult::new(
-            "c",
-            SigningScheme::Eip1271,
-            "",
-            sample_unsigned_order(),
-        );
+        let eip1271 =
+            OrderPostingResult::new("c", SigningScheme::Eip1271, "", sample_unsigned_order());
         assert!(eip1271.is_eip1271());
 
-        let presign = OrderPostingResult::new(
-            "d",
-            SigningScheme::PreSign,
-            "",
-            sample_unsigned_order(),
-        );
+        let presign =
+            OrderPostingResult::new("d", SigningScheme::PreSign, "", sample_unsigned_order());
         assert!(presign.is_presign());
     }
 
     #[test]
     fn order_posting_result_display() {
-        let r = OrderPostingResult::new(
-            "uid-xyz",
-            SigningScheme::Eip712,
-            "",
-            sample_unsigned_order(),
-        );
+        let r =
+            OrderPostingResult::new("uid-xyz", SigningScheme::Eip712, "", sample_unsigned_order());
         let s = format!("{r}");
         assert!(s.contains("order"));
         assert!(s.contains("uid-xyz"));

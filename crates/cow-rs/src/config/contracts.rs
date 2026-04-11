@@ -450,8 +450,7 @@ pub const fn owner_address_slot(proxy: Address) -> (Address, &'static str) {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use super::super::chain::Env;
+    use super::{super::chain::Env, *};
 
     #[test]
     fn all_contract_addresses_are_nonzero() {
@@ -511,7 +510,10 @@ mod tests {
         assert_eq!(cow_protocol_settlement_contract_address(chain), SETTLEMENT_CONTRACT);
         assert_eq!(cow_protocol_vault_relayer_address(chain), VAULT_RELAYER);
         assert_eq!(cow_protocol_vault_relayer_address_staging(chain), VAULT_RELAYER_STAGING);
-        assert_eq!(extensible_fallback_handler_contract_address(chain), EXTENSIBLE_FALLBACK_HANDLER);
+        assert_eq!(
+            extensible_fallback_handler_contract_address(chain),
+            EXTENSIBLE_FALLBACK_HANDLER
+        );
     }
 
     #[test]

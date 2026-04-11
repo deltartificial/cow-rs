@@ -442,8 +442,8 @@ mod tests {
 
     #[test]
     fn with_logo_url_sets_url() {
-        let token = TokenInfo::new(Address::ZERO, 18, "WETH")
-            .with_logo_url("https://example.com/weth.png");
+        let token =
+            TokenInfo::new(Address::ZERO, 18, "WETH").with_logo_url("https://example.com/weth.png");
         assert_eq!(token.logo_url, Some("https://example.com/weth.png"));
     }
 
@@ -582,9 +582,9 @@ mod tests {
 
     #[test]
     fn get_wrapped_token_for_chain_mainnet() {
-        let token = get_wrapped_token_for_chain(SupportedChainId::Mainnet);
-        assert!(token.is_some());
-        let token = token.unwrap();
+        let maybe_token = get_wrapped_token_for_chain(SupportedChainId::Mainnet);
+        assert!(maybe_token.is_some());
+        let token = maybe_token.unwrap();
         assert_eq!(token.symbol, "WETH");
         assert_eq!(token.decimals, 18);
         assert!(token.has_name());
