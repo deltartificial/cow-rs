@@ -47,15 +47,15 @@ fn load_fixture(surface: &str) -> serde_json::Value {
         .parent()
         .and_then(|p| p.parent())
         .unwrap_or_else(|| std::path::Path::new(manifest));
-    let path = ws_root
+    let fixture_path = ws_root
         .join("scripts")
         .join("conformance")
         .join("fixtures")
         .join(format!("{surface}.json"));
-    let path = path.display().to_string();
-    let content = std::fs::read_to_string(&path)
-        .unwrap_or_else(|e| panic!("failed to read fixture {path}: {e}"));
-    serde_json::from_str(&content).unwrap_or_else(|e| panic!("failed to parse fixture {path}: {e}"))
+    let display = fixture_path.display().to_string();
+    let content = std::fs::read_to_string(&fixture_path)
+        .unwrap_or_else(|e| panic!("failed to read fixture {display}: {e}"));
+    serde_json::from_str(&content).unwrap_or_else(|e| panic!("failed to parse fixture {display}: {e}"))
 }
 
 fn find_case<'a>(fixture: &'a serde_json::Value, id: &str) -> &'a serde_json::Value {
