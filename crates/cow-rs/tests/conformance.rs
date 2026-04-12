@@ -42,10 +42,17 @@ use cow_rs::{
 // ── Fixture loader ──────────────────────────────────────────────────────────
 
 fn load_fixture(surface: &str) -> serde_json::Value {
-    let path = format!(
-        "{}/scripts/conformance/fixtures/{surface}.json",
-        env!("CARGO_MANIFEST_DIR").trim_end_matches("/crates/cow-rs")
-    );
+    let manifest = env!("CARGO_MANIFEST_DIR");
+    let ws_root = std::path::Path::new(manifest)
+        .parent()
+        .and_then(|p| p.parent())
+        .unwrap_or_else(|| std::path::Path::new(manifest));
+    let path = ws_root
+        .join("scripts")
+        .join("conformance")
+        .join("fixtures")
+        .join(format!("{surface}.json"));
+    let path = path.display().to_string();
     let content = std::fs::read_to_string(&path)
         .unwrap_or_else(|e| panic!("failed to read fixture {path}: {e}"));
     serde_json::from_str(&content).unwrap_or_else(|e| panic!("failed to parse fixture {path}: {e}"))
