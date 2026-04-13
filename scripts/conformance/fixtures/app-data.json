@@ -21,7 +21,9 @@
       "expected": {
         "cid_starts_with": "f",
         "cid_length": 73,
-        "roundtrip_hex_length": 66
+        "cid": "f01551b20337aa6e6c2a7a0d1eb79a35ebd88b08fc963d5f7a3fc953b7ffb2b7f5898a1df",
+        "roundtrip_hex_length": 66,
+        "roundtrip_hex": "0x337aa6e6c2a7a0d1eb79a35ebd88b08fc963d5f7a3fc953b7ffb2b7f5898a1df"
       }
     },
     {
