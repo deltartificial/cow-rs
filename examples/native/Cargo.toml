@@ -15,46 +15,90 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 [lints]
 workspace = true
 
+# ── Orders ────────────────────────────────────────────────────────────────────
+
 [[example]]
 name = "get_quote"
-path = "examples/get_quote.rs"
+path = "examples/orders/get_quote.rs"
 
 [[example]]
 name = "swap_order"
-path = "examples/swap_order.rs"
+path = "examples/orders/swap_order.rs"
 
 [[example]]
 name = "limit_order"
-path = "examples/limit_order.rs"
+path = "examples/orders/limit_order.rs"
 
 [[example]]
 name = "cancel_order"
-path = "examples/cancel_order.rs"
+path = "examples/orders/cancel_order.rs"
 
 [[example]]
 name = "order_status"
-path = "examples/order_status.rs"
+path = "examples/orders/order_status.rs"
 
 [[example]]
 name = "order_signing"
-path = "examples/order_signing.rs"
+path = "examples/orders/order_signing.rs"
 
-[[example]]
-name = "app_data"
-path = "examples/app_data.rs"
-
-[[example]]
-name = "subgraph_query"
-path = "examples/subgraph_query.rs"
-
-[[example]]
-name = "onchain_reader"
-path = "examples/onchain_reader.rs"
+# ── Composable orders ─────────────────────────────────────────────────────────
 
 [[example]]
 name = "composable_twap"
-path = "examples/composable_twap.rs"
+path = "examples/composable/twap.rs"
+
+[[example]]
+name = "composable_stop_loss"
+path = "examples/composable/stop_loss.rs"
+
+# ── Onchain / Subgraph / App-data / Config ────────────────────────────────────
+
+[[example]]
+name = "onchain_reader"
+path = "examples/onchain/reader.rs"
+
+[[example]]
+name = "subgraph_query"
+path = "examples/subgraph/query.rs"
+
+[[example]]
+name = "app_data"
+path = "examples/app_data/metadata.rs"
 
 [[example]]
 name = "chain_config"
-path = "examples/chain_config.rs"
+path = "examples/config/chain.rs"
+
+# ── Pre-interaction hooks (permit, flash loans, cow shed, weiroll) ────────────
+
+[[example]]
+name = "permit_eip2612"
+path = "examples/permit/eip2612.rs"
+
+[[example]]
+name = "flash_loan_balancer"
+path = "examples/flash_loans/balancer_loan.rs"
+
+[[example]]
+name = "cow_shed_bundle"
+path = "examples/cow_shed/bundled_calls.rs"
+
+[[example]]
+name = "weiroll_script"
+path = "examples/weiroll/script_planner.rs"
+
+# ── EthFlow & ERC-20 calldata ─────────────────────────────────────────────────
+
+[[example]]
+name = "ethflow_order"
+path = "examples/ethflow/native_eth_order.rs"
+
+[[example]]
+name = "erc20_calldata"
+path = "examples/erc20/calldata.rs"
+
+# ── Bridging ──────────────────────────────────────────────────────────────────
+
+[[example]]
+name = "bridging_quote"
+path = "examples/bridging/cross_chain_quote.rs"
