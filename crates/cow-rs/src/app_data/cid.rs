@@ -21,8 +21,6 @@
 //! | [`decode_cid`] | raw CID bytes → [`CidComponents`] |
 //! | [`extract_digest`] | `CIDv1` string → digest hex |
 
-use alloy_primitives::keccak256;
-
 use crate::error::CowError;
 
 // CIDv1 constants (modern encoding)
@@ -75,16 +73,25 @@ pub fn appdata_hex_to_cid(app_data_hex: &str) -> Result<String, CowError> {
     let bytes = alloy_primitives::hex::decode(hex)
         .map_err(|e| CowError::AppData(format!("invalid hex: {e}")))?;
 
-    // CID digest = keccak256(the 32 raw bytes of appDataHex)
-    let digest = keccak256(&bytes);
+    if bytes.len() != HASH_LEN as usize {
+        return Err(CowError::AppData(format!(
+            "appDataHex must be {} bytes, got {}",
+            HASH_LEN,
+            bytes.len()
+        )));
+    }
 
-    // CIDv1: [version, codec, hash_fn, hash_len, ...digest...]
-    let mut cid = Vec::with_capacity(4 + 32);
+    // The appDataHex is already the keccak256 hash of the canonical JSON
+    // document, so it is used verbatim as the CID multihash digest. The
+    // `HASH_KECCAK256` byte in the header declares the hash function that
+    // produced that digest — re-hashing would break round-trips and diverge
+    // from the TypeScript SDK's `appDataHexToCid`.
+    let mut cid = Vec::with_capacity(4 + HASH_LEN as usize);
     cid.push(CID_VERSION);
     cid.push(MULTICODEC_RAW);
     cid.push(HASH_KECCAK256);
     cid.push(HASH_LEN);
-    cid.extend_from_slice(digest.as_slice());
+    cid.extend_from_slice(&bytes);
 
     // Multibase base16 lowercase: prefix 'f'
     Ok(format!("f{}", alloy_primitives::hex::encode(&cid)))
@@ -441,10 +448,26 @@ mod tests {
 
     #[test]
     fn cid_to_appdata_hex_roundtrip() {
-        let cid = appdata_hex_to_cid(SAMPLE_HEX).unwrap_or_default();
-        let recovered = cid_to_appdata_hex(&cid).unwrap_or_default();
+        let cid = appdata_hex_to_cid(SAMPLE_HEX).unwrap();
+        let recovered = cid_to_appdata_hex(&cid).unwrap();
         assert!(recovered.starts_with("0x"));
         assert_eq!(recovered.len(), 66);
+        assert_eq!(recovered, SAMPLE_HEX);
+    }
+
+    #[test]
+    fn appdata_hex_to_cid_uses_input_as_digest() {
+        // The appDataHex is already a keccak256; it must become the CID digest
+        // verbatim (no extra hashing), matching the TypeScript SDK.
+        let cid = appdata_hex_to_cid(SAMPLE_HEX).unwrap();
+        let components = parse_cid(&cid).unwrap();
+        let expected = alloy_primitives::hex::decode(SAMPLE_HEX.trim_start_matches("0x")).unwrap();
+        assert_eq!(components.digest, expected);
+    }
+
+    #[test]
+    fn appdata_hex_to_cid_rejects_wrong_length() {
+        assert!(appdata_hex_to_cid("0xdeadbeef").is_err());
     }
 
     #[test]

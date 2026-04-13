@@ -227,12 +227,15 @@ fn conformance_appdata_hex_to_cid_roundtrip() {
     let cid = appdata_hex_to_cid(input_hex).unwrap();
     assert!(cid.starts_with(case["expected"]["cid_starts_with"].as_str().unwrap()));
     assert_eq!(cid.len(), case["expected"]["cid_length"].as_u64().unwrap() as usize);
+    assert_eq!(cid, case["expected"]["cid"].as_str().unwrap());
 
     let recovered = cid_to_appdata_hex(&cid).unwrap();
     assert_eq!(
         recovered.len(),
         case["expected"]["roundtrip_hex_length"].as_u64().unwrap() as usize
     );
+    assert_eq!(recovered, case["expected"]["roundtrip_hex"].as_str().unwrap());
+    assert_eq!(recovered, input_hex);
 }
 
 #[test]
