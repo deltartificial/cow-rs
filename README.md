@@ -74,7 +74,7 @@ for the authoritative list.
 
 ```toml
 [dependencies]
-cow-rs = "1.0"
+cow-rs = "0.1"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 alloy-primitives = "1"
 ```
@@ -214,7 +214,7 @@ A separate WebAssembly example lives in [`examples/wasm`](./examples/wasm).
 Enable WASM builds with:
 
 ```toml
-cow-rs = { version = "1.0", default-features = false, features = ["wasm"] }
+cow-rs = { version = "0.1", default-features = false, features = ["wasm"] }
 ```
 
 ## WebAssembly
