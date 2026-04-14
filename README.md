@@ -56,16 +56,16 @@ from Rust:
 
 ## Supported Chains
 
-| Chain         | Chain ID   | Network     |
-| ------------- | ---------- | ----------- |
-| Ethereum      | `1`        | Mainnet     |
-| Gnosis Chain  | `100`      | Mainnet     |
-| Arbitrum One  | `42161`    | Mainnet     |
-| Base          | `8453`     | Mainnet     |
-| Polygon       | `137`      | Mainnet     |
-| Avalanche     | `43114`    | Mainnet     |
-| BNB Chain     | `56`       | Mainnet     |
-| Sepolia       | `11155111` | Testnet     |
+| Chain        | Chain ID   | Network |
+| ------------ | ---------- | ------- |
+| Ethereum     | `1`        | Mainnet |
+| Gnosis Chain | `100`      | Mainnet |
+| Arbitrum One | `42161`    | Mainnet |
+| Base         | `8453`     | Mainnet |
+| Polygon      | `137`      | Mainnet |
+| Avalanche    | `43114`    | Mainnet |
+| BNB Chain    | `56`       | Mainnet |
+| Sepolia      | `11155111` | Testnet |
 
 See [`SupportedChainId`](https://docs.rs/cow-rs/latest/cow_rs/config/enum.SupportedChainId.html)
 for the authoritative list.
@@ -152,24 +152,24 @@ println!("expected out: {}", quote.amounts_and_costs.after_slippage.buy_amount);
 
 ## Modules
 
-| Module            | Purpose                                                            |
-| ----------------- | ------------------------------------------------------------------ |
-| `config`          | Chain IDs, contract addresses, token constants                     |
-| `order_book`      | Orderbook HTTP client and API types                                |
-| `order_signing`   | EIP-712 digest and ECDSA signing                                   |
-| `trading`         | High-level `TradingSdk` and fee-breakdown types                    |
-| `app_data`        | Order metadata schema and keccak256 hashing                        |
-| `subgraph`        | Historical trading data via GraphQL                                |
-| `composable`      | Conditional orders (TWAP, GAT, stop-loss) and Merkle multiplexer   |
-| `onchain`         | On-chain reading via JSON-RPC `eth_call`                           |
-| `permit`          | EIP-2612 permit signing and hook building                          |
-| `ethflow`         | Native ETH order flow                                              |
-| `bridging`        | Cross-chain bridging                                               |
-| `erc20`           | ERC-20 calldata encoding                                           |
-| `weiroll`         | Weiroll scripting for batch operations                             |
-| `cow_shed`        | CowShed hook framework                                             |
-| `flash_loans`     | Flash loan integration                                             |
-| `browser_wallet`  | Wallet bridge for WASM targets                                     |
+| Module           | Purpose                                                          |
+| ---------------- | ---------------------------------------------------------------- |
+| `config`         | Chain IDs, contract addresses, token constants                   |
+| `order_book`     | Orderbook HTTP client and API types                              |
+| `order_signing`  | EIP-712 digest and ECDSA signing                                 |
+| `trading`        | High-level `TradingSdk` and fee-breakdown types                  |
+| `app_data`       | Order metadata schema and keccak256 hashing                      |
+| `subgraph`       | Historical trading data via GraphQL                              |
+| `composable`     | Conditional orders (TWAP, GAT, stop-loss) and Merkle multiplexer |
+| `onchain`        | On-chain reading via JSON-RPC `eth_call`                         |
+| `permit`         | EIP-2612 permit signing and hook building                        |
+| `ethflow`        | Native ETH order flow                                            |
+| `bridging`       | Cross-chain bridging                                             |
+| `erc20`          | ERC-20 calldata encoding                                         |
+| `weiroll`        | Weiroll scripting for batch operations                           |
+| `cow_shed`       | CowShed hook framework                                           |
+| `flash_loans`    | Flash loan integration                                           |
+| `browser_wallet` | Wallet bridge for WASM targets                                   |
 
 Generated API docs live on [docs.rs](https://docs.rs/cow-rs).
 
@@ -186,30 +186,30 @@ cargo run -p examples-native --example stop_loss
 cargo run -p examples-native --example order_status
 ```
 
-| Folder          | What it shows                                               |
-| --------------- | ----------------------------------------------------------- |
-| `orders/`       | quote, swap, limit, signing, status, cancellation           |
-| `composable/`   | TWAP and stop-loss conditional orders                       |
-| `config/`       | picking a chain and reading its constants                   |
-| `onchain/`      | reading balances and allowances via `eth_call`              |
-| `subgraph/`     | historical data queries                                     |
-| `permit/`       | EIP-2612 approve-by-signature                               |
-| `cow_shed/`     | pre- and post-trade hooks                                   |
-| `flash_loans/`  | borrowing inside a settlement                               |
-| `bridging/`     | cross-chain intents                                         |
-| `weiroll/`      | batched call scripting                                      |
-| `erc20/`        | calldata encoding helpers                                   |
-| `app_data/`     | building and hashing order metadata                         |
-| `ethflow/`      | trading native ETH                                          |
+| Folder         | What it shows                                     |
+| -------------- | ------------------------------------------------- |
+| `orders/`      | quote, swap, limit, signing, status, cancellation |
+| `composable/`  | TWAP and stop-loss conditional orders             |
+| `config/`      | picking a chain and reading its constants         |
+| `onchain/`     | reading balances and allowances via `eth_call`    |
+| `subgraph/`    | historical data queries                           |
+| `permit/`      | EIP-2612 approve-by-signature                     |
+| `cow_shed/`    | pre- and post-trade hooks                         |
+| `flash_loans/` | borrowing inside a settlement                     |
+| `bridging/`    | cross-chain intents                               |
+| `weiroll/`     | batched call scripting                            |
+| `erc20/`       | calldata encoding helpers                         |
+| `app_data/`    | building and hashing order metadata               |
+| `ethflow/`     | trading native ETH                                |
 
 A separate WebAssembly example lives in [`examples/wasm`](./examples/wasm).
 
 ## Feature Flags
 
-| Flag       | Default | Description                                                |
-| ---------- | :-----: | ---------------------------------------------------------- |
-| `native`   |   on    | Native (tokio + reqwest) HTTP transport                    |
-| `wasm`     |   off   | `wasm-bindgen` glue, browser wallet bridge, fetch client   |
+| Flag     | Default | Description                                              |
+| -------- | :-----: | -------------------------------------------------------- |
+| `native` |   on    | Native (tokio + reqwest) HTTP transport                  |
+| `wasm`   |   off   | `wasm-bindgen` glue, browser wallet bridge, fetch client |
 
 Enable WASM builds with:
 
