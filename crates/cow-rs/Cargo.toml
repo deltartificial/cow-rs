@@ -16,6 +16,14 @@ documentation = "https://docs.rs/cow-rs"
 [package.metadata.cargo-udeps.ignore]
 normal = ["serde-wasm-bindgen", "syn"]
 
+# docs.rs build configuration. `all-features = true` documents the
+# wasm-only modules alongside the native ones; `--cfg docsrs` lets
+# `#[cfg_attr(docsrs, doc(cfg(...)))]` annotations render feature
+# gates on each item.
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
 [lib]
 doctest = true
 

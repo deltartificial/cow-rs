@@ -5,7 +5,7 @@ exclude = ["examples/wasm", "fuzz"]
 resolver = "3"
 
 [workspace.package]
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 rust-version = "1.93"
 authors = ["CoW Protocol Contributors"]
@@ -195,7 +195,7 @@ alloy-signer-local = "1"
 async-trait = "0.1"
 chrono = { version = "0.4", features = ["serde"] }
 # Internal crate
-cow-rs = { path = "crates/cow-rs", version = "0.1.0" }
+cow-rs = { path = "crates/cow-rs", version = "0.1.1" }
 foldhash = { version = "0.2", features = ["std"] }
 futures = "0.3"
 getrandom = { version = "0.2", default-features = false }
