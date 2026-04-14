@@ -23,14 +23,14 @@ use std::{env, fs, path::Path};
 
 fn main() {
     // Rebuild when specs change (even those used only in tests).
-    println!("cargo::rerun-if-changed=../../specs/subgraph.graphql");
-    println!("cargo::rerun-if-changed=../../specs/app-data-schema.json");
+    println!("cargo::rerun-if-changed=specs/subgraph.graphql");
+    println!("cargo::rerun-if-changed=specs/app-data-schema.json");
 
     generate_orderbook_client();
 }
 
 fn generate_orderbook_client() {
-    let spec_path = Path::new("../../specs/orderbook-api.yml");
+    let spec_path = Path::new("specs/orderbook-api.yml");
     println!("cargo::rerun-if-changed={}", spec_path.display());
     println!("cargo::rerun-if-changed=build.rs");
 

@@ -7,7 +7,11 @@ authors.workspace = true
 license.workspace = true
 repository.workspace = true
 homepage.workspace = true
-description = "Rust SDK for the CoW Protocol"
+description = "Rust SDK for the CoW Protocol: quoting, signing, posting and tracking orders, plus composable orders, on-chain reads and subgraph queries."
+readme = "../../README.md"
+keywords = ["cow", "cowprotocol", "defi", "ethereum", "sdk"]
+categories = ["api-bindings", "cryptography::cryptocurrencies"]
+documentation = "https://docs.rs/cow-rs"
 
 [package.metadata.cargo-udeps.ignore]
 normal = ["serde-wasm-bindgen", "syn"]

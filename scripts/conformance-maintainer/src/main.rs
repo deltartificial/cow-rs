@@ -302,7 +302,7 @@ fn cmd_vendor_schemas(cow_sdk_root: &Path) -> anyhow::Result<()> {
     let src_dir = cow_sdk_root.join("packages/app-data/schemas");
     ensure!(src_dir.is_dir(), "schemas dir not found at {}", src_dir.display());
 
-    let dest_dir = ws.join("specs/app-data");
+    let dest_dir = ws.join("crates/cow-rs/specs/app-data");
     fs::create_dir_all(&dest_dir)?;
 
     let mut count = 0u32;

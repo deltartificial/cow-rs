@@ -75,7 +75,7 @@ mod tests {
 
     /// Parse `specs/subgraph.graphql` into a schema model.
     fn build_schema_model() -> SchemaModel {
-        let sdl = include_str!("../../../../specs/subgraph.graphql");
+        let sdl = include_str!("../../specs/subgraph.graphql");
         let doc = schema::parse_schema::<String>(sdl)
             .unwrap_or_else(|e| panic!("failed to parse subgraph.graphql: {e}"));
 

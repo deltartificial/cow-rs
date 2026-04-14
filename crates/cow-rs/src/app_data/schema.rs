@@ -55,12 +55,12 @@ use super::types::AppDataDoc;
 /// test suite smoke-compile every registered version in a single
 /// iteration without having to name the individual constants.
 const SUPPORTED_VERSIONS: &[(&str, &str)] = &[
-    ("1.0.0", include_str!("../../../../specs/app-data/v1.0.0.json")),
-    ("1.5.0", include_str!("../../../../specs/app-data/v1.5.0.json")),
-    ("1.6.0", include_str!("../../../../specs/app-data/v1.6.0.json")),
-    ("1.10.0", include_str!("../../../../specs/app-data/v1.10.0.json")),
-    ("1.13.0", include_str!("../../../../specs/app-data/v1.13.0.json")),
-    ("1.14.0", include_str!("../../../../specs/app-data/v1.14.0.json")),
+    ("1.0.0", include_str!("../../specs/app-data/v1.0.0.json")),
+    ("1.5.0", include_str!("../../specs/app-data/v1.5.0.json")),
+    ("1.6.0", include_str!("../../specs/app-data/v1.6.0.json")),
+    ("1.10.0", include_str!("../../specs/app-data/v1.10.0.json")),
+    ("1.13.0", include_str!("../../specs/app-data/v1.13.0.json")),
+    ("1.14.0", include_str!("../../specs/app-data/v1.14.0.json")),
 ];
 
 /// The most recent version currently registered.
@@ -89,7 +89,7 @@ pub const LATEST_VERSION: &str = "1.14.0";
 /// different validator (e.g. a JSON Schema debugger). Most consumers
 /// should use [`validate`], [`validate_json`], or their `_with` variants
 /// instead.
-pub const APP_DATA_SCHEMA: &str = include_str!("../../../../specs/app-data/v1.14.0.json");
+pub const APP_DATA_SCHEMA: &str = include_str!("../../specs/app-data/v1.14.0.json");
 
 // ── Error / violation types ──────────────────────────────────────────────────
 

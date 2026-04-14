@@ -237,7 +237,7 @@ cow-rs/
 │   ├── native/        # cargo examples (tokio)
 │   └── wasm/          # browser example
 ├── fuzz/              # cargo-fuzz targets
-├── specs/             # conformance fixtures against the TypeScript SDK
+├── scripts/           # spec fetchers and conformance maintainer
 └── docs/adr/          # architecture decision records
 ```
 
@@ -258,7 +258,8 @@ make maxperf                     # fat-LTO release build
 ```
 
 Conformance tests replay fixtures produced by the TypeScript SDK to guarantee
-byte-for-byte parity on signing and encoding. See [`specs/`](./specs).
+byte-for-byte parity on signing and encoding. See
+[`crates/cow-rs/specs/`](./crates/cow-rs/specs).
 
 ## Minimum Supported Rust Version
 

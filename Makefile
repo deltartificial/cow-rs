@@ -200,17 +200,19 @@ GRAPH_API_KEY ?=
 SUBGRAPH_ID ?= cow-subgraph-mainnet
 SUBGRAPH_URL ?= $(if $(GRAPH_API_KEY),https://gateway-mainnet.network.thegraph.com/api/$(GRAPH_API_KEY)/subgraphs/id/$(SUBGRAPH_ID),)
 
+SPECS_DIR := crates/cow-rs/specs
+
 .PHONY: fetch-orderbook-spec
 fetch-orderbook-spec: ## Fetch orderbook OpenAPI spec from upstream (pinned by ORDERBOOK_COMMIT).
-	@mkdir -p specs
-	@echo "# vendored from cowprotocol/services@$(ORDERBOOK_COMMIT)" > specs/orderbook-api.yml
-	@echo "# regenerate with: make fetch-orderbook-spec ORDERBOOK_COMMIT=<sha>" >> specs/orderbook-api.yml
-	curl -sSfL $(ORDERBOOK_SPEC_URL) >> specs/orderbook-api.yml
-	@echo "Updated specs/orderbook-api.yml (commit: $(ORDERBOOK_COMMIT))"
+	@mkdir -p $(SPECS_DIR)
+	@echo "# vendored from cowprotocol/services@$(ORDERBOOK_COMMIT)" > $(SPECS_DIR)/orderbook-api.yml
+	@echo "# regenerate with: make fetch-orderbook-spec ORDERBOOK_COMMIT=<sha>" >> $(SPECS_DIR)/orderbook-api.yml
+	curl -sSfL $(ORDERBOOK_SPEC_URL) >> $(SPECS_DIR)/orderbook-api.yml
+	@echo "Updated $(SPECS_DIR)/orderbook-api.yml (commit: $(ORDERBOOK_COMMIT))"
 
 .PHONY: fetch-subgraph-schema
 fetch-subgraph-schema: ## Introspect CoW subgraph GraphQL schema (needs GRAPH_API_KEY).
-	@mkdir -p specs
+	@mkdir -p $(SPECS_DIR)
 	@if [ -z "$(SUBGRAPH_URL)" ]; then \
 		echo "ERROR: Set GRAPH_API_KEY or SUBGRAPH_URL."; \
 		echo "  make fetch-subgraph-schema GRAPH_API_KEY=<your-key>"; \
@@ -221,9 +223,9 @@ fetch-subgraph-schema: ## Introspect CoW subgraph GraphQL schema (needs GRAPH_AP
 	@curl -sSfL -X POST "$(SUBGRAPH_URL)" \
 		-H 'Content-Type: application/json' \
 		-d '{"query":"{ __schema { queryType { name } types { kind name description fields(includeDeprecated: true) { name description type { kind name ofType { kind name ofType { kind name ofType { kind name } } } } } inputFields { name type { kind name ofType { kind name ofType { kind name } } } } enumValues(includeDeprecated: true) { name } } } }"}' \
-		> specs/subgraph-introspection.json
-	@echo "Updated specs/subgraph-introspection.json"
-	@echo "Now update specs/subgraph.graphql to match, then run: cargo test -- schema_validation"
+		> $(SPECS_DIR)/subgraph-introspection.json
+	@echo "Updated $(SPECS_DIR)/subgraph-introspection.json"
+	@echo "Now update $(SPECS_DIR)/subgraph.graphql to match, then run: cargo test -- schema_validation"
 
 # Upstream cowprotocol/app-data commit to pin bundles to. `main` for the
 # latest; override with a specific SHA for reproducible builds.

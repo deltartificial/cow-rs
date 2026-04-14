@@ -5,7 +5,7 @@
 Fetches the raw schema files from the `cowprotocol/app-data` repository at
 the pinned commit, walks every ``$ref`` recursively, inlines referenced
 sub-schemas, strips ``$id`` fields, and writes one bundled JSON document
-per version into ``specs/app-data/vX.Y.Z.json``.
+per version into ``crates/cow-rs/specs/app-data/vX.Y.Z.json``.
 
 The bundled outputs are what ``crates/cow-rs/src/app_data/schema.rs``
 ``include_str!``s at compile time, so this script must be run any time
@@ -24,7 +24,7 @@ Defaults
 * Versions: every version currently registered in
   :func:`cow_rs::app_data::schema` — keep this list in sync when
   adding or removing a bundled version in the Rust side.
-* Output directory: ``specs/app-data/`` relative to the repo root.
+* Output directory: ``crates/cow-rs/specs/app-data/`` relative to the repo root.
 """
 
 from __future__ import annotations
@@ -250,8 +250,8 @@ def main() -> None:
     parser.add_argument(
         "--out-dir",
         type=Path,
-        default=Path("specs/app-data"),
-        help="Output directory for bundled schemas (default: specs/app-data)",
+        default=Path("crates/cow-rs/specs/app-data"),
+        help="Output directory for bundled schemas (default: crates/cow-rs/specs/app-data)",
     )
     parser.add_argument(
         "--source-dir",
