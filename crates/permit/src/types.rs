@@ -281,7 +281,7 @@ impl PermitHookData {
     /// Convert this hook into a [`CowHook`] for embedding in order app-data.
     ///
     /// The resulting hook can be placed in
-    /// [`OrderInteractionHooks::pre`](crate::app_data::types::OrderInteractionHooks::pre)
+    /// `OrderInteractionHooks::pre`
     /// so that the solver executes the permit call before settling the order.
     ///
     /// # Returns

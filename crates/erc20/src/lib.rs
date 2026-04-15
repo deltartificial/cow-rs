@@ -48,7 +48,7 @@ const fn abi_u256(v: U256) -> [u8; 32] {
 /// Build calldata for `ERC20.approve(address spender, uint256 amount)`.
 ///
 /// Call this on the sell token to grant the
-/// [`VAULT_RELAYER`](cow_chains::contracts::VAULT_RELAYER) (or any other
+/// `VAULT_RELAYER` (or any other
 /// spender) the allowance it needs to transfer tokens on your behalf.
 ///
 /// # Parameters

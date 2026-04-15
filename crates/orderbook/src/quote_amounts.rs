@@ -441,7 +441,7 @@ pub fn get_quote_amounts_and_costs(
 /// - `valid_to` is overwritten with the user's original validity.
 /// - `owner` is overwritten with the on-chain user address.
 /// - `sell_token` is replaced with
-///   [`NATIVE_CURRENCY_ADDRESS`](crate::config::NATIVE_CURRENCY_ADDRESS).
+///   [`NATIVE_CURRENCY_ADDRESS`](cow_chains::NATIVE_CURRENCY_ADDRESS).
 ///
 /// Mirrors `transformOrder` from the `TypeScript` SDK.
 ///

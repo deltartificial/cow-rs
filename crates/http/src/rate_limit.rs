@@ -22,7 +22,7 @@
 //!
 //! [`RateLimiter`] is cloned cheaply (internally an `Arc<Mutex<_>>`) so a
 //! single instance can be shared across clones of
-//! [`super::api::OrderBookApi`], matching the behaviour of
+//! `OrderBookApi`, matching the behaviour of
 //! `this.rateLimiter` on a `TypeScript` `OrderBookApi` whose instance is
 //! reused by every request.
 

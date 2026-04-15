@@ -158,10 +158,10 @@ pub(crate) async fn sign_digest(
 /// the owner address (20 bytes), and the order expiry as a big-endian `uint32`
 /// (4 bytes):
 ///
-/// ```ignore
+/// ```text
 /// uid = signing_digest(domain_sep(chain_id), order_hash(order))
-///       ‖ owner (20 bytes)
-///       ‖ valid_to.to_be_bytes() (4 bytes)
+///       || owner (20 bytes)
+///       || valid_to.to_be_bytes() (4 bytes)
 /// ```
 ///
 /// Mirrors `packOrderUidParams` / `computeOrderUid` from the `TypeScript` SDK.

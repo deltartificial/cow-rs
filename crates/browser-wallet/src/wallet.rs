@@ -2,7 +2,7 @@
 //!
 //! Provides [`BrowserWallet`] which wraps a `JavaScript` signing function
 //! and implements [`CowSigner`](cow_signing::CowSigner) for use with
-//! [`TradingSdk`](crate::trading::TradingSdk).
+//! `TradingSdk`.
 //!
 //! The [`BrowserWallet`] struct and its [`CowSigner`](cow_signing::CowSigner) implementation
 //! are only available when the `wasm` feature is enabled.

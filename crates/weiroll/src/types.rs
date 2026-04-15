@@ -382,7 +382,7 @@ pub const fn create_weiroll_library(address: Address, abi: Vec<u8>) -> WeirollCo
 /// assert_eq!(evm_call.value, alloy_primitives::U256::ZERO);
 /// ```
 ///
-/// [`WEIROLL_ADDRESS`]: cow_weiroll::WEIROLL_ADDRESS
+/// [`WEIROLL_ADDRESS`]: crate::types::WEIROLL_ADDRESS
 #[must_use]
 pub fn create_weiroll_delegate_call(
     add_to_planner: impl FnOnce(&mut super::WeirollPlanner),

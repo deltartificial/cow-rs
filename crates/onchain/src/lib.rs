@@ -84,7 +84,8 @@ impl OnchainReader {
     /// Low-level `eth_call`: send ABI-encoded `data` to contract `to` at block `"latest"`.
     ///
     /// Returns the decoded return bytes. Callers are responsible for ABI-decoding
-    /// the result (e.g. via [`decode_u256`] or [`decode_string`]).
+    /// the result (e.g. via the crate's private `decode_u256` or
+    /// `decode_string` helpers).
     ///
     /// # Arguments
     ///

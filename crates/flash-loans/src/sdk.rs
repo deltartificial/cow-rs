@@ -219,7 +219,7 @@ impl FlashLoanSdk {
     /// # Returns
     ///
     /// A [`CowHook`](cow_types::CowHook) ready to be attached to an
-    /// order's [`OrderInteractionHooks::pre`](cow_app_data::OrderInteractionHooks).
+    /// order's `OrderInteractionHooks::pre`.
     ///
     /// # Errors
     ///

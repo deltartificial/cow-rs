@@ -29,7 +29,7 @@ use super::types::{AppDataDoc, LATEST_APP_DATA_VERSION, Metadata};
 /// `keccak256(json_bytes)`.
 ///
 /// The returned [`B256`] is the 32-byte digest used as the `appData` field in
-/// every [`UnsignedOrder`](cow_signing::types::UnsignedOrder).
+/// every `UnsignedOrder`.
 /// Internally, the document is first passed through [`stringify_deterministic`]
 /// (which sorts all object keys alphabetically and strips whitespace) before
 /// hashing, guaranteeing the same [`AppDataDoc`] always produces the same hash
