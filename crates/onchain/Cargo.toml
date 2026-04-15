@@ -1,0 +1,32 @@
+[package]
+name = "cow-onchain"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "JSON-RPC eth_call reader for on-chain state queries used by the CoW Protocol SDK."
+readme = "../../README.md"
+keywords = ["cow", "cowprotocol", "defi", "ethereum", "sdk"]
+categories = ["api-bindings", "cryptography::cryptocurrencies"]
+
+[package.metadata.workspace.layer]
+layer = 4
+
+[lib]
+doctest = false
+
+[dependencies]
+alloy-primitives.workspace = true
+cow-chains.workspace = true
+cow-erc20.workspace = true
+cow-errors.workspace = true
+futures.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

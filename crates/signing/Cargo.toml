@@ -1,0 +1,38 @@
+[package]
+name = "cow-signing"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "EIP-712 order signing, EIP-1271, and OrderUid computation for the CoW Protocol SDK."
+readme = "../../README.md"
+keywords = ["cow", "cowprotocol", "defi", "ethereum", "sdk"]
+categories = ["api-bindings", "cryptography::cryptocurrencies"]
+
+[package.metadata.workspace.layer]
+layer = 2
+
+# Doctests reference the legacy `cow_rs::` paths; they are disabled here
+# during the workspace split and re-enabled in a later phase after the
+# examples have been rewritten against the new crate-qualified paths.
+[lib]
+doctest = false
+
+[dependencies]
+alloy-primitives.workspace = true
+alloy-signer.workspace = true
+alloy-signer-local.workspace = true
+async-trait.workspace = true
+cow-chains.workspace = true
+cow-errors.workspace = true
+cow-types.workspace = true
+foldhash.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+
+[lints]
+workspace = true

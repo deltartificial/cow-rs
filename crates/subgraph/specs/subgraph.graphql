@@ -1,0 +1,215 @@
+# CoW Protocol Subgraph GraphQL Schema
+#
+# Baseline schema derived from the Rust SDK types and queries.
+# Update with `make fetch-subgraph-schema` when the subgraph endpoint is
+# accessible, then run `cargo test` to catch drift.
+#
+# Source: https://thegraph.com/hosted-service/subgraph/cowprotocol/cow
+
+type Total @entity {
+  id: ID!
+  tokens: BigInt!
+  orders: BigInt!
+  traders: BigInt!
+  settlements: BigInt!
+  numberOfTrades: BigInt!
+  volumeUsd: BigDecimal
+  volumeEth: BigDecimal
+  feesUsd: BigDecimal
+  feesEth: BigDecimal
+}
+
+type DailyTotal @entity {
+  id: ID!
+  timestamp: Int!
+  orders: BigInt!
+  traders: BigInt!
+  tokens: BigInt!
+  settlements: BigInt!
+  volumeEth: BigDecimal!
+  volumeUsd: BigDecimal!
+  feesEth: BigDecimal!
+  feesUsd: BigDecimal!
+}
+
+type HourlyTotal @entity {
+  id: ID!
+  timestamp: Int!
+  orders: BigInt!
+  traders: BigInt!
+  tokens: BigInt!
+  settlements: BigInt!
+  volumeEth: BigDecimal!
+  volumeUsd: BigDecimal!
+  feesEth: BigDecimal!
+  feesUsd: BigDecimal!
+}
+
+type Token @entity {
+  id: ID!
+  address: Bytes!
+  firstTradeTimestamp: Int!
+  name: String!
+  symbol: String!
+  decimals: Int!
+  totalVolume: BigDecimal!
+  priceEth: BigDecimal!
+  priceUsd: BigDecimal!
+  numberOfTrades: BigInt!
+}
+
+type TokenDailyTotal @entity {
+  id: ID!
+  token: Token!
+  timestamp: Int!
+  totalVolume: BigDecimal!
+  totalVolumeUsd: BigDecimal!
+  totalTrades: BigInt!
+  openPrice: BigDecimal!
+  closePrice: BigDecimal!
+  higherPrice: BigDecimal!
+  lowerPrice: BigDecimal!
+  averagePrice: BigDecimal!
+}
+
+type TokenHourlyTotal @entity {
+  id: ID!
+  token: Token!
+  timestamp: Int!
+  totalVolume: BigDecimal!
+  totalVolumeUsd: BigDecimal!
+  totalTrades: BigInt!
+  openPrice: BigDecimal!
+  closePrice: BigDecimal!
+  higherPrice: BigDecimal!
+  lowerPrice: BigDecimal!
+  averagePrice: BigDecimal!
+}
+
+type TokenTradingEvent @entity {
+  id: ID!
+  token: Token!
+  priceUsd: BigDecimal!
+  timestamp: Int!
+}
+
+type User @entity {
+  id: ID!
+  address: Bytes!
+  firstTradeTimestamp: Int!
+  numberOfTrades: BigInt!
+  solvedAmountEth: BigDecimal!
+  solvedAmountUsd: BigDecimal!
+}
+
+type Settlement @entity {
+  id: ID!
+  txHash: Bytes!
+  firstTradeTimestamp: Int!
+  solver: Bytes!
+  txCost: BigDecimal
+  txFeeInEth: BigDecimal
+}
+
+type Trade @entity {
+  id: ID!
+  timestamp: Int!
+  gasPrice: BigInt!
+  feeAmount: BigInt!
+  txHash: Bytes!
+  settlement: Settlement!
+  buyAmount: BigInt!
+  sellAmount: BigInt!
+  sellAmountBeforeFees: BigInt!
+  buyToken: Token!
+  sellToken: Token!
+  owner: User!
+  order: Order!
+}
+
+type Order @entity {
+  id: ID!
+  owner: User!
+  sellToken: Token!
+  buyToken: Token!
+  receiver: Bytes
+  sellAmount: BigInt!
+  buyAmount: BigInt!
+  validTo: BigInt!
+  appData: Bytes!
+  feeAmount: BigInt!
+  kind: String!
+  partiallyFillable: Boolean!
+  status: String!
+  executedSellAmount: BigInt!
+  executedSellAmountBeforeFees: BigInt!
+  executedBuyAmount: BigInt!
+  executedFeeAmount: BigInt!
+  invalidateTimestamp: Int
+  timestamp: Int!
+  txHash: Bytes!
+  isSignerSafe: Boolean!
+  signingScheme: String!
+  uid: Bytes!
+  surplus: BigDecimal
+}
+
+type Pair @entity {
+  id: ID!
+  token0: Token!
+  token1: Token!
+  volumeToken0: BigDecimal!
+  volumeToken1: BigDecimal!
+  numberOfTrades: BigInt!
+}
+
+type PairDaily @entity {
+  id: ID!
+  token0: Token!
+  token1: Token!
+  timestamp: Int!
+  volumeToken0: BigDecimal!
+  volumeToken1: BigDecimal!
+  numberOfTrades: BigInt!
+}
+
+type PairHourly @entity {
+  id: ID!
+  token0: Token!
+  token1: Token!
+  timestamp: Int!
+  volumeToken0: BigDecimal!
+  volumeToken1: BigDecimal!
+  numberOfTrades: BigInt!
+}
+
+type Bundle @entity {
+  id: ID!
+  ethPriceUSD: BigDecimal!
+}
+
+type UniswapToken @entity {
+  id: ID!
+  address: Bytes!
+  name: String!
+  symbol: String!
+  decimals: Int!
+  priceEth: BigDecimal
+  priceUsd: BigDecimal
+}
+
+type UniswapPool @entity {
+  id: ID!
+  liquidity: BigInt!
+  tick: BigInt
+  token0: UniswapToken!
+  token0Price: BigDecimal!
+  token1: UniswapToken!
+  token1Price: BigDecimal!
+  totalValueLockedToken0: BigDecimal!
+  totalValueLockedToken1: BigDecimal!
+}
+
+scalar BigInt
+scalar BigDecimal
+scalar Bytes

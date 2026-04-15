@@ -1,0 +1,59 @@
+[package]
+name = "cow-browser-wallet"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "EIP-1193 browser wallet adapter and wasm-bindgen glue for the CoW Protocol SDK."
+readme = "../../README.md"
+keywords = ["cow", "cowprotocol", "wasm", "wallet", "sdk"]
+categories = ["api-bindings", "wasm"]
+
+# Orthogonal crate: not in the main DAG layers — it adapts the native SDK
+# to a browser/WASM environment and depends on multiple layers.
+[package.metadata.workspace.layer]
+layer = "orthogonal"
+
+[lib]
+doctest = false
+
+[features]
+default = []
+wasm = [
+  "dep:wasm-bindgen",
+  "dep:wasm-bindgen-futures",
+  "dep:js-sys",
+  "dep:serde-wasm-bindgen",
+  "getrandom/js",
+]
+
+[dependencies]
+alloy-primitives.workspace = true
+alloy-signer-local.workspace = true
+async-trait.workspace = true
+cow-app-data.workspace = true
+cow-chains.workspace = true
+cow-errors.workspace = true
+cow-ethflow.workspace = true
+cow-onchain.workspace = true
+cow-orderbook.workspace = true
+cow-permit.workspace = true
+cow-signing.workspace = true
+cow-subgraph.workspace = true
+cow-trading.workspace = true
+cow-types.workspace = true
+getrandom = { workspace = true, optional = true }
+js-sys = { version = "0.3", optional = true }
+serde_json.workspace = true
+serde-wasm-bindgen = { workspace = true, optional = true }
+wasm-bindgen = { workspace = true, optional = true }
+wasm-bindgen-futures = { workspace = true, optional = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+
+[lints]
+workspace = true

@@ -1,0 +1,56 @@
+[package]
+name = "cow-orderbook"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "HTTP client for the CoW Protocol orderbook REST API (generated from OpenAPI)."
+readme = "../../README.md"
+keywords = ["cow", "cowprotocol", "defi", "ethereum", "sdk"]
+categories = ["api-bindings", "cryptography::cryptocurrencies"]
+
+[package.metadata.workspace.layer]
+layer = 4
+
+[lib]
+doctest = false
+
+[features]
+default = ["native"]
+native = ["dep:tokio"]
+wasm = []
+
+[dependencies]
+alloy-primitives.workspace = true
+async-trait.workspace = true
+chrono.workspace = true
+cow-chains.workspace = true
+cow-errors.workspace = true
+cow-http.workspace = true
+# NOTE (workspace-split migration debt): `cow-signing` is a sibling L2
+# crate here referenced for its shared `UnsignedOrder` type. That type will
+# move down to `cow-types` in a later cleanup pass.
+cow-signing.workspace = true
+cow-primitives.workspace = true
+cow-types.workspace = true
+foldhash.workspace = true
+progenitor-client.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio = { workspace = true, optional = true }
+tracing.workspace = true
+
+[build-dependencies]
+openapiv3.workspace = true
+prettyplease.workspace = true
+progenitor-impl.workspace = true
+serde_json.workspace = true
+serde_yaml.workspace = true
+syn = "2"
+
+[lints]
+workspace = true

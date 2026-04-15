@@ -1,0 +1,37 @@
+[package]
+name = "cow-settlement"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Settlement encoder, simulator, and vault helpers for the CoW Protocol SDK."
+readme = "../../README.md"
+keywords = ["cow", "cowprotocol", "defi", "ethereum", "sdk"]
+categories = ["api-bindings", "cryptography::cryptocurrencies"]
+
+[package.metadata.workspace.layer]
+layer = 2
+
+[lib]
+doctest = false
+
+[dependencies]
+alloy-primitives.workspace = true
+cow-chains.workspace = true
+cow-errors.workspace = true
+# NOTE (workspace-split migration debt): depending on `cow-signing` at L2
+# violates Rule 2 (no sibling deps). The shared encoding types
+# (`UnsignedOrder`, `EncodedTrade`, `SettlementTokenRegistry`, `SignatureData`,
+# `encode_trade`) will be pushed down to `cow-types` in a later phase.
+cow-signing.workspace = true
+cow-types.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

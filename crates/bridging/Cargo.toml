@@ -1,0 +1,45 @@
+[package]
+name = "cow-bridging"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Cross-chain bridge aggregator for the CoW Protocol SDK (Across, Bungee)."
+readme = "../../README.md"
+keywords = ["cow", "cowprotocol", "defi", "ethereum", "sdk"]
+categories = ["api-bindings", "cryptography::cryptocurrencies"]
+
+[package.metadata.workspace.layer]
+layer = 5
+
+[lib]
+doctest = false
+
+[features]
+default = ["native"]
+native = ["dep:tokio"]
+wasm = []
+
+[dependencies]
+alloy-primitives.workspace = true
+cow-chains.workspace = true
+cow-errors.workspace = true
+cow-types.workspace = true
+foldhash.workspace = true
+futures.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, optional = true }
+tracing.workspace = true
+
+[dev-dependencies]
+alloy-signer-local.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+
+[lints]
+workspace = true

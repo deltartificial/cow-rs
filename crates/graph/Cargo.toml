@@ -1,0 +1,27 @@
+[package]
+name = "cow-graph"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Layer 3 GraphQL transport primitives for the CoW Protocol SDK (placeholder)."
+readme = "../../README.md"
+keywords = ["cow", "cowprotocol", "graphql", "sdk"]
+categories = ["api-bindings"]
+
+[package.metadata.workspace.layer]
+layer = 3
+
+[lib]
+doctest = false
+
+[dependencies]
+# No deps yet — placeholder crate. Will depend on `cow-http` once the
+# `GraphTransport` trait and query-envelope handling migrate here from
+# `cow-subgraph`.
+
+[lints]
+workspace = true

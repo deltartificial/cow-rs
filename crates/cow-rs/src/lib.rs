@@ -1,17 +1,32 @@
-//! `cow-rs` — Rust SDK for the `CoW` Protocol.
+//! `cow-rs` — Rust SDK for the `CoW` Protocol (façade crate).
 //!
-//! Organised into sub-modules mirroring the `TypeScript` SDK packages:
+//! This is the Layer 6 façade of the workspace — it re-exports every
+//! layered `cow-*` crate under one ergonomic entry point and contains no
+//! logic of its own. Users who want tighter tree-shaking can depend on
+//! the individual `cow-*` crates directly.
 //!
-//! | Module | Purpose |
-//! |--------|---------|
-//! | [`config`] | Chain IDs, contract addresses, token constants |
-//! | [`order_book`] | Orderbook HTTP client and API types |
-//! | [`order_signing`] | `EIP-712` digest and ECDSA signing |
-//! | [`trading`] | High-level [`TradingSdk`] and fee-breakdown types |
-//! | [`app_data`] | Order metadata schema and `keccak256` hashing |
-//! | [`subgraph`] | Historical trading data via `GraphQL` |
-//! | [`composable`] | Conditional orders (`TWAP`) and Merkle multiplexer |
-//! | [`onchain`] | On-chain reading via JSON-RPC `eth_call` |
+//! Two naming conventions are exposed in parallel:
+//!
+//! - **Clean layered names** aligned with the architecture doc ([`chains`], [`signing`],
+//!   [`orderbook`], [`primitives`], [`http`], ...)
+//! - **Legacy module names** kept for backwards compatibility with pre-split call sites
+//!   ([`config`], [`order_signing`], [`order_book`], ...)
+//!
+//! Both forms reach the same underlying crates.
+//!
+//! | Layer | Clean name | Legacy alias | Crate |
+//! |---|---|---|---|
+//! | L0 | [`primitives`] | — | [`cow_primitives`] |
+//! | L0 | [`chains`] | [`config`] | [`cow_chains`] |
+//! | L0 | [`error`] | — | [`cow_errors`] |
+//! | L1 | [`types`] | — | [`cow_types`] |
+//! | L2 | [`signing`] | [`order_signing`] | [`cow_signing`] |
+//! | L2 | [`app_data`] | — | [`cow_app_data`] |
+//! | L2 | [`permit`], [`erc20`], [`ethflow`], [`weiroll`], [`cow_shed`], [`settlement`] | — | respective `cow-*` crates |
+//! | L3 | [`http`] | — | [`cow_http`] |
+//! | L4 | [`orderbook`] | [`order_book`] | [`cow_orderbook`] |
+//! | L4 | [`subgraph`], [`onchain`] | — | respective `cow-*` crates |
+//! | L5 | [`trading`], [`composable`], [`bridging`], [`flash_loans`] | — | respective `cow-*` crates |
 //!
 //! # Quick start — `TradingSdk`
 //!
@@ -48,36 +63,177 @@
 #![deny(unsafe_code)]
 #![warn(missing_docs)]
 
-pub mod app_data;
-pub mod bridging;
 pub mod common;
-pub mod composable;
-pub mod config;
-pub mod cow_shed;
-pub mod erc20;
-pub mod error;
-pub mod ethflow;
-pub mod flash_loans;
-pub mod onchain;
-pub mod order_book;
-pub mod order_signing;
-pub mod permit;
 pub mod settlement;
-pub mod subgraph;
-pub mod trading;
 pub mod traits;
-pub mod types;
-pub mod weiroll;
 
-#[cfg_attr(
-    feature = "wasm",
-    allow(unsafe_code, reason = "wasm-bindgen macro generates unsafe glue code")
-)]
-pub mod browser_wallet;
+// ── Clean layered re-exports (primary API) ───────────────────────────────────
+//
+// These aliases match the workspace architecture doc and are the recommended
+// way to reference the layered crates from downstream code:
+//
+//     use cow_rs::{chains::SupportedChainId, signing::sign_order, orderbook::OrderBookApi};
 
+/// Numeric constants and zero addresses (L0).
+pub use cow_primitives as primitives;
+
+/// HTTP transport primitives: rate limiter, retry policy (L3).
+pub use cow_http as http;
+
+/// Per-chain configuration, contract addresses and canonical endpoints (L0).
+pub use cow_chains as chains;
+
+/// EIP-712 signing, `OrderUid` computation (L2).
+pub use cow_signing as signing;
+
+/// Orderbook REST API client (L4).
+pub use cow_orderbook as orderbook;
+
+// ── Legacy module shims (kept for backwards compatibility) ───────────────────
+//
+// These modules preserve the pre-split naming so downstream code and the
+// legacy integration tests continue to compile unchanged. Prefer the clean
+// layered names above for new code.
+
+/// Chain configuration, contract addresses and endpoints.
+///
+/// Re-export of the [`cow_chains`] crate. The legacy `config` module
+/// name is kept for backwards compatibility until the `cow-sdk` façade
+/// replaces `cow-rs`.
+pub mod config {
+    pub use cow_chains::*;
+}
+
+/// Unified error type for the SDK.
+///
+/// Re-export of the [`cow_errors`] crate.
+pub mod error {
+    pub use cow_errors::*;
+}
+
+/// Protocol enums and primitive constants.
+///
+/// Re-export of [`cow_primitives`] (numeric constants, address helpers)
+/// and [`cow_types`] (protocol enums like [`OrderKind`], [`SigningScheme`],
+/// ...).
+pub mod types {
+    pub use cow_primitives::*;
+    pub use cow_types::*;
+}
+
+/// ERC-20 and EIP-2612 calldata builders.
+///
+/// Re-export of the [`cow_erc20`] crate.
+pub mod erc20 {
+    pub use cow_erc20::*;
+}
+
+/// `EthFlow` native-currency order encoding.
+///
+/// Re-export of the [`cow_ethflow`] crate.
+pub mod ethflow {
+    pub use cow_ethflow::*;
+}
+
+/// Weiroll script builder and encoding.
+///
+/// Re-export of the [`cow_weiroll`] crate.
+pub mod weiroll {
+    pub use cow_weiroll::*;
+}
+
+/// `CoW` Shed proxy contract helpers.
+///
+/// Re-export of the [`cow_shed`] crate.
+pub mod cow_shed {
+    pub use cow_shed::*;
+}
+
+/// EIP-712 order signing, EIP-1271, and `OrderUid` computation.
+///
+/// Re-export of the [`cow_signing`] crate.
+pub mod order_signing {
+    pub use cow_signing::*;
+}
+
+/// EIP-2612 permit utilities.
+///
+/// Re-export of the [`cow_permit`] crate.
+pub mod permit {
+    pub use cow_permit::*;
+}
+
+/// `CoW` Protocol order app-data — metadata schema and hash generation.
+///
+/// Re-export of the [`cow_app_data`] crate.
+pub mod app_data {
+    pub use cow_app_data::*;
+}
+
+/// JSON-RPC `eth_call` reader for on-chain state queries.
+///
+/// Re-export of the [`cow_onchain`] crate.
+pub mod onchain {
+    pub use cow_onchain::*;
+}
+
+/// `CoW` Protocol orderbook API client and types.
+///
+/// Re-export of the [`cow_orderbook`] crate.
+pub mod order_book {
+    pub use cow_orderbook::*;
+}
+
+/// `CoW` Protocol subgraph `GraphQL` client.
+///
+/// Re-export of the [`cow_subgraph`] crate.
+pub mod subgraph {
+    pub use cow_subgraph::*;
+}
+
+/// Flash loan orchestration helpers.
+///
+/// Re-export of the [`cow_flash_loans`] crate.
+pub mod flash_loans {
+    pub use cow_flash_loans::*;
+}
+
+/// `CoW` Protocol composable (conditional) orders.
+///
+/// Re-export of the [`cow_composable`] crate.
+pub mod composable {
+    pub use cow_composable::*;
+}
+
+/// Cross-chain bridge aggregator and provider abstractions.
+///
+/// Re-export of the [`cow_bridging`] crate.
+pub mod bridging {
+    pub use cow_bridging::*;
+}
+
+/// High-level trading SDK.
+///
+/// Re-export of the [`cow_trading`] crate.
+pub mod trading {
+    pub use cow_trading::*;
+}
+
+/// EIP-1193 browser wallet adapter and WASM bindings.
+///
+/// Re-export of the [`cow_browser_wallet`] crate.
+pub mod browser_wallet {
+    pub use cow_browser_wallet::wallet::*;
+}
+
+/// `wasm-bindgen` exports (WASM-only).
+///
+/// Re-export of the [`cow_browser_wallet::wasm`] module. Only available
+/// when the `wasm` feature is enabled on the browser wallet crate.
 #[cfg(feature = "wasm")]
-#[allow(unsafe_code, reason = "wasm-bindgen macro generates unsafe glue code")]
-pub mod wasm;
+pub mod wasm {
+    pub use cow_browser_wallet::wasm::*;
+}
 
 // ── Convenience re-exports ────────────────────────────────────────────────────
 
@@ -238,3 +394,18 @@ pub use weiroll::{
     WeirollScript, create_weiroll_contract, create_weiroll_delegate_call, create_weiroll_library,
     define_read_only, get_static,
 };
+
+// ── Prelude ────────────────────────────────────────────────────────────────
+
+/// Curated prelude of the most commonly used items.
+///
+/// `use cow_rs::prelude::*;` pulls in the handful of types needed for
+/// 90 % of trading flows without having to remember which crate owns
+/// which symbol.
+pub mod prelude {
+    pub use cow_chains::{Env, SupportedChainId};
+    pub use cow_errors::CowError;
+    pub use cow_orderbook::OrderBookApi;
+    pub use cow_trading::{TradeParameters, TradingSdk, TradingSdkConfig};
+    pub use cow_types::{OrderKind, SigningScheme, TokenBalance};
+}

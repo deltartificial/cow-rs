@@ -1,0 +1,27 @@
+[package]
+name = "cow-types"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Layer 1 protocol types for the CoW Protocol SDK (OrderKind, SigningScheme, TokenBalance, ...)."
+readme = "../../README.md"
+keywords = ["cow", "cowprotocol", "defi", "ethereum", "sdk"]
+categories = ["api-bindings", "cryptography::cryptocurrencies"]
+
+[package.metadata.workspace.layer]
+layer = 1
+
+[dependencies]
+alloy-primitives.workspace = true
+cow-errors.workspace = true
+serde.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+
+[lints]
+workspace = true

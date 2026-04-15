@@ -14,7 +14,7 @@ categories = ["api-bindings", "cryptography::cryptocurrencies"]
 documentation = "https://docs.rs/cow-rs"
 
 [package.metadata.cargo-udeps.ignore]
-normal = ["serde-wasm-bindgen", "syn"]
+normal = ["serde-wasm-bindgen"]
 
 # docs.rs build configuration. `all-features = true` documents the
 # wasm-only modules alongside the native ones; `--cfg docsrs` lets
@@ -48,32 +48,42 @@ alloy-signer.workspace = true
 alloy-signer-local.workspace = true
 async-trait.workspace = true
 chrono.workspace = true
+cow-app-data.workspace = true
+cow-bridging.workspace = true
+cow-browser-wallet.workspace = true
+cow-chains.workspace = true
+cow-composable.workspace = true
+cow-shed.workspace = true
+cow-erc20.workspace = true
+cow-errors.workspace = true
+cow-ethflow.workspace = true
+cow-flash-loans.workspace = true
+cow-http.workspace = true
+cow-onchain.workspace = true
+cow-orderbook.workspace = true
+cow-permit.workspace = true
+cow-primitives.workspace = true
+cow-settlement.workspace = true
+cow-signing.workspace = true
+cow-subgraph.workspace = true
+cow-trading.workspace = true
+cow-types.workspace = true
+cow-weiroll.workspace = true
 foldhash.workspace = true
 futures.workspace = true
 getrandom = { workspace = true, optional = true }
 js-sys = { version = "0.3", optional = true }
 jsonschema = { workspace = true, optional = true }
-progenitor-client.workspace = true
 reqwest.workspace = true
 rust_decimal.workspace = true
 serde.workspace = true
 serde-wasm-bindgen = { workspace = true, optional = true }
 serde_json.workspace = true
-# syn pinned for parse_quote_spanned (wasm-bindgen transitive)
-syn.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, optional = true }
 tracing.workspace = true
 wasm-bindgen = { workspace = true, optional = true }
 wasm-bindgen-futures = { workspace = true, optional = true }
-
-[build-dependencies]
-openapiv3 = { workspace = true }
-prettyplease = { workspace = true }
-progenitor-impl = { workspace = true }
-serde_json = { workspace = true }
-serde_yaml = { workspace = true }
-syn = "2"
 
 [dev-dependencies]
 graphql-parser = { workspace = true }

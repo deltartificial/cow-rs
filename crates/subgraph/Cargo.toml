@@ -1,0 +1,35 @@
+[package]
+name = "cow-subgraph"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "GraphQL subgraph client for CoW Protocol historical data."
+readme = "../../README.md"
+keywords = ["cow", "cowprotocol", "defi", "ethereum", "sdk"]
+categories = ["api-bindings", "cryptography::cryptocurrencies"]
+
+[package.metadata.workspace.layer]
+layer = 4
+
+[lib]
+doctest = false
+
+[dependencies]
+alloy-primitives.workspace = true
+cow-chains.workspace = true
+cow-errors.workspace = true
+cow-http.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+foldhash.workspace = true
+graphql-parser.workspace = true
+
+[lints]
+workspace = true

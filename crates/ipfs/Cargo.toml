@@ -1,0 +1,25 @@
+[package]
+name = "cow-ipfs"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Layer 4 IPFS client (Pinata) for the CoW Protocol SDK (placeholder)."
+readme = "../../README.md"
+keywords = ["cow", "cowprotocol", "ipfs", "sdk"]
+categories = ["api-bindings"]
+
+[package.metadata.workspace.layer]
+layer = 4
+
+[lib]
+doctest = false
+
+[dependencies]
+cow-http.workspace = true
+
+[lints]
+workspace = true

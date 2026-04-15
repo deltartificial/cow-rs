@@ -1034,6 +1034,211 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "773648b94d0e5d620f64f280777445740e61fe701025087ec8b57f45c791888b"
 
 [[package]]
+name = "cow-app-data"
+version = "0.1.1"
+dependencies = [
+ "alloy-primitives",
+ "cow-errors",
+ "cow-types",
+ "foldhash 0.2.0",
+ "jsonschema",
+ "reqwest",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "cow-bridging"
+version = "0.1.1"
+dependencies = [
+ "alloy-primitives",
+ "alloy-signer-local",
+ "cow-chains",
+ "cow-errors",
+ "cow-types",
+ "foldhash 0.2.0",
+ "futures",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "cow-browser-wallet"
+version = "0.1.1"
+dependencies = [
+ "alloy-primitives",
+ "alloy-signer-local",
+ "async-trait",
+ "cow-app-data",
+ "cow-chains",
+ "cow-errors",
+ "cow-ethflow",
+ "cow-onchain",
+ "cow-orderbook",
+ "cow-permit",
+ "cow-signing",
+ "cow-subgraph",
+ "cow-trading",
+ "cow-types",
+ "getrandom 0.2.17",
+ "js-sys",
+ "serde-wasm-bindgen",
+ "serde_json",
+ "tokio",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+]
+
+[[package]]
+name = "cow-chains"
+version = "0.1.1"
+dependencies = [
+ "alloy-primitives",
+ "cow-errors",
+ "foldhash 0.2.0",
+ "serde",
+]
+
+[[package]]
+name = "cow-composable"
+version = "0.1.1"
+dependencies = [
+ "alloy-primitives",
+ "chrono",
+ "cow-chains",
+ "cow-errors",
+ "cow-signing",
+ "cow-types",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "cow-contracts-abi"
+version = "0.1.1"
+dependencies = [
+ "alloy-primitives",
+]
+
+[[package]]
+name = "cow-erc20"
+version = "0.1.1"
+dependencies = [
+ "alloy-primitives",
+]
+
+[[package]]
+name = "cow-errors"
+version = "0.1.1"
+dependencies = [
+ "reqwest",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "cow-ethflow"
+version = "0.1.1"
+dependencies = [
+ "alloy-primitives",
+ "cow-chains",
+ "cow-types",
+]
+
+[[package]]
+name = "cow-flash-loans"
+version = "0.1.1"
+dependencies = [
+ "alloy-primitives",
+ "cow-errors",
+ "cow-types",
+]
+
+[[package]]
+name = "cow-graph"
+version = "0.1.1"
+
+[[package]]
+name = "cow-http"
+version = "0.1.1"
+dependencies = [
+ "reqwest",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "cow-ipfs"
+version = "0.1.1"
+dependencies = [
+ "cow-http",
+]
+
+[[package]]
+name = "cow-onchain"
+version = "0.1.1"
+dependencies = [
+ "alloy-primitives",
+ "cow-chains",
+ "cow-erc20",
+ "cow-errors",
+ "futures",
+ "reqwest",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "cow-orderbook"
+version = "0.1.1"
+dependencies = [
+ "alloy-primitives",
+ "async-trait",
+ "chrono",
+ "cow-chains",
+ "cow-errors",
+ "cow-http",
+ "cow-primitives",
+ "cow-signing",
+ "cow-types",
+ "foldhash 0.2.0",
+ "openapiv3",
+ "prettyplease",
+ "progenitor-client",
+ "progenitor-impl",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "syn 2.0.117",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "cow-permit"
+version = "0.1.1"
+dependencies = [
+ "alloy-primitives",
+ "alloy-signer",
+ "alloy-signer-local",
+ "cow-errors",
+ "cow-types",
+ "serde",
+ "tokio",
+]
+
+[[package]]
+name = "cow-primitives"
+version = "0.1.1"
+dependencies = [
+ "alloy-primitives",
+]
+
+[[package]]
 name = "cow-rs"
 version = "0.1.1"
 dependencies = [
@@ -1042,25 +1247,39 @@ dependencies = [
  "alloy-signer-local",
  "async-trait",
  "chrono",
+ "cow-app-data",
+ "cow-bridging",
+ "cow-browser-wallet",
+ "cow-chains",
+ "cow-composable",
+ "cow-erc20",
+ "cow-errors",
+ "cow-ethflow",
+ "cow-flash-loans",
+ "cow-http",
+ "cow-onchain",
+ "cow-orderbook",
+ "cow-permit",
+ "cow-primitives",
+ "cow-settlement",
+ "cow-shed",
+ "cow-signing",
+ "cow-subgraph",
+ "cow-trading",
+ "cow-types",
+ "cow-weiroll",
  "foldhash 0.2.0",
  "futures",
  "getrandom 0.2.17",
  "graphql-parser",
  "js-sys",
  "jsonschema",
- "openapiv3",
- "prettyplease",
- "progenitor-client",
- "progenitor-impl",
  "proptest",
  "reqwest",
  "rust_decimal",
  "serde",
  "serde-wasm-bindgen",
  "serde_json",
- "serde_yaml",
- "syn 1.0.109",
- "syn 2.0.117",
  "thiserror 2.0.18",
  "tokio",
  "tracing",
@@ -1077,6 +1296,104 @@ dependencies = [
  "alloy-signer-local",
  "cow-rs",
  "tokio",
+]
+
+[[package]]
+name = "cow-settlement"
+version = "0.1.1"
+dependencies = [
+ "alloy-primitives",
+ "cow-chains",
+ "cow-errors",
+ "cow-signing",
+ "cow-types",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "cow-shed"
+version = "0.1.1"
+dependencies = [
+ "alloy-primitives",
+ "cow-errors",
+ "cow-types",
+]
+
+[[package]]
+name = "cow-signing"
+version = "0.1.1"
+dependencies = [
+ "alloy-primitives",
+ "alloy-signer",
+ "alloy-signer-local",
+ "async-trait",
+ "cow-chains",
+ "cow-errors",
+ "cow-types",
+ "foldhash 0.2.0",
+ "tokio",
+]
+
+[[package]]
+name = "cow-subgraph"
+version = "0.1.1"
+dependencies = [
+ "alloy-primitives",
+ "cow-chains",
+ "cow-errors",
+ "cow-http",
+ "foldhash 0.2.0",
+ "graphql-parser",
+ "reqwest",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "cow-testing"
+version = "0.1.1"
+dependencies = [
+ "cow-types",
+]
+
+[[package]]
+name = "cow-trading"
+version = "0.1.1"
+dependencies = [
+ "alloy-primitives",
+ "alloy-signer-local",
+ "cow-app-data",
+ "cow-chains",
+ "cow-erc20",
+ "cow-errors",
+ "cow-ethflow",
+ "cow-onchain",
+ "cow-orderbook",
+ "cow-signing",
+ "cow-types",
+ "rust_decimal",
+ "serde_json",
+]
+
+[[package]]
+name = "cow-types"
+version = "0.1.1"
+dependencies = [
+ "alloy-primitives",
+ "cow-errors",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "cow-weiroll"
+version = "0.1.1"
+dependencies = [
+ "alloy-primitives",
+ "cow-chains",
 ]
 
 [[package]]

@@ -27,7 +27,7 @@ enum Cmd {
     Snapshot {
         /// Path to a local cow-sdk checkout.
         #[arg(long)]
-        cow_sdk_root: Option<PathBuf>,
+        cow_root: Option<PathBuf>,
         /// Path to a local cow-contracts checkout.
         #[arg(long)]
         contracts_root: Option<PathBuf>,
@@ -38,7 +38,7 @@ enum Cmd {
     VendorSchemas {
         /// Path to a local cow-sdk checkout.
         #[arg(long)]
-        cow_sdk_root: PathBuf,
+        cow_root: PathBuf,
     },
 }
 
@@ -154,7 +154,7 @@ fn load_fixture(path: &Path) -> anyhow::Result<Fixture> {
 // ---------------------------------------------------------------------------
 
 fn cmd_snapshot(
-    cow_sdk_root: Option<PathBuf>,
+    cow_root: Option<PathBuf>,
     contracts_root: Option<PathBuf>,
 ) -> anyhow::Result<()> {
     let ws = find_workspace_root()?;
@@ -163,7 +163,7 @@ fn cmd_snapshot(
     let today = Utc::now().format("%Y-%m-%d").to_string();
 
     let roots: BTreeMap<&str, Option<&PathBuf>> = BTreeMap::from([
-        ("cow-sdk", cow_sdk_root.as_ref()),
+        ("cow-sdk", cow_root.as_ref()),
         ("cow-contracts", contracts_root.as_ref()),
     ]);
 
@@ -278,7 +278,7 @@ fn cmd_validate() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn cmd_vendor_schemas(cow_sdk_root: &Path) -> anyhow::Result<()> {
+fn cmd_vendor_schemas(cow_root: &Path) -> anyhow::Result<()> {
     let ws = find_workspace_root()?;
     let lock = load_source_lock(&ws)?;
 
@@ -290,7 +290,7 @@ fn cmd_vendor_schemas(cow_sdk_root: &Path) -> anyhow::Result<()> {
         .clone();
 
     // Warn if checkout is at a different commit.
-    let actual = git_head(cow_sdk_root)?;
+    let actual = git_head(cow_root)?;
     if actual != expected_commit {
         println!(
             "WARNING: cow-sdk checkout is at {}, pinned commit is {}",
@@ -299,7 +299,7 @@ fn cmd_vendor_schemas(cow_sdk_root: &Path) -> anyhow::Result<()> {
         );
     }
 
-    let src_dir = cow_sdk_root.join("packages/app-data/schemas");
+    let src_dir = cow_root.join("packages/app-data/schemas");
     ensure!(src_dir.is_dir(), "schemas dir not found at {}", src_dir.display());
 
     let dest_dir = ws.join("crates/cow-rs/specs/app-data");
@@ -331,10 +331,10 @@ fn main() -> anyhow::Result<()> {
 
     match cli.cmd {
         Cmd::Snapshot {
-            cow_sdk_root,
+            cow_root,
             contracts_root,
-        } => cmd_snapshot(cow_sdk_root, contracts_root),
+        } => cmd_snapshot(cow_root, contracts_root),
         Cmd::Validate => cmd_validate(),
-        Cmd::VendorSchemas { cow_sdk_root } => cmd_vendor_schemas(&cow_sdk_root),
+        Cmd::VendorSchemas { cow_root } => cmd_vendor_schemas(&cow_root),
     }
 }
