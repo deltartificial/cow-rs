@@ -1,15 +1,13 @@
 //! On-chain `ERC-20` read methods for [`OnchainReader`].
 
 use alloy_primitives::{Address, U256};
-
-use crate::{
-    erc20::{
-        build_erc20_allowance_calldata, build_erc20_balance_of_calldata,
-        build_erc20_decimals_calldata, build_erc20_name_calldata,
-    },
-    error::CowError,
-    onchain::{OnchainReader, decode_string, decode_u8, decode_u256},
+use cow_sdk_erc20::{
+    build_erc20_allowance_calldata, build_erc20_balance_of_calldata, build_erc20_decimals_calldata,
+    build_erc20_name_calldata,
 };
+use cow_sdk_error::CowError;
+
+use crate::{OnchainReader, decode_string, decode_u8, decode_u256};
 
 impl OnchainReader {
     /// Read the `ERC-20` token balance of `owner` for the contract at `token`.

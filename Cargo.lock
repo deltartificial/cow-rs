@@ -1048,10 +1048,13 @@ dependencies = [
  "cow-sdk-erc20",
  "cow-sdk-error",
  "cow-sdk-ethflow",
+ "cow-sdk-onchain",
+ "cow-sdk-orderbook",
  "cow-sdk-permit",
  "cow-sdk-primitives",
  "cow-sdk-settlement",
  "cow-sdk-signing",
+ "cow-sdk-subgraph",
  "cow-sdk-types",
  "cow-sdk-weiroll",
  "foldhash 0.2.0",
@@ -1060,19 +1063,12 @@ dependencies = [
  "graphql-parser",
  "js-sys",
  "jsonschema",
- "openapiv3",
- "prettyplease",
- "progenitor-client",
- "progenitor-impl",
  "proptest",
  "reqwest",
  "rust_decimal",
  "serde",
  "serde-wasm-bindgen",
  "serde_json",
- "serde_yaml",
- "syn 1.0.109",
- "syn 2.0.117",
  "thiserror 2.0.18",
  "tokio",
  "tracing",
@@ -1149,6 +1145,45 @@ dependencies = [
 ]
 
 [[package]]
+name = "cow-sdk-onchain"
+version = "0.1.1"
+dependencies = [
+ "alloy-primitives",
+ "cow-sdk-chains",
+ "cow-sdk-erc20",
+ "cow-sdk-error",
+ "futures",
+ "reqwest",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "cow-sdk-orderbook"
+version = "0.1.1"
+dependencies = [
+ "alloy-primitives",
+ "chrono",
+ "cow-sdk-chains",
+ "cow-sdk-error",
+ "cow-sdk-primitives",
+ "cow-sdk-signing",
+ "cow-sdk-types",
+ "foldhash 0.2.0",
+ "openapiv3",
+ "prettyplease",
+ "progenitor-client",
+ "progenitor-impl",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "syn 2.0.117",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "cow-sdk-permit"
 version = "0.1.1"
 dependencies = [
@@ -1195,6 +1230,21 @@ dependencies = [
  "cow-sdk-types",
  "foldhash 0.2.0",
  "tokio",
+]
+
+[[package]]
+name = "cow-sdk-subgraph"
+version = "0.1.1"
+dependencies = [
+ "alloy-primitives",
+ "cow-sdk-chains",
+ "cow-sdk-error",
+ "cow-sdk-orderbook",
+ "foldhash 0.2.0",
+ "graphql-parser",
+ "reqwest",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

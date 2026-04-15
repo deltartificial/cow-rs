@@ -1,6 +1,7 @@
-//! On-chain data reading via raw JSON-RPC `eth_call`.
+//! `cow-sdk-onchain` — Layer 4 JSON-RPC `eth_call` reader for the `CoW` Protocol SDK.
 //!
-//! Uses the existing `reqwest` client — no additional alloy-provider
+//! Reads on-chain state (balances, allowances, decimals, permit nonces)
+//! via raw JSON-RPC. Uses a `reqwest` client directly — no alloy-provider
 //! dependency is required, keeping the dep tree clean.
 //!
 //! # Example
@@ -18,16 +19,16 @@
 //! # }
 //! ```
 
+#![deny(unsafe_code)]
+#![warn(missing_docs)]
+
 pub mod erc20;
 pub mod permit;
 
 use alloy_primitives::{Address, B256};
+use cow_sdk_chains::contracts::{IMPLEMENTATION_STORAGE_SLOT, OWNER_STORAGE_SLOT};
+use cow_sdk_error::CowError;
 use serde::Deserialize;
-
-use crate::{
-    config::contracts::{IMPLEMENTATION_STORAGE_SLOT, OWNER_STORAGE_SLOT},
-    error::CowError,
-};
 
 /// Reads on-chain state from an Ethereum node via JSON-RPC `eth_call`.
 ///
@@ -98,7 +99,7 @@ impl OnchainReader {
     ///
     /// Returns [`CowError::Rpc`] if the HTTP request fails, the RPC node returns
     /// an error object, or the hex-encoded result cannot be decoded.
-    pub(crate) async fn eth_call(&self, to: Address, data: &[u8]) -> Result<Vec<u8>, CowError> {
+    pub async fn eth_call(&self, to: Address, data: &[u8]) -> Result<Vec<u8>, CowError> {
         let to_hex = format!("{to:#x}");
         let data_hex = format!("0x{}", alloy_primitives::hex::encode(data));
 
@@ -150,11 +151,7 @@ impl OnchainReader {
     ///
     /// Returns [`CowError::Rpc`] if the HTTP request fails, the RPC node returns
     /// an error object, or the hex-encoded result cannot be decoded.
-    pub(crate) async fn eth_get_storage_at(
-        &self,
-        address: Address,
-        slot: &str,
-    ) -> Result<B256, CowError> {
+    pub async fn eth_get_storage_at(&self, address: Address, slot: &str) -> Result<B256, CowError> {
         let addr_hex = format!("{address:#x}");
 
         let body = serde_json::json!({

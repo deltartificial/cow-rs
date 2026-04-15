@@ -1,4 +1,5 @@
-//! `CoW` Protocol subgraph client — query historical trading data via `GraphQL`.
+//! `cow-sdk-subgraph` — Layer 4 `CoW` Protocol subgraph `GraphQL` client for the `CoW` Protocol
+//! SDK.
 //!
 //! The subgraph indexes all `CoW` Protocol settlements and exposes aggregate
 //! statistics (volume, fees, order counts) through a `GraphQL` API.
@@ -23,6 +24,9 @@
 //! # Ok(())
 //! # }
 //! ```
+
+#![deny(unsafe_code)]
+#![warn(missing_docs)]
 
 pub mod api;
 pub mod queries;

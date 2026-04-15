@@ -7,14 +7,11 @@
 
 use std::sync::Arc;
 
+use cow_sdk_chains::chain::{Env, SupportedChainId};
+use cow_sdk_error::CowError;
+use cow_sdk_orderbook::{RateLimiter, RetryPolicy};
 use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
-
-use crate::{
-    config::chain::{Env, SupportedChainId},
-    error::CowError,
-    order_book::{RateLimiter, RetryPolicy},
-};
 
 use super::{
     queries,

@@ -278,7 +278,7 @@ impl RetryPolicy {
 
     /// Sleep for `delay` on native targets; no-op on wasm.
     #[allow(clippy::unused_async, reason = "wasm path is intentionally synchronous")]
-    pub(crate) async fn wait(&self, delay: Duration) {
+    pub async fn wait(&self, delay: Duration) {
         #[cfg(feature = "native")]
         tokio::time::sleep(delay).await;
         #[cfg(not(feature = "native"))]

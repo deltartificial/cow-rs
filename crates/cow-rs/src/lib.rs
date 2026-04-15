@@ -52,10 +52,7 @@ pub mod bridging;
 pub mod common;
 pub mod composable;
 pub mod flash_loans;
-pub mod onchain;
-pub mod order_book;
 pub mod settlement;
-pub mod subgraph;
 pub mod trading;
 pub mod traits;
 
@@ -139,6 +136,27 @@ pub mod permit {
 /// Re-export of the [`cow_sdk_app_data`] crate.
 pub mod app_data {
     pub use cow_sdk_app_data::*;
+}
+
+/// JSON-RPC `eth_call` reader for on-chain state queries.
+///
+/// Re-export of the [`cow_sdk_onchain`] crate.
+pub mod onchain {
+    pub use cow_sdk_onchain::*;
+}
+
+/// `CoW` Protocol orderbook API client and types.
+///
+/// Re-export of the [`cow_sdk_orderbook`] crate.
+pub mod order_book {
+    pub use cow_sdk_orderbook::*;
+}
+
+/// `CoW` Protocol subgraph `GraphQL` client.
+///
+/// Re-export of the [`cow_sdk_subgraph`] crate.
+pub mod subgraph {
+    pub use cow_sdk_subgraph::*;
 }
 
 #[cfg_attr(

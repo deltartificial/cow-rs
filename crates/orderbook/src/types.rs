@@ -10,17 +10,14 @@
 use std::fmt;
 
 use alloy_primitives::U256;
+use cow_sdk_error::CowError;
+use cow_sdk_types::{EcdsaSigningScheme, OrderKind, PriceQuality, SigningScheme, TokenBalance};
 use foldhash::HashMap;
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    error::CowError,
-    types::{EcdsaSigningScheme, OrderKind, PriceQuality, SigningScheme, TokenBalance},
-};
-
 // `OnchainOrderData` has been pushed down to `cow-sdk-types` (L1) so that
-// `cow-sdk-ethflow` (L2) can reference it without depending on `order_book`
-// (L4). This module re-exports it for backwards compatibility.
+// `cow-sdk-ethflow` (L2) can reference it without depending on this crate.
+// Re-exported at the top level for ergonomic access.
 pub use cow_sdk_types::OnchainOrderData;
 
 // ── Quote ────────────────────────────────────────────────────────────────────
@@ -567,10 +564,10 @@ impl OrderCreation {
     /// ```
     #[must_use]
     pub fn from_unsigned_order(
-        order: &crate::order_signing::types::UnsignedOrder,
+        order: &cow_sdk_signing::types::UnsignedOrder,
         from: alloy_primitives::Address,
         receiver: alloy_primitives::Address,
-        signing: crate::order_signing::types::SigningResult,
+        signing: cow_sdk_signing::types::SigningResult,
     ) -> Self {
         let effective_receiver = if receiver.is_zero() { from } else { receiver };
         Self {
@@ -1195,7 +1192,7 @@ impl Order {
             return self;
         }
         // Replace sell_token with the native currency sentinel.
-        self.sell_token = crate::config::NATIVE_CURRENCY_ADDRESS;
+        self.sell_token = cow_sdk_chains::NATIVE_CURRENCY_ADDRESS;
         // Replace owner with the real user behind the EthFlow contract.
         if let Some(user) = self.onchain_user {
             self.owner = user;
@@ -2917,7 +2914,7 @@ mod tests {
         order.onchain_order_data = Some(OnchainOrderData::new(Address::ZERO));
         order.onchain_user = Some(real_user);
         let transformed = order.transform_eth_flow(1);
-        assert_eq!(transformed.sell_token, crate::config::NATIVE_CURRENCY_ADDRESS);
+        assert_eq!(transformed.sell_token, cow_sdk_chains::NATIVE_CURRENCY_ADDRESS);
         assert_eq!(transformed.owner, real_user);
     }
 

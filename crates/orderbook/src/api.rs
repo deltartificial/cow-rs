@@ -9,16 +9,15 @@
 
 use std::sync::Arc;
 
+use cow_sdk_chains::{Env, SupportedChainId, api_base_url, order_explorer_link};
+use cow_sdk_error::CowError;
+
 use crate::{
-    config::{Env, SupportedChainId, api_base_url, order_explorer_link},
-    error::CowError,
-    order_book::{
-        rate_limit::{RateLimiter, RetryPolicy},
-        types::{
-            AppDataObject, Auction, CompetitionOrderStatus, GetOrdersRequest, GetTradesRequest,
-            Order, OrderCancellations, OrderCreation, OrderQuoteRequest, OrderQuoteResponse,
-            OrderUid, SolverCompetition, TotalSurplus, Trade,
-        },
+    rate_limit::{RateLimiter, RetryPolicy},
+    types::{
+        AppDataObject, Auction, CompetitionOrderStatus, GetOrdersRequest, GetTradesRequest, Order,
+        OrderCancellations, OrderCreation, OrderQuoteRequest, OrderQuoteResponse, OrderUid,
+        SolverCompetition, TotalSurplus, Trade,
     },
 };
 
@@ -892,8 +891,10 @@ pub async fn request<T: serde::de::DeserializeOwned>(
 /// The returned order has sensible defaults with the given `uid`.
 #[must_use]
 pub fn mock_get_order(uid: &str) -> Order {
-    use crate::{OrderKind, SigningScheme, order_book::types::OrderStatus};
     use alloy_primitives::Address;
+    use cow_sdk_types::{OrderKind, SigningScheme};
+
+    use crate::types::OrderStatus;
     Order {
         uid: uid.to_owned(),
         owner: Address::ZERO,
