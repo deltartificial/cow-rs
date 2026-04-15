@@ -29,6 +29,7 @@ async-trait.workspace = true
 chrono.workspace = true
 cow-sdk-chains.workspace = true
 cow-sdk-error.workspace = true
+cow-sdk-http.workspace = true
 # NOTE (workspace-split migration debt): `cow-sdk-signing` is a sibling L2
 # crate here referenced for its shared `UnsignedOrder` type. That type will
 # move down to `cow-sdk-types` in a later cleanup pass.

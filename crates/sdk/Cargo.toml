@@ -1,0 +1,48 @@
+[package]
+name = "cow-sdk"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Rust SDK for the CoW Protocol — façade crate re-exporting the cow-sdk-* workspace."
+readme = "../../README.md"
+keywords = ["cow", "cowprotocol", "defi", "ethereum", "sdk"]
+categories = ["api-bindings", "cryptography::cryptocurrencies"]
+documentation = "https://docs.rs/cow-sdk"
+
+[package.metadata.workspace.layer]
+layer = 6
+
+[lib]
+doctest = false
+
+[features]
+default = []
+
+[dependencies]
+cow-sdk-app-data.workspace = true
+cow-sdk-bridging.workspace = true
+cow-sdk-chains.workspace = true
+cow-sdk-composable.workspace = true
+cow-sdk-cow-shed.workspace = true
+cow-sdk-erc20.workspace = true
+cow-sdk-error.workspace = true
+cow-sdk-ethflow.workspace = true
+cow-sdk-flash-loans.workspace = true
+cow-sdk-http.workspace = true
+cow-sdk-onchain.workspace = true
+cow-sdk-orderbook.workspace = true
+cow-sdk-permit.workspace = true
+cow-sdk-primitives.workspace = true
+cow-sdk-settlement.workspace = true
+cow-sdk-signing.workspace = true
+cow-sdk-subgraph.workspace = true
+cow-sdk-trading.workspace = true
+cow-sdk-types.workspace = true
+cow-sdk-weiroll.workspace = true
+
+[lints]
+workspace = true

@@ -25,6 +25,7 @@ doctest = false
 alloy-primitives.workspace = true
 alloy-signer.workspace = true
 alloy-signer-local.workspace = true
+async-trait.workspace = true
 cow-sdk-chains.workspace = true
 cow-sdk-error.workspace = true
 cow-sdk-types.workspace = true

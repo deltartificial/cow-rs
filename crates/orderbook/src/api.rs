@@ -12,13 +12,12 @@ use std::sync::Arc;
 use cow_sdk_chains::{Env, SupportedChainId, api_base_url, order_explorer_link};
 use cow_sdk_error::CowError;
 
-use crate::{
-    rate_limit::{RateLimiter, RetryPolicy},
-    types::{
-        AppDataObject, Auction, CompetitionOrderStatus, GetOrdersRequest, GetTradesRequest, Order,
-        OrderCancellations, OrderCreation, OrderQuoteRequest, OrderQuoteResponse, OrderUid,
-        SolverCompetition, TotalSurplus, Trade,
-    },
+use cow_sdk_http::{RateLimiter, RetryPolicy};
+
+use crate::types::{
+    AppDataObject, Auction, CompetitionOrderStatus, GetOrdersRequest, GetTradesRequest, Order,
+    OrderCancellations, OrderCreation, OrderQuoteRequest, OrderQuoteResponse, OrderUid,
+    SolverCompetition, TotalSurplus, Trade,
 };
 
 /// Async HTTP client for the `CoW` Protocol orderbook REST API.

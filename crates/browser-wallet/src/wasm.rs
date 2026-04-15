@@ -7,26 +7,23 @@
 //! All complex types are passed as JSON strings and returned as JSON strings
 //! or `JsValue` objects.
 
-use wasm_bindgen::prelude::*;
-
-use crate::{
-    app_data::{
-        cid::{appdata_hex_to_cid, cid_to_appdata_hex},
-        hash::{appdata_hex, stringify_deterministic},
-        ipfs::{get_app_data_info, validate_app_data_doc},
-        types::AppDataDoc,
-    },
-    config::{
-        chain::SupportedChainId,
-        contracts::{settlement_contract, vault_relayer},
-    },
-    order_signing::{
-        eip712::{domain_separator, order_hash, signing_digest},
-        types::UnsignedOrder,
-        utils::{compute_order_uid, sign_order},
-    },
-    types::{EcdsaSigningScheme, OrderKind, TokenBalance},
+use cow_sdk_app_data::{
+    cid::{appdata_hex_to_cid, cid_to_appdata_hex},
+    hash::{appdata_hex, stringify_deterministic},
+    ipfs::{get_app_data_info, validate_app_data_doc},
+    types::AppDataDoc,
 };
+use cow_sdk_chains::{
+    chain::SupportedChainId,
+    contracts::{settlement_contract, vault_relayer},
+};
+use cow_sdk_signing::{
+    eip712::{domain_separator, order_hash, signing_digest},
+    types::UnsignedOrder,
+    utils::{compute_order_uid, sign_order},
+};
+use cow_sdk_types::{EcdsaSigningScheme, OrderKind, TokenBalance};
+use wasm_bindgen::prelude::*;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -364,10 +361,10 @@ pub fn wasm_api_base_url(chain_id: u32, env: &str) -> Result<String, JsValue> {
     let chain = SupportedChainId::try_from_u64(u64::from(chain_id))
         .ok_or_else(|| to_js_err(format!("unsupported chain ID: {chain_id}")))?;
     let environment = match env {
-        "staging" => crate::config::chain::Env::Staging,
-        _ => crate::config::chain::Env::Prod,
+        "staging" => cow_sdk_chains::Env::Staging,
+        _ => cow_sdk_chains::Env::Prod,
     };
-    Ok(crate::config::chain::api_base_url(chain, environment).to_owned())
+    Ok(cow_sdk_chains::chain::api_base_url(chain, environment).to_owned())
 }
 
 /// List all supported chain IDs.
@@ -389,12 +386,12 @@ pub fn wasm_supported_chain_ids() -> String {
 fn parse_chain_env(
     chain_id: u32,
     env: &str,
-) -> Result<(SupportedChainId, crate::config::chain::Env), JsValue> {
+) -> Result<(SupportedChainId, cow_sdk_chains::Env), JsValue> {
     let chain = SupportedChainId::try_from_u64(u64::from(chain_id))
         .ok_or_else(|| to_js_err(format!("unsupported chain ID: {chain_id}")))?;
     let environment = match env {
-        "staging" => crate::config::chain::Env::Staging,
-        _ => crate::config::chain::Env::Prod,
+        "staging" => cow_sdk_chains::Env::Staging,
+        _ => cow_sdk_chains::Env::Prod,
     };
     Ok((chain, environment))
 }
@@ -413,8 +410,8 @@ pub async fn wasm_get_quote(
     request_json: &str,
 ) -> Result<String, JsValue> {
     let (chain, environment) = parse_chain_env(chain_id, env)?;
-    let api = crate::order_book::OrderBookApi::new(chain, environment);
-    let req: crate::order_book::OrderQuoteRequest =
+    let api = cow_sdk_orderbook::OrderBookApi::new(chain, environment);
+    let req: cow_sdk_orderbook::OrderQuoteRequest =
         serde_json::from_str(request_json).map_err(to_js_err)?;
     let resp = api.get_quote(&req).await.map_err(to_js_err)?;
     serde_json::to_string(&resp).map_err(to_js_err)
@@ -432,8 +429,8 @@ pub async fn wasm_send_order(
     order_creation_json: &str,
 ) -> Result<String, JsValue> {
     let (chain, environment) = parse_chain_env(chain_id, env)?;
-    let api = crate::order_book::OrderBookApi::new(chain, environment);
-    let creation: crate::order_book::OrderCreation =
+    let api = cow_sdk_orderbook::OrderBookApi::new(chain, environment);
+    let creation: cow_sdk_orderbook::OrderCreation =
         serde_json::from_str(order_creation_json).map_err(to_js_err)?;
     let uid = api.send_order(&creation).await.map_err(to_js_err)?;
     serde_json::to_string(&uid).map_err(to_js_err)
@@ -445,7 +442,7 @@ pub async fn wasm_send_order(
 #[wasm_bindgen(js_name = "getOrder")]
 pub async fn wasm_get_order(chain_id: u32, env: &str, order_uid: &str) -> Result<String, JsValue> {
     let (chain, environment) = parse_chain_env(chain_id, env)?;
-    let api = crate::order_book::OrderBookApi::new(chain, environment);
+    let api = cow_sdk_orderbook::OrderBookApi::new(chain, environment);
     let order = api.get_order(order_uid).await.map_err(to_js_err)?;
     serde_json::to_string(&order).map_err(to_js_err)
 }
@@ -456,7 +453,7 @@ pub async fn wasm_get_order(chain_id: u32, env: &str, order_uid: &str) -> Result
 #[wasm_bindgen(js_name = "getTrades")]
 pub async fn wasm_get_trades(chain_id: u32, env: &str, order_uid: &str) -> Result<String, JsValue> {
     let (chain, environment) = parse_chain_env(chain_id, env)?;
-    let api = crate::order_book::OrderBookApi::new(chain, environment);
+    let api = cow_sdk_orderbook::OrderBookApi::new(chain, environment);
     let trades = api.get_trades(Some(order_uid), None).await.map_err(to_js_err)?;
     serde_json::to_string(&trades).map_err(to_js_err)
 }
@@ -471,7 +468,7 @@ pub async fn wasm_get_orders_by_owner(
     owner: &str,
 ) -> Result<String, JsValue> {
     let (chain, environment) = parse_chain_env(chain_id, env)?;
-    let api = crate::order_book::OrderBookApi::new(chain, environment);
+    let api = cow_sdk_orderbook::OrderBookApi::new(chain, environment);
     let owner_addr: alloy_primitives::Address = owner.parse().map_err(to_js_err)?;
     let orders = api.get_orders_for_account(owner_addr, None).await.map_err(to_js_err)?;
     serde_json::to_string(&orders).map_err(to_js_err)
@@ -487,7 +484,7 @@ pub async fn wasm_get_native_price(
     token: &str,
 ) -> Result<String, JsValue> {
     let (chain, environment) = parse_chain_env(chain_id, env)?;
-    let api = crate::order_book::OrderBookApi::new(chain, environment);
+    let api = cow_sdk_orderbook::OrderBookApi::new(chain, environment);
     let token_addr: alloy_primitives::Address = token.parse().map_err(to_js_err)?;
     let price = api.get_native_price(token_addr).await.map_err(to_js_err)?;
     Ok(price.to_string())
@@ -501,7 +498,7 @@ pub async fn wasm_get_native_price(
 #[wasm_bindgen(js_name = "getSubgraphTotals")]
 pub async fn wasm_get_subgraph_totals(chain_id: u32, env: &str) -> Result<String, JsValue> {
     let (chain, environment) = parse_chain_env(chain_id, env)?;
-    let api = crate::subgraph::SubgraphApi::new(chain, environment).map_err(to_js_err)?;
+    let api = cow_sdk_subgraph::SubgraphApi::new(chain, environment).map_err(to_js_err)?;
     let totals = api.get_totals().await.map_err(to_js_err)?;
     serde_json::to_string(&totals).map_err(to_js_err)
 }
@@ -517,7 +514,7 @@ pub async fn wasm_fetch_doc_from_cid(
     ipfs_uri: Option<String>,
 ) -> Result<String, JsValue> {
     let doc =
-        crate::app_data::fetch_doc_from_cid(cid, ipfs_uri.as_deref()).await.map_err(to_js_err)?;
+        cow_sdk_app_data::fetch_doc_from_cid(cid, ipfs_uri.as_deref()).await.map_err(to_js_err)?;
     serde_json::to_string(&doc).map_err(to_js_err)
 }
 
@@ -529,7 +526,7 @@ pub async fn wasm_fetch_doc_from_app_data_hex(
     app_data_hex: &str,
     ipfs_uri: Option<String>,
 ) -> Result<String, JsValue> {
-    let doc = crate::app_data::fetch_doc_from_app_data_hex(app_data_hex, ipfs_uri.as_deref())
+    let doc = cow_sdk_app_data::fetch_doc_from_app_data_hex(app_data_hex, ipfs_uri.as_deref())
         .await
         .map_err(to_js_err)?;
     serde_json::to_string(&doc).map_err(to_js_err)
@@ -554,12 +551,10 @@ pub async fn wasm_post_swap_order(
 ) -> Result<String, JsValue> {
     let (chain, environment) = parse_chain_env(chain_id, env)?;
     let config = match environment {
-        crate::config::chain::Env::Staging => {
-            crate::trading::TradingSdkConfig::staging(chain, app_code)
-        }
-        _ => crate::trading::TradingSdkConfig::prod(chain, app_code),
+        cow_sdk_chains::Env::Staging => cow_sdk_trading::TradingSdkConfig::staging(chain, app_code),
+        _ => cow_sdk_trading::TradingSdkConfig::prod(chain, app_code),
     };
-    let sdk = crate::trading::TradingSdk::new(config, private_key).map_err(to_js_err)?;
+    let sdk = cow_sdk_trading::TradingSdk::new(config, private_key).map_err(to_js_err)?;
 
     let v: serde_json::Value = serde_json::from_str(params_json).map_err(to_js_err)?;
 
@@ -583,7 +578,7 @@ pub async fn wasm_post_swap_order(
         .ok_or_else(|| to_js_err("missing field: amount"))?;
     let amount: alloy_primitives::U256 = amount_str.parse().map_err(to_js_err)?;
 
-    let params = crate::trading::TradeParameters {
+    let params = cow_sdk_trading::TradeParameters {
         kind,
         sell_token: parse_addr("sellToken")?,
         sell_token_decimals: v

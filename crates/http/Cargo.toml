@@ -1,0 +1,32 @@
+[package]
+name = "cow-sdk-http"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Layer 3 HTTP transport primitives (rate limiter, retry policy) for the CoW Protocol SDK."
+readme = "../../README.md"
+keywords = ["cow", "cowprotocol", "http", "sdk"]
+categories = ["api-bindings"]
+
+[package.metadata.workspace.layer]
+layer = 3
+
+[lib]
+doctest = false
+
+[features]
+default = ["native"]
+native = ["dep:tokio"]
+wasm = []
+
+[dependencies]
+reqwest.workspace = true
+tokio = { workspace = true, optional = true }
+tracing.workspace = true
+
+[lints]
+workspace = true

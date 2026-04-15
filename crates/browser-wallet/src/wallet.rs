@@ -1,14 +1,14 @@
 //! Browser wallet integration via `EIP-1193`.
 //!
 //! Provides [`BrowserWallet`] which wraps a `JavaScript` signing function
-//! and implements [`CowSigner`](crate::traits::CowSigner) for use with
+//! and implements [`CowSigner`](cow_sdk_signing::CowSigner) for use with
 //! [`TradingSdk`](crate::trading::TradingSdk).
 //!
-//! The [`BrowserWallet`] struct and its [`CowSigner`](crate::traits::CowSigner) implementation
+//! The [`BrowserWallet`] struct and its [`CowSigner`](cow_sdk_signing::CowSigner) implementation
 //! are only available when the `wasm` feature is enabled.
 //!
-//! The [`CowSigner`](crate::traits::CowSigner) trait implementation on [`BrowserWallet`] is further
-//! gated to `target_arch = "wasm32"` because it requires `JsFuture` which
+//! The [`CowSigner`](cow_sdk_signing::CowSigner) trait implementation on [`BrowserWallet`] is
+//! further gated to `target_arch = "wasm32"` because it requires `JsFuture` which
 //! is not `Send`. On native hosts the struct and utility functions are
 //! still available for type-checking and documentation.
 //!
@@ -23,12 +23,11 @@
 use std::sync::Mutex;
 
 use alloy_primitives::{Address, B256, keccak256};
+use cow_sdk_error::CowError;
+#[cfg(target_arch = "wasm32")]
+use cow_sdk_signing::CowSigner;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
-
-use crate::error::CowError;
-#[cfg(target_arch = "wasm32")]
-use crate::traits::CowSigner;
 
 // ── WalletSession ───────────────────────────────────────────────────────────
 
@@ -194,7 +193,7 @@ pub struct SignRequest {
 ///
 /// # Trait implementation
 ///
-/// `BrowserWallet` implements [`CowSigner`](crate::traits::CowSigner) on
+/// `BrowserWallet` implements [`CowSigner`](cow_sdk_signing::CowSigner) on
 /// `wasm32` targets, so it can be used anywhere the SDK expects a signer
 /// (e.g., `TradingSdk` internals).
 #[cfg(feature = "wasm")]
@@ -637,7 +636,7 @@ impl JsBrowserWallet {
 /// is available on **all** platforms (not just `wasm32`) so it can be used
 /// in native unit and integration tests.
 ///
-/// Implements [`CowSigner`](crate::traits::CowSigner) so it can be injected
+/// Implements [`CowSigner`](cow_sdk_signing::CowSigner) so it can be injected
 /// wherever the SDK expects a signer.
 ///
 /// # Example
@@ -665,7 +664,7 @@ pub struct MockBrowserWallet {
     /// All signing requests that have been made to this mock.
     ///
     /// Uses [`Mutex`] for interior mutability so that the
-    /// [`CowSigner`](crate::traits::CowSigner) trait methods (which take
+    /// [`CowSigner`](cow_sdk_signing::CowSigner) trait methods (which take
     /// `&self`) can record requests without requiring `&mut self`.
     sign_requests: Mutex<Vec<SignRequest>>,
     /// When `true`, all signing operations will return an error.
@@ -726,8 +725,8 @@ impl MockBrowserWallet {
     /// Configure whether signing operations should fail.
     ///
     /// When set to `true`,
-    /// [`CowSigner::sign_typed_data`](crate::traits::CowSigner::sign_typed_data)
-    /// and [`CowSigner::sign_message`](crate::traits::CowSigner::sign_message) will return
+    /// [`CowSigner::sign_typed_data`](cow_sdk_signing::CowSigner::sign_typed_data)
+    /// and [`CowSigner::sign_message`](cow_sdk_signing::CowSigner::sign_message) will return
     /// [`CowError::Signing`].
     pub const fn set_should_fail(&mut self, fail: bool) {
         self.should_fail = fail;
@@ -782,7 +781,7 @@ const MOCK_SIGNATURE: [u8; 65] = [0u8; 65];
 
 #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
 #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
-impl crate::traits::CowSigner for MockBrowserWallet {
+impl cow_sdk_signing::CowSigner for MockBrowserWallet {
     fn address(&self) -> Address {
         self.address
     }
@@ -958,7 +957,7 @@ mod tests {
     fn cow_signer_trait_is_object_safe() {
         // Verify that CowSigner can be used behind a trait object.
         // This is a compile-time check only.
-        fn _assert_object_safe(_: &dyn crate::traits::CowSigner) {}
+        fn _assert_object_safe(_: &dyn cow_sdk_signing::CowSigner) {}
     }
 
     #[test]
@@ -1126,7 +1125,8 @@ mod tests {
     #[tokio::test]
     async fn mock_wallet_sign_typed_data_success() {
         let mock = MockBrowserWallet::new(test_address(), 1);
-        let result = crate::traits::CowSigner::sign_typed_data(&mock, B256::ZERO, B256::ZERO).await;
+        let result =
+            cow_sdk_signing::CowSigner::sign_typed_data(&mock, B256::ZERO, B256::ZERO).await;
         assert!(result.is_ok());
         let sig = result.expect("signing should succeed");
         assert_eq!(sig.len(), 65);
@@ -1140,7 +1140,8 @@ mod tests {
     async fn mock_wallet_sign_typed_data_failure() {
         let mut mock = MockBrowserWallet::new(test_address(), 1);
         mock.set_should_fail(true);
-        let result = crate::traits::CowSigner::sign_typed_data(&mock, B256::ZERO, B256::ZERO).await;
+        let result =
+            cow_sdk_signing::CowSigner::sign_typed_data(&mock, B256::ZERO, B256::ZERO).await;
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert!(err.to_string().contains("mock wallet configured to fail"));
@@ -1150,7 +1151,7 @@ mod tests {
     async fn mock_wallet_sign_message_success() {
         let mock = MockBrowserWallet::new(test_address(), 1);
         let message = b"hello world";
-        let result = crate::traits::CowSigner::sign_message(&mock, message).await;
+        let result = cow_sdk_signing::CowSigner::sign_message(&mock, message).await;
         assert!(result.is_ok());
         let sig = result.expect("signing should succeed");
         assert_eq!(sig.len(), 65);
@@ -1164,16 +1165,16 @@ mod tests {
     async fn mock_wallet_sign_message_failure() {
         let mut mock = MockBrowserWallet::new(test_address(), 1);
         mock.set_should_fail(true);
-        let result = crate::traits::CowSigner::sign_message(&mock, b"test").await;
+        let result = cow_sdk_signing::CowSigner::sign_message(&mock, b"test").await;
         assert!(result.is_err());
     }
 
     #[tokio::test]
     async fn mock_wallet_multiple_sign_requests() {
         let mock = MockBrowserWallet::new(test_address(), 1);
-        crate::traits::CowSigner::sign_typed_data(&mock, B256::ZERO, B256::ZERO).await.unwrap();
-        crate::traits::CowSigner::sign_message(&mock, b"msg1").await.unwrap();
-        crate::traits::CowSigner::sign_message(&mock, b"msg2").await.unwrap();
+        cow_sdk_signing::CowSigner::sign_typed_data(&mock, B256::ZERO, B256::ZERO).await.unwrap();
+        cow_sdk_signing::CowSigner::sign_message(&mock, b"msg1").await.unwrap();
+        cow_sdk_signing::CowSigner::sign_message(&mock, b"msg2").await.unwrap();
         assert_eq!(mock.sign_request_count(), 3);
     }
 
@@ -1181,7 +1182,7 @@ mod tests {
     async fn mock_wallet_cow_signer_address() {
         let addr = test_address();
         let mock = MockBrowserWallet::new(addr, 1);
-        assert_eq!(crate::traits::CowSigner::address(&mock), addr);
+        assert_eq!(cow_sdk_signing::CowSigner::address(&mock), addr);
     }
 
     #[test]
@@ -1194,7 +1195,7 @@ mod tests {
 
     #[test]
     fn mock_wallet_implements_cow_signer() {
-        fn _assert_cow_signer<T: crate::traits::CowSigner>() {}
+        fn _assert_cow_signer<T: cow_sdk_signing::CowSigner>() {}
         _assert_cow_signer::<MockBrowserWallet>();
     }
 

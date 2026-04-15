@@ -7,9 +7,12 @@ pub mod calldata;
 pub mod eip712;
 pub mod flags;
 pub mod interaction;
+pub mod signer_trait;
 pub mod trade;
 pub mod types;
 pub mod utils;
+
+pub use signer_trait::CowSigner;
 
 pub use calldata::{invalidate_order_calldata, set_pre_signature_calldata};
 pub use eip712::{

@@ -183,15 +183,21 @@ pub mod trading {
     pub use cow_sdk_trading::*;
 }
 
-#[cfg_attr(
-    feature = "wasm",
-    allow(unsafe_code, reason = "wasm-bindgen macro generates unsafe glue code")
-)]
-pub mod browser_wallet;
+/// EIP-1193 browser wallet adapter and WASM bindings.
+///
+/// Re-export of the [`cow_sdk_browser_wallet`] crate.
+pub mod browser_wallet {
+    pub use cow_sdk_browser_wallet::wallet::*;
+}
 
+/// `wasm-bindgen` exports (WASM-only).
+///
+/// Re-export of the [`cow_sdk_browser_wallet::wasm`] module. Only available
+/// when the `wasm` feature is enabled on the browser wallet crate.
 #[cfg(feature = "wasm")]
-#[allow(unsafe_code, reason = "wasm-bindgen macro generates unsafe glue code")]
-pub mod wasm;
+pub mod wasm {
+    pub use cow_sdk_browser_wallet::wasm::*;
+}
 
 // ── Convenience re-exports ────────────────────────────────────────────────────
 

@@ -1,0 +1,26 @@
+[package]
+name = "cow-sdk-testing"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Dev-only fixtures and test helpers for the CoW Protocol SDK."
+readme = "../../README.md"
+keywords = ["cow", "cowprotocol", "testing", "sdk"]
+categories = ["development-tools::testing"]
+publish = false
+
+[package.metadata.workspace.layer]
+layer = "orthogonal"
+
+[lib]
+doctest = false
+
+[dependencies]
+cow-sdk-types.workspace = true
+
+[lints]
+workspace = true

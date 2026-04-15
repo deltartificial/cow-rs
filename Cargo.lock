@@ -1044,6 +1044,7 @@ dependencies = [
  "chrono",
  "cow-sdk-app-data",
  "cow-sdk-bridging",
+ "cow-sdk-browser-wallet",
  "cow-sdk-chains",
  "cow-sdk-composable",
  "cow-sdk-cow-shed",
@@ -1092,6 +1093,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "cow-sdk"
+version = "0.1.1"
+dependencies = [
+ "cow-sdk-app-data",
+ "cow-sdk-bridging",
+ "cow-sdk-chains",
+ "cow-sdk-composable",
+ "cow-sdk-cow-shed",
+ "cow-sdk-erc20",
+ "cow-sdk-error",
+ "cow-sdk-ethflow",
+ "cow-sdk-flash-loans",
+ "cow-sdk-http",
+ "cow-sdk-onchain",
+ "cow-sdk-orderbook",
+ "cow-sdk-permit",
+ "cow-sdk-primitives",
+ "cow-sdk-settlement",
+ "cow-sdk-signing",
+ "cow-sdk-subgraph",
+ "cow-sdk-trading",
+ "cow-sdk-types",
+ "cow-sdk-weiroll",
+]
+
+[[package]]
 name = "cow-sdk-app-data"
 version = "0.1.1"
 dependencies = [
@@ -1125,6 +1152,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "cow-sdk-browser-wallet"
+version = "0.1.1"
+dependencies = [
+ "alloy-primitives",
+ "alloy-signer-local",
+ "async-trait",
+ "cow-sdk-app-data",
+ "cow-sdk-chains",
+ "cow-sdk-error",
+ "cow-sdk-ethflow",
+ "cow-sdk-onchain",
+ "cow-sdk-orderbook",
+ "cow-sdk-permit",
+ "cow-sdk-signing",
+ "cow-sdk-subgraph",
+ "cow-sdk-trading",
+ "cow-sdk-types",
+ "getrandom 0.2.17",
+ "js-sys",
+ "serde-wasm-bindgen",
+ "serde_json",
+ "tokio",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+]
+
+[[package]]
 name = "cow-sdk-chains"
 version = "0.1.1"
 dependencies = [
@@ -1146,6 +1200,13 @@ dependencies = [
  "cow-sdk-types",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "cow-sdk-contracts-abi"
+version = "0.1.1"
+dependencies = [
+ "alloy-primitives",
 ]
 
 [[package]]
@@ -1191,6 +1252,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "cow-sdk-graph"
+version = "0.1.1"
+dependencies = [
+ "cow-sdk-http",
+]
+
+[[package]]
+name = "cow-sdk-http"
+version = "0.1.1"
+dependencies = [
+ "reqwest",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "cow-sdk-ipfs"
+version = "0.1.1"
+dependencies = [
+ "cow-sdk-http",
+]
+
+[[package]]
 name = "cow-sdk-onchain"
 version = "0.1.1"
 dependencies = [
@@ -1213,6 +1297,7 @@ dependencies = [
  "chrono",
  "cow-sdk-chains",
  "cow-sdk-error",
+ "cow-sdk-http",
  "cow-sdk-primitives",
  "cow-sdk-signing",
  "cow-sdk-types",
@@ -1272,6 +1357,7 @@ dependencies = [
  "alloy-primitives",
  "alloy-signer",
  "alloy-signer-local",
+ "async-trait",
  "cow-sdk-chains",
  "cow-sdk-error",
  "cow-sdk-types",
@@ -1286,12 +1372,19 @@ dependencies = [
  "alloy-primitives",
  "cow-sdk-chains",
  "cow-sdk-error",
- "cow-sdk-orderbook",
+ "cow-sdk-http",
  "foldhash 0.2.0",
  "graphql-parser",
  "reqwest",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "cow-sdk-testing"
+version = "0.1.1"
+dependencies = [
+ "cow-sdk-types",
 ]
 
 [[package]]

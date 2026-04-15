@@ -50,6 +50,7 @@ async-trait.workspace = true
 chrono.workspace = true
 cow-sdk-app-data.workspace = true
 cow-sdk-bridging.workspace = true
+cow-sdk-browser-wallet.workspace = true
 cow-sdk-chains.workspace = true
 cow-sdk-composable.workspace = true
 cow-sdk-cow-shed.workspace = true
