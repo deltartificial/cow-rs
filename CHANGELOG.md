@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased] - 2026-04-15
+
+### Bug Fixes
+
+- _(ci)_ Green all post-split workflows (#49) ([`74dedb4`](https://github.com/deltartificial/cow-rs/commit/74dedb4cfb5298c65114eb7c04566c12f2d295ec))
+
+### Documentation
+
+- _(changelog)_ Regenerate for v0.1.1 via git-cliff ([`ba26e32`](https://github.com/deltartificial/cow-rs/commit/ba26e3213e0efc5c06949b43e2c13e5d26cc9dd8))
+- _(changelog)_ Use underscore italics to match dprint markdown style ([`2d8f6ba`](https://github.com/deltartificial/cow-rs/commit/2d8f6ba9fa03e9167894c3c98ca3f4ebff7842d6))
+
+### Refactor
+
+- _(workspace)_ [**breaking**] Split monolithic cow-rs into 26 layered crates (#48) ([`3c2844a`](https://github.com/deltartificial/cow-rs/commit/3c2844a3185432bece303a228bc310024525279a))
+- _(workspace)_ Finish split debt and modernize examples (#50) ([`c9b8971`](https://github.com/deltartificial/cow-rs/commit/c9b8971620e36b69504b6bc41241c00c2ff8c262))
+
 ## [0.1.1] - 2026-04-14
 
 ### Bug Fixes
