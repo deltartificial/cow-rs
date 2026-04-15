@@ -33,10 +33,8 @@
 
 use alloy_primitives::{U256, address};
 use alloy_signer_local::PrivateKeySigner;
-use cow_rs::{
-    Erc20PermitInfo, PermitInfo, SupportedChainId, build_permit_hook,
-    cow_protocol_vault_relayer_address,
-};
+use cow_chains::{SupportedChainId, cow_protocol_vault_relayer_address};
+use cow_permit::{Erc20PermitInfo, PermitInfo, build_permit_hook};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

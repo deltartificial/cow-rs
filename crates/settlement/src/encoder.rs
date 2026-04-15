@@ -7,9 +7,9 @@
 use std::fmt;
 
 use alloy_primitives::{Address, U256, keccak256};
-use cow_signing::{
+use cow_types::{
+    UnsignedOrder,
     trade::{EncodedTrade, SettlementTokenRegistry, SignatureData, encode_trade},
-    types::UnsignedOrder,
 };
 
 /// The three interaction stages in a `CoW` Protocol settlement.
@@ -60,13 +60,9 @@ pub struct EncodedInteraction {
 ///
 /// # Example
 ///
-/// ```ignore
-/// use alloy_primitives::{Address, B256, Bytes, U256, address};
-/// use cow_rs::{
-///     OrderKind, SigningScheme, TokenBalance,
-///     order_signing::{trade::SignatureData, types::UnsignedOrder},
-///     settlement::encoder::{InteractionStage, SettlementEncoder},
-/// };
+/// ```no_run
+/// use alloy_primitives::{Address, U256, address};
+/// use cow_settlement::encoder::SettlementEncoder;
 ///
 /// let mut encoder = SettlementEncoder::new();
 ///

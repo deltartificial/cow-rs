@@ -33,10 +33,9 @@
 //! ```
 
 use alloy_primitives::{B256, U256, address};
-use cow_rs::{
-    CowShedCall, CowShedHookParams, CowShedSdk, SupportedChainId, build_erc20_approve_calldata,
-    build_erc20_transfer_calldata, cow_protocol_vault_relayer_address,
-};
+use cow_chains::{SupportedChainId, cow_protocol_vault_relayer_address};
+use cow_erc20::{build_erc20_approve_calldata, build_erc20_transfer_calldata};
+use cow_shed::{CowShedCall, CowShedHookParams, CowShedSdk};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let chain_id = SupportedChainId::Mainnet;

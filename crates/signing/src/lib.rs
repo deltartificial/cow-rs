@@ -5,12 +5,17 @@
 
 pub mod calldata;
 pub mod eip712;
-pub mod flags;
 pub mod interaction;
 pub mod signer_trait;
-pub mod trade;
 pub mod types;
 pub mod utils;
+
+// `flags`, `trade` and `UnsignedOrder` live in `cow-types` so that
+// `cow-settlement` can use them without a sibling dependency on
+// `cow-signing`. Re-exported here so the pre-split public API paths
+// (`cow_signing::flags::*`, `cow_signing::trade::*`,
+// `cow_signing::UnsignedOrder`) keep working unchanged.
+pub use cow_types::{UnsignedOrder, flags, trade};
 
 pub use signer_trait::CowSigner;
 
@@ -36,7 +41,7 @@ pub use trade::{
 };
 pub use types::{
     OrderDomain, OrderTypedData, SignOrderCancellationParams, SignOrderCancellationsParams,
-    SignOrderParams, SigningResult, UnsignedOrder,
+    SignOrderParams, SigningResult,
 };
 pub use utils::{
     compute_order_uid, eip1271_result, generate_order_id, get_domain, presign_result, sign_order,

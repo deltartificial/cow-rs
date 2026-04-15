@@ -42,7 +42,8 @@
 //! ```
 
 use alloy_primitives::Address;
-use cow_rs::{OnchainReader, SupportedChainId, vault_relayer, wrapped_native_currency};
+use cow_chains::{SupportedChainId, vault_relayer, wrapped_native_currency};
+use cow_onchain::OnchainReader;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

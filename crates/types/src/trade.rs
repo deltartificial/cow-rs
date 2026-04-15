@@ -5,14 +5,13 @@
 
 use alloy_primitives::{Address, B256, Bytes, U256};
 use cow_errors::CowError;
-use cow_types::SigningScheme;
 use foldhash::HashMap;
 
 use crate::{
+    SigningScheme, UnsignedOrder,
     flags::{
         OrderFlags, TradeFlags, decode_order_flags, encode_trade_flags, normalize_buy_token_balance,
     },
-    types::UnsignedOrder,
 };
 
 /// Encoded trade data as used in the settlement contract.
@@ -122,7 +121,7 @@ impl SettlementTokenRegistry {
     ///
     /// ```
     /// use alloy_primitives::address;
-    /// use cow_signing::trade::SettlementTokenRegistry;
+    /// use cow_types::trade::SettlementTokenRegistry;
     ///
     /// let mut registry = SettlementTokenRegistry::new();
     /// let token_a = address!("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
@@ -172,13 +171,11 @@ pub struct SignatureData {
 ///
 /// ```ignore
 /// use alloy_primitives::{Address, B256, Bytes, U256, address};
-/// use cow_rs::{
-///     order_signing::{
+/// use cow_types::{
 ///         trade::{EncodedTrade, SettlementTokenRegistry, SignatureData, encode_trade},
 ///         types::UnsignedOrder,
-///     },
-///     types::{OrderKind, SigningScheme, TokenBalance},
-/// };
+///     };
+/// use cow_rs::types::{OrderKind, SigningScheme, TokenBalance};  // UNRESOLVED
 ///
 /// let mut tokens = SettlementTokenRegistry::new();
 /// let sell = address!("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
@@ -258,10 +255,8 @@ pub fn encode_trade(
 ///
 /// ```ignore
 /// use alloy_primitives::{Address, B256, Bytes, U256, address};
-/// use cow_rs::{
-///     order_signing::trade::{EncodedTrade, decode_order},
-///     types::{OrderKind, TokenBalance},
-/// };
+/// use cow_types::trade::{EncodedTrade, decode_order};
+/// use cow_rs::types::{OrderKind, TokenBalance};  // UNRESOLVED
 ///
 /// let sell = address!("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
 /// let buy = address!("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
@@ -333,7 +328,7 @@ pub fn decode_order(trade: &EncodedTrade, tokens: &[Address]) -> Result<Unsigned
 ///
 /// ```
 /// use alloy_primitives::{B256, U256, address};
-/// use cow_signing::trade::{SettlementTokenRegistry, Swap, encode_swap_step};
+/// use cow_types::trade::{SettlementTokenRegistry, Swap, encode_swap_step};
 ///
 /// let mut tokens = SettlementTokenRegistry::new();
 /// let swap = Swap {
@@ -409,7 +404,7 @@ pub struct Eip1271SignatureData {
 ///
 /// ```
 /// use alloy_primitives::{Bytes, address};
-/// use cow_signing::trade::{Eip1271SignatureData, encode_eip1271_signature_data};
+/// use cow_types::trade::{Eip1271SignatureData, encode_eip1271_signature_data};
 ///
 /// let data = Eip1271SignatureData {
 ///     verifier: address!("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
@@ -448,7 +443,7 @@ pub fn encode_eip1271_signature_data(data: &Eip1271SignatureData) -> Bytes {
 ///
 /// ```
 /// use alloy_primitives::{Bytes, address};
-/// use cow_signing::trade::{
+/// use cow_types::trade::{
 ///     Eip1271SignatureData, decode_signature_owner, encode_eip1271_signature_data,
 /// };
 ///
@@ -492,7 +487,7 @@ pub fn decode_signature_owner(data: &[u8]) -> Result<Address, CowError> {
 ///
 /// ```
 /// use alloy_primitives::{Bytes, address};
-/// use cow_signing::trade::{
+/// use cow_types::trade::{
 ///     Eip1271SignatureData, decode_eip1271_signature_data, encode_eip1271_signature_data,
 /// };
 ///
@@ -519,8 +514,8 @@ pub fn decode_eip1271_signature_data(data: &[u8]) -> Result<Eip1271SignatureData
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{OrderKind, TokenBalance};
     use alloy_primitives::address;
-    use cow_types::{OrderKind, TokenBalance};
 
     #[test]
     fn token_registry_basic() {

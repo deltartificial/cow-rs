@@ -35,9 +35,10 @@
 //! ```
 
 use alloy_primitives::{Address, B256, U256, address};
-use cow_rs::{
-    STOP_LOSS_HANDLER_ADDRESS, StopLossData, StopLossOrder, SupportedChainId,
-    decode_stop_loss_static_input, encode_stop_loss_struct, wrapped_native_currency,
+use cow_chains::{SupportedChainId, wrapped_native_currency};
+use cow_composable::{
+    STOP_LOSS_HANDLER_ADDRESS, StopLossData, StopLossOrder, decode_stop_loss_static_input,
+    encode_stop_loss_struct,
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {

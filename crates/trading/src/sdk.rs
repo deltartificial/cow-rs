@@ -103,8 +103,9 @@ fn default_app_data_info() -> TradingAppDataInfo {
 ///
 /// # Example
 ///
-/// ```ignore
-/// use cow_rs::{NATIVE_CURRENCY_ADDRESS, trading::get_is_eth_flow_order};
+/// ```no_run
+/// use cow_chains::NATIVE_CURRENCY_ADDRESS;
+/// use cow_trading::get_is_eth_flow_order;
 /// assert!(get_is_eth_flow_order(NATIVE_CURRENCY_ADDRESS));
 /// assert!(!get_is_eth_flow_order(alloy_primitives::Address::ZERO));
 /// ```
@@ -158,13 +159,11 @@ pub fn get_default_utm_params() -> Utm {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```no_run
 /// use alloy_primitives::{Address, U256};
-/// use cow_rs::{
-///     OrderKind,
-///     order_book::{OrderQuoteResponse, QuoteData},
-///     trading::{TradeParameters, swap_params_to_limit_order_params},
-/// };
+/// use cow_orderbook::{OrderQuoteResponse, QuoteData};
+/// use cow_trading::{TradeParameters, swap_params_to_limit_order_params};
+/// use cow_types::OrderKind;
 ///
 /// let params = TradeParameters {
 ///     kind: OrderKind::Sell,
@@ -403,9 +402,11 @@ impl TradingSdkConfig {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```no_run
 /// use alloy_primitives::U256;
-/// use cow_rs::{Env, OrderKind, SupportedChainId, TradeParameters, TradingSdk, TradingSdkConfig};
+/// use cow_chains::{Env, SupportedChainId};
+/// use cow_trading::{TradeParameters, TradingSdk, TradingSdkConfig};
+/// use cow_types::OrderKind;
 ///
 /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 /// let sdk = TradingSdk::new(
@@ -1526,9 +1527,10 @@ impl TradingSdk {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
     /// use alloy_primitives::address;
-    /// use cow_rs::{SupportedChainId, TradingSdk, TradingSdkConfig};
+    /// use cow_chains::SupportedChainId;
+    /// use cow_trading::{TradingSdk, TradingSdkConfig};
     ///
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let sdk = TradingSdk::new(
@@ -1850,12 +1852,11 @@ pub fn resolve_slippage_suggestion(
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```no_run
 /// use alloy_primitives::{Address, U256};
-/// use cow_rs::{
-///     NATIVE_CURRENCY_ADDRESS, OrderKind, SupportedChainId,
-///     trading::{TradeParameters, adjust_eth_flow_order_params},
-/// };
+/// use cow_chains::{NATIVE_CURRENCY_ADDRESS, SupportedChainId};
+/// use cow_trading::{TradeParameters, adjust_eth_flow_order_params};
+/// use cow_types::OrderKind;
 ///
 /// let params = TradeParameters {
 ///     kind: OrderKind::Sell,
@@ -1901,12 +1902,11 @@ pub fn adjust_eth_flow_order_params(
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```no_run
 /// use alloy_primitives::{Address, U256};
-/// use cow_rs::{
-///     NATIVE_CURRENCY_ADDRESS, OrderKind, SupportedChainId,
-///     trading::{LimitTradeParameters, adjust_eth_flow_limit_order_params},
-/// };
+/// use cow_chains::{NATIVE_CURRENCY_ADDRESS, SupportedChainId};
+/// use cow_trading::{LimitTradeParameters, adjust_eth_flow_limit_order_params};
+/// use cow_types::OrderKind;
 ///
 /// let params = LimitTradeParameters {
 ///     kind: OrderKind::Sell,
@@ -1953,12 +1953,11 @@ pub fn adjust_eth_flow_limit_order_params(
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```no_run
 /// use alloy_primitives::{Address, U256};
-/// use cow_rs::{
-///     NATIVE_CURRENCY_ADDRESS, OrderKind,
-///     trading::{TradeParameters, get_trade_parameters_after_quote},
-/// };
+/// use cow_chains::NATIVE_CURRENCY_ADDRESS;
+/// use cow_trading::{TradeParameters, get_trade_parameters_after_quote};
+/// use cow_types::OrderKind;
 ///
 /// let quoted = TradeParameters {
 ///     kind: OrderKind::Sell,
@@ -2004,8 +2003,9 @@ pub fn get_trade_parameters_after_quote(
 ///
 /// # Example
 ///
-/// ```ignore
-/// use cow_rs::{Env, SupportedChainId, trading::get_eth_flow_contract};
+/// ```no_run
+/// use cow_chains::{Env, SupportedChainId};
+/// use cow_trading::get_eth_flow_contract;
 ///
 /// let addr = get_eth_flow_contract(SupportedChainId::Mainnet, Env::Prod);
 /// assert_ne!(addr, alloy_primitives::Address::ZERO);
@@ -2032,8 +2032,9 @@ pub const fn get_eth_flow_contract(chain_id: SupportedChainId, env: Env) -> Addr
 ///
 /// # Example
 ///
-/// ```ignore
-/// use cow_rs::{Env, SupportedChainId, trading::get_settlement_contract};
+/// ```no_run
+/// use cow_chains::{Env, SupportedChainId};
+/// use cow_trading::get_settlement_contract;
 ///
 /// let addr = get_settlement_contract(SupportedChainId::Mainnet, Env::Prod);
 /// assert_ne!(addr, alloy_primitives::Address::ZERO);
@@ -2135,8 +2136,9 @@ pub fn get_settlement_cancellation(
 ///
 /// # Example
 ///
-/// ```ignore
-/// use cow_rs::{OrderClassKind, trading::build_app_data};
+/// ```no_run
+/// use cow_app_data::types::OrderClassKind;
+/// use cow_trading::build_app_data;
 ///
 /// let info = build_app_data("MyDApp", 50, OrderClassKind::Market, None);
 /// assert!(!info.full_app_data.is_empty());
@@ -2247,9 +2249,11 @@ fn sort_keys_value(value: serde_json::Value) -> serde_json::Value {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```no_run
 /// use alloy_primitives::{Address, U256};
-/// use cow_rs::{Env, SupportedChainId, UnsignedOrder, trading::calculate_unique_order_id};
+/// use cow_chains::{Env, SupportedChainId};
+/// use cow_trading::calculate_unique_order_id;
+/// use cow_types::UnsignedOrder;
 ///
 /// let order =
 ///     UnsignedOrder::sell(Address::ZERO, Address::ZERO, U256::from(1u64), U256::from(1u64));
@@ -2323,8 +2327,9 @@ pub const fn unsigned_order_for_signing(order: UnsignedOrder) -> UnsignedOrder {
 ///
 /// # Example
 ///
-/// ```ignore
-/// use cow_rs::{Env, SupportedChainId, trading::resolve_order_book_api};
+/// ```no_run
+/// use cow_chains::{Env, SupportedChainId};
+/// use cow_trading::resolve_order_book_api;
 ///
 /// let api = resolve_order_book_api(SupportedChainId::Mainnet, Env::Prod, None);
 /// // Re-use: passing the existing instance back returns it unchanged.
@@ -2946,12 +2951,10 @@ pub struct QuoterParameters {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```no_run
 /// use alloy_primitives::Address;
-/// use cow_rs::{
-///     SupportedChainId,
-///     trading::{get_trader, resolve_signer},
-/// };
+/// use cow_chains::SupportedChainId;
+/// use cow_trading::{get_trader, resolve_signer};
 ///
 /// let key = "0x4c0883a69102937d6231471b5dbb6204fe512961708279f99ae5f1e7b8a6c5e1";
 /// let signer = resolve_signer(Some(key)).expect("valid key");

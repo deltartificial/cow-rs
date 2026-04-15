@@ -29,10 +29,8 @@
 //! ```
 
 use alloy_primitives::{B256, U256, address};
-use cow_rs::{
-    Env, EthFlowOrderData, SupportedChainId, build_eth_flow_transaction,
-    encode_eth_flow_create_order, eth_flow_for_env,
-};
+use cow_chains::{Env, SupportedChainId, eth_flow_for_env};
+use cow_ethflow::{EthFlowOrderData, build_eth_flow_transaction, encode_eth_flow_create_order};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let chain_id = SupportedChainId::Mainnet;

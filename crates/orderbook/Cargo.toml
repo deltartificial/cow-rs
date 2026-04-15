@@ -31,9 +31,6 @@ cow-chains.workspace = true
 cow-errors.workspace = true
 cow-http.workspace = true
 cow-primitives.workspace = true
-# NOTE (workspace-split migration debt): `cow-signing` is a sibling L2
-# crate here referenced for its shared `UnsignedOrder` type. That type will
-# move down to `cow-types` in a later cleanup pass.
 cow-signing.workspace = true
 cow-types.workspace = true
 foldhash.workspace = true
@@ -43,6 +40,10 @@ serde.workspace = true
 serde_json.workspace = true
 tokio = { workspace = true, optional = true }
 tracing.workspace = true
+
+[dev-dependencies]
+alloy-signer-local.workspace = true
+tokio = { workspace = true, features = ["macros", "rt"] }
 
 [build-dependencies]
 openapiv3.workspace = true

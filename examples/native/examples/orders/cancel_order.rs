@@ -34,10 +34,10 @@
 //! ```
 
 use alloy_signer_local::PrivateKeySigner;
-use cow_rs::{
-    EcdsaSigningScheme, Env, OrderBookApi, SupportedChainId, order_book::OrderCancellations,
-    sign_order_cancellations,
-};
+use cow_chains::{Env, SupportedChainId};
+use cow_orderbook::{OrderBookApi, OrderCancellations};
+use cow_signing::sign_order_cancellations;
+use cow_types::EcdsaSigningScheme;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

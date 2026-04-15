@@ -16,6 +16,12 @@
 #![deny(unsafe_code)]
 #![warn(missing_docs)]
 
+pub mod flags;
+pub mod trade;
+mod unsigned_order;
+
+pub use unsigned_order::UnsignedOrder;
+
 use std::fmt;
 
 use cow_errors::CowError;
