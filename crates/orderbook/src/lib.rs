@@ -1,4 +1,4 @@
-//! `cow-sdk-orderbook` — Layer 4 `CoW` Protocol orderbook API client for the `CoW` Protocol SDK.
+//! `cow-orderbook` — Layer 4 `CoW` Protocol orderbook API client for the `CoW` Protocol SDK.
 //!
 //! This crate provides the HTTP client ([`OrderBookApi`]) for interacting
 //! with the `CoW` Protocol orderbook REST API, plus all request/response
@@ -43,8 +43,8 @@ pub mod types;
 
 pub use client_trait::OrderbookClient;
 // Re-export the L3 rate limit primitives for backwards compatibility —
-// these types moved down to `cow-sdk-http`.
-pub use cow_sdk_http::{DEFAULT_RETRY_STATUS_CODES, RateLimiter, RetryPolicy, rate_limit};
+// these types moved down to `cow-http`.
+pub use cow_http::{DEFAULT_RETRY_STATUS_CODES, RateLimiter, RetryPolicy, rate_limit};
 
 #[cfg(test)]
 mod wire_compat;

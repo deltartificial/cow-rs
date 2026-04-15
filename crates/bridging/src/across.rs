@@ -1,8 +1,8 @@
 //! Across Protocol bridge provider — types, constants, and utility functions.
 
 use alloy_primitives::{Address, U256};
-use cow_sdk_chains::SupportedChainId;
-use cow_sdk_types::OrderKind;
+use cow_chains::SupportedChainId;
+use cow_types::OrderKind;
 use foldhash::HashMap;
 
 use crate::{
@@ -748,8 +748,8 @@ pub fn get_cow_trade_events(
     settlement_override: Option<Address>,
 ) -> Vec<CowTradeEvent> {
     // Resolve settlement contract address for this chain.
-    let chain = cow_sdk_chains::SupportedChainId::try_from_u64(chain_id);
-    let default_settlement = chain.map(cow_sdk_chains::settlement_contract);
+    let chain = cow_chains::SupportedChainId::try_from_u64(chain_id);
+    let default_settlement = chain.map(cow_chains::settlement_contract);
 
     let topic0 = cow_trade_event_topic0();
 
@@ -898,7 +898,7 @@ pub struct AcrossDepositCallParams {
 /// configured for the sell chain.
 pub fn create_across_deposit_call(
     params: &AcrossDepositCallParams,
-) -> Result<cow_sdk_chains::EvmCall, BridgeError> {
+) -> Result<cow_chains::EvmCall, BridgeError> {
     let spoke_pools = across_spoke_pool_addresses();
     let spoke_pool = spoke_pools.get(&params.request.sell_chain_id).ok_or_else(|| {
         BridgeError::TxBuildError(format!(
@@ -960,7 +960,7 @@ pub fn create_across_deposit_call(
     calldata.extend_from_slice(&pad_u256(U256::from(12u64 * 32))); // offset to message
     calldata.extend_from_slice(&pad_u256(U256::ZERO)); // length = 0
 
-    Ok(cow_sdk_chains::EvmCall { to: *spoke_pool, data: calldata, value: U256::ZERO })
+    Ok(cow_chains::EvmCall { to: *spoke_pool, data: calldata, value: U256::ZERO })
 }
 
 /// Left-pad an address to 32 bytes (ABI encoding).

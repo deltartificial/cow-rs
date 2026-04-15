@@ -509,7 +509,7 @@ impl ChainInfo {
 /// `true` if `chain_id` belongs to a known EVM chain.
 ///
 /// ```
-/// use cow_sdk_chains::chains::is_evm_chain;
+/// use cow_chains::chains::is_evm_chain;
 ///
 /// assert!(is_evm_chain(1)); // Mainnet
 /// assert!(is_evm_chain(10)); // Optimism
@@ -531,7 +531,7 @@ pub const fn is_evm_chain(chain_id: u64) -> bool {
 /// `true` if `chain_id` belongs to a known non-EVM chain.
 ///
 /// ```
-/// use cow_sdk_chains::chains::is_non_evm_chain;
+/// use cow_chains::chains::is_non_evm_chain;
 ///
 /// assert!(is_non_evm_chain(1_000_000_000)); // Bitcoin
 /// assert!(is_non_evm_chain(1_000_000_001)); // Solana
@@ -555,7 +555,7 @@ pub const fn is_non_evm_chain(chain_id: u64) -> bool {
 /// `true` for the [`ChainInfo::Evm`] variant.
 ///
 /// ```
-/// use cow_sdk_chains::{
+/// use cow_chains::{
 ///     SupportedChainId,
 ///     chains::{is_evm_chain_info, supported_chain_info},
 /// };
@@ -581,7 +581,7 @@ pub const fn is_evm_chain_info(chain_info: &ChainInfo) -> bool {
 /// `true` for the [`ChainInfo::NonEvm`] variant.
 ///
 /// ```
-/// use cow_sdk_chains::{
+/// use cow_chains::{
 ///     AdditionalTargetChainId,
 ///     chains::{additional_target_chain_info, is_non_evm_chain_info},
 /// };
@@ -605,7 +605,7 @@ pub const fn is_non_evm_chain_info(chain_info: &ChainInfo) -> bool {
 /// `true` when `chain_id` equals [`NonEvmChains::Bitcoin`].
 ///
 /// ```
-/// use cow_sdk_chains::chains::is_btc_chain;
+/// use cow_chains::chains::is_btc_chain;
 ///
 /// assert!(is_btc_chain(1_000_000_000));
 /// assert!(!is_btc_chain(1));
@@ -626,7 +626,7 @@ pub const fn is_btc_chain(chain_id: u64) -> bool {
 /// `true` if `chain_id` is a [`SupportedChainId`] variant.
 ///
 /// ```
-/// use cow_sdk_chains::chains::is_supported_chain;
+/// use cow_chains::chains::is_supported_chain;
 ///
 /// assert!(is_supported_chain(1)); // Mainnet
 /// assert!(!is_supported_chain(10)); // Optimism (bridge-only)
@@ -647,7 +647,7 @@ pub const fn is_supported_chain(chain_id: u64) -> bool {
 /// `true` if `chain_id` is an [`AdditionalTargetChainId`] variant.
 ///
 /// ```
-/// use cow_sdk_chains::chains::is_additional_target_chain;
+/// use cow_chains::chains::is_additional_target_chain;
 ///
 /// assert!(is_additional_target_chain(10)); // Optimism
 /// assert!(is_additional_target_chain(1_000_000_000)); // Bitcoin
@@ -669,7 +669,7 @@ pub const fn is_additional_target_chain(chain_id: u64) -> bool {
 /// `true` if `chain_id` is a supported or additional target chain.
 ///
 /// ```
-/// use cow_sdk_chains::chains::is_target_chain_id;
+/// use cow_chains::chains::is_target_chain_id;
 ///
 /// assert!(is_target_chain_id(1)); // Mainnet (supported)
 /// assert!(is_target_chain_id(10)); // Optimism (bridge target)
@@ -692,7 +692,7 @@ pub const fn is_target_chain_id(chain_id: u64) -> bool {
 /// `true` if the chain is an EVM chain with `is_zk_sync` set.
 ///
 /// ```
-/// use cow_sdk_chains::chains::is_zk_sync_chain;
+/// use cow_chains::chains::is_zk_sync_chain;
 ///
 /// assert!(!is_zk_sync_chain(1)); // Mainnet
 /// ```
@@ -717,7 +717,7 @@ pub fn is_zk_sync_chain(chain_id: u64) -> bool {
 /// `true` if the chain exists and its `is_under_development` flag is set.
 ///
 /// ```
-/// use cow_sdk_chains::chains::is_chain_under_development;
+/// use cow_chains::chains::is_chain_under_development;
 ///
 /// assert!(!is_chain_under_development(1)); // Mainnet
 /// ```
@@ -738,7 +738,7 @@ pub fn is_chain_under_development(chain_id: u64) -> bool {
 /// `true` if the chain exists and its `is_deprecated` flag is set.
 ///
 /// ```
-/// use cow_sdk_chains::chains::is_chain_deprecated;
+/// use cow_chains::chains::is_chain_deprecated;
 ///
 /// assert!(!is_chain_deprecated(1)); // Mainnet
 /// ```
@@ -761,7 +761,7 @@ pub fn is_chain_deprecated(chain_id: u64) -> bool {
 /// `Some(chain_info)` if the chain is known, `None` otherwise.
 ///
 /// ```
-/// use cow_sdk_chains::chains::get_chain_info;
+/// use cow_chains::chains::get_chain_info;
 ///
 /// let info = get_chain_info(1).unwrap();
 /// assert_eq!(info.label(), "Ethereum");
@@ -798,7 +798,7 @@ pub const fn get_chain_info(chain_id: u64) -> Option<ChainInfo> {
 /// A `Vec` of `(chain, value)` pairs for every supported chain.
 ///
 /// ```
-/// use cow_sdk_chains::chains::map_supported_networks;
+/// use cow_chains::chains::map_supported_networks;
 ///
 /// let names = map_supported_networks(|chain| chain.to_string());
 /// assert!(!names.is_empty());

@@ -6,12 +6,12 @@
 //! - [`set_pre_signature_calldata`] — mark an order as pre-signed (or unmark it)
 //! - [`invalidate_order_calldata`] — permanently cancel an order on-chain
 //!
-//! Pair these with [`cow_sdk_chains::contracts::SETTLEMENT_CONTRACT`] as the
+//! Pair these with [`cow_chains::contracts::SETTLEMENT_CONTRACT`] as the
 //! transaction target.
 
 use alloy_primitives::keccak256;
 
-use cow_sdk_error::CowError;
+use cow_errors::CowError;
 
 // ── Function selectors ────────────────────────────────────────────────────────
 
@@ -68,7 +68,7 @@ fn pad_to(buf: &mut Vec<u8>, written: usize) {
 /// hex string returned when the order was created.
 ///
 /// The returned bytes should be sent in a transaction to
-/// [`SETTLEMENT_CONTRACT`](cow_sdk_chains::contracts::SETTLEMENT_CONTRACT).
+/// [`SETTLEMENT_CONTRACT`](cow_chains::contracts::SETTLEMENT_CONTRACT).
 ///
 /// Mirrors `getPreSignTransaction` from the `TypeScript` SDK.
 ///
@@ -122,7 +122,7 @@ pub fn set_pre_signature_calldata(order_uid: &str, signed: bool) -> Result<Vec<u
 /// never be executed even if it was previously signed or pre-signed.
 ///
 /// The returned bytes should be sent in a transaction to
-/// [`SETTLEMENT_CONTRACT`](cow_sdk_chains::contracts::SETTLEMENT_CONTRACT).
+/// [`SETTLEMENT_CONTRACT`](cow_chains::contracts::SETTLEMENT_CONTRACT).
 ///
 /// Mirrors `getSettlementCancellation` from the `TypeScript` SDK.
 ///
@@ -141,7 +141,7 @@ pub fn set_pre_signature_calldata(order_uid: &str, signed: bool) -> Result<Vec<u
 /// # Example
 ///
 /// ```rust
-/// use cow_sdk_signing::invalidate_order_calldata;
+/// use cow_signing::invalidate_order_calldata;
 ///
 /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
 /// let uid = "0x".to_owned() + &"ab".repeat(56);

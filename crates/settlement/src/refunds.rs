@@ -7,7 +7,7 @@
 use std::fmt;
 
 use alloy_primitives::{U256, keccak256};
-use cow_sdk_error::CowError;
+use cow_errors::CowError;
 
 /// Refund claim for a `CoW` Protocol order.
 ///

@@ -1,4 +1,4 @@
-//! `cow-sdk-app-data` — Layer 2 `CoW` Protocol order app-data metadata schema and hash generation.
+//! `cow-app-data` — Layer 2 `CoW` Protocol order app-data metadata schema and hash generation.
 //!
 //! App-data is a `bytes32` field in every `CoW` order that encodes a
 //! `keccak256` hash of a JSON document describing the order's intent,

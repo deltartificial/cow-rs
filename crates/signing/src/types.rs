@@ -4,7 +4,7 @@ use std::fmt;
 
 use alloy_primitives::{Address, B256, U256};
 
-use cow_sdk_types::{OrderKind, SigningScheme, TokenBalance};
+use cow_types::{OrderKind, SigningScheme, TokenBalance};
 
 /// An unsigned `CoW` Protocol order ready to be hashed and signed.
 #[derive(Debug, Clone)]
@@ -361,7 +361,7 @@ pub struct OrderDomain {
 impl OrderDomain {
     /// Construct the standard `CoW` Protocol EIP-712 domain for `chain_id`.
     ///
-    /// Uses the canonical [`SETTLEMENT_CONTRACT`](cow_sdk_chains::contracts::SETTLEMENT_CONTRACT)
+    /// Uses the canonical [`SETTLEMENT_CONTRACT`](cow_chains::contracts::SETTLEMENT_CONTRACT)
     /// address as the verifying contract.
     ///
     /// # Arguments
@@ -377,7 +377,7 @@ impl OrderDomain {
             name: "Gnosis Protocol v2",
             version: "v2",
             chain_id,
-            verifying_contract: cow_sdk_chains::contracts::SETTLEMENT_CONTRACT,
+            verifying_contract: cow_chains::contracts::SETTLEMENT_CONTRACT,
         }
     }
 
@@ -608,7 +608,7 @@ impl SigningResult {
     /// Returns `true` if this result used the EIP-1271 smart-contract scheme.
     ///
     /// ```
-    /// use cow_sdk_signing::eip1271_result;
+    /// use cow_signing::eip1271_result;
     ///
     /// let result = eip1271_result(&[0xde, 0xad]);
     /// assert!(result.is_eip1271());
@@ -623,7 +623,7 @@ impl SigningResult {
     ///
     /// ```
     /// use alloy_primitives::Address;
-    /// use cow_sdk_signing::presign_result;
+    /// use cow_signing::presign_result;
     ///
     /// let result = presign_result(Address::ZERO);
     /// assert!(result.is_presign());
@@ -701,7 +701,7 @@ pub struct SignOrderParams {
     /// The unsigned order intent to sign.
     pub order: UnsignedOrder,
     /// The ECDSA signing scheme to use.
-    pub signing_scheme: cow_sdk_types::EcdsaSigningScheme,
+    pub signing_scheme: cow_types::EcdsaSigningScheme,
 }
 
 impl SignOrderParams {
@@ -720,7 +720,7 @@ impl SignOrderParams {
     pub const fn new(
         chain_id: u64,
         order: UnsignedOrder,
-        signing_scheme: cow_sdk_types::EcdsaSigningScheme,
+        signing_scheme: cow_types::EcdsaSigningScheme,
     ) -> Self {
         Self { chain_id, order, signing_scheme }
     }
@@ -742,7 +742,7 @@ pub struct SignOrderCancellationParams {
     /// The unique identifier of the order to cancel.
     pub order_uid: String,
     /// The ECDSA signing scheme to use.
-    pub signing_scheme: cow_sdk_types::EcdsaSigningScheme,
+    pub signing_scheme: cow_types::EcdsaSigningScheme,
 }
 
 impl SignOrderCancellationParams {
@@ -761,7 +761,7 @@ impl SignOrderCancellationParams {
     pub fn new(
         chain_id: u64,
         order_uid: impl Into<String>,
-        signing_scheme: cow_sdk_types::EcdsaSigningScheme,
+        signing_scheme: cow_types::EcdsaSigningScheme,
     ) -> Self {
         Self { chain_id, order_uid: order_uid.into(), signing_scheme }
     }
@@ -785,7 +785,7 @@ pub struct SignOrderCancellationsParams {
     /// Unique identifiers of the orders to cancel.
     pub order_uids: Vec<String>,
     /// The ECDSA signing scheme to use.
-    pub signing_scheme: cow_sdk_types::EcdsaSigningScheme,
+    pub signing_scheme: cow_types::EcdsaSigningScheme,
 }
 
 impl SignOrderCancellationsParams {
@@ -804,7 +804,7 @@ impl SignOrderCancellationsParams {
     pub const fn new(
         chain_id: u64,
         order_uids: Vec<String>,
-        signing_scheme: cow_sdk_types::EcdsaSigningScheme,
+        signing_scheme: cow_types::EcdsaSigningScheme,
     ) -> Self {
         Self { chain_id, order_uids, signing_scheme }
     }
@@ -831,7 +831,7 @@ mod tests {
     use alloy_primitives::address;
 
     use super::*;
-    use cow_sdk_types::EcdsaSigningScheme;
+    use cow_types::EcdsaSigningScheme;
 
     fn default_order() -> UnsignedOrder {
         UnsignedOrder::sell(Address::ZERO, Address::ZERO, U256::ZERO, U256::ZERO)

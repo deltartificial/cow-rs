@@ -1,5 +1,5 @@
 [package]
-name = "cow-sdk-testing"
+name = "cow-testing"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -20,7 +20,7 @@ layer = "orthogonal"
 doctest = false
 
 [dependencies]
-cow-sdk-types.workspace = true
+cow-types.workspace = true
 
 [lints]
 workspace = true

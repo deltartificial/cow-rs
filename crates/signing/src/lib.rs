@@ -1,4 +1,4 @@
-//! `cow-sdk-signing` — Layer 2 EIP-712 order digest, signing utilities and core signing types.
+//! `cow-signing` — Layer 2 EIP-712 order digest, signing utilities and core signing types.
 
 #![deny(unsafe_code)]
 #![warn(missing_docs)]

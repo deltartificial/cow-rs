@@ -1,5 +1,5 @@
 [package]
-name = "cow-sdk-trading"
+name = "cow-trading"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -21,15 +21,15 @@ doctest = false
 [dependencies]
 alloy-primitives.workspace = true
 alloy-signer-local.workspace = true
-cow-sdk-app-data.workspace = true
-cow-sdk-chains.workspace = true
-cow-sdk-erc20.workspace = true
-cow-sdk-error.workspace = true
-cow-sdk-ethflow.workspace = true
-cow-sdk-onchain.workspace = true
-cow-sdk-orderbook.workspace = true
-cow-sdk-signing.workspace = true
-cow-sdk-types.workspace = true
+cow-app-data.workspace = true
+cow-chains.workspace = true
+cow-erc20.workspace = true
+cow-errors.workspace = true
+cow-ethflow.workspace = true
+cow-onchain.workspace = true
+cow-orderbook.workspace = true
+cow-signing.workspace = true
+cow-types.workspace = true
 rust_decimal.workspace = true
 serde_json.workspace = true
 

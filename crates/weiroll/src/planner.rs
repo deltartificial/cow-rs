@@ -11,7 +11,7 @@ use super::types::{WeirollCommand, WeirollScript};
 ///
 /// ```
 /// use alloy_primitives::Address;
-/// use cow_sdk_weiroll::{WeirollCommand, WeirollPlanner};
+/// use cow_weiroll::{WeirollCommand, WeirollPlanner};
 ///
 /// let mut planner = WeirollPlanner::new();
 /// planner.add_command(WeirollCommand {

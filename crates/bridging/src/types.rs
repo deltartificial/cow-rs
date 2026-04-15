@@ -5,7 +5,7 @@ use foldhash::HashMap;
 use alloy_primitives::{Address, U256};
 use serde::{Deserialize, Serialize};
 
-use cow_sdk_types::CowHook;
+use cow_types::CowHook;
 
 // ── Provider type ─────────────────────────────────────────────────────────────
 
@@ -163,7 +163,7 @@ pub struct QuoteBridgeRequest {
     /// Optional bridge-specific slippage tolerance in basis points.
     pub bridge_slippage_bps: Option<u32>,
     /// Whether this is a sell or buy order.
-    pub kind: cow_sdk_types::OrderKind,
+    pub kind: cow_types::OrderKind,
 }
 
 /// Amounts (sell and buy) at various stages of a bridge quote.
@@ -318,7 +318,7 @@ pub struct BridgeQuoteResults {
 #[derive(Debug, Clone)]
 pub struct BridgeCallDetails {
     /// Unsigned call to initiate the bridge.
-    pub unsigned_bridge_call: cow_sdk_chains::EvmCall,
+    pub unsigned_bridge_call: cow_chains::EvmCall,
     /// Pre-authorized bridging hook.
     pub pre_authorized_bridging_hook: BridgeHook,
 }
@@ -440,7 +440,7 @@ pub enum BridgeError {
     Timeout,
     /// A `CoW` Protocol API error.
     #[error(transparent)]
-    Cow(#[from] cow_sdk_error::CowError),
+    Cow(#[from] cow_errors::CowError),
 }
 
 /// Priority of bridge quote errors for selecting the best error to surface.

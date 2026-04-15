@@ -1,5 +1,5 @@
 [package]
-name = "cow-sdk-contracts-abi"
+name = "cow-contracts-abi"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

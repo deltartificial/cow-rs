@@ -1,4 +1,4 @@
-//! `cow-sdk-chains` — Layer 0 chain configuration for the `CoW` Protocol SDK.
+//! `cow-chains` — Layer 0 chain configuration for the `CoW` Protocol SDK.
 //!
 //! Centralises all deployment-specific knowledge: which chains are supported,
 //! where the protocol contracts live, what the native/wrapped tokens are, and

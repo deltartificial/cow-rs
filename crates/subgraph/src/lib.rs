@@ -1,4 +1,4 @@
-//! `cow-sdk-subgraph` — Layer 4 `CoW` Protocol subgraph `GraphQL` client for the `CoW` Protocol
+//! `cow-subgraph` — Layer 4 `CoW` Protocol subgraph `GraphQL` client for the `CoW` Protocol
 //! SDK.
 //!
 //! The subgraph indexes all `CoW` Protocol settlements and exposes aggregate

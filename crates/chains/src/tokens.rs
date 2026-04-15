@@ -50,7 +50,7 @@ pub const BTC_CURRENCY_ADDRESS: &str = "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa";
 ///
 /// ```
 /// use alloy_primitives::Address;
-/// use cow_sdk_chains::TokenInfo;
+/// use cow_chains::TokenInfo;
 ///
 /// let usdc = TokenInfo::new(Address::ZERO, 6, "USDC").with_name("USD Coin");
 /// assert_eq!(usdc.decimals_multiplier(), 1_000_000u128);
@@ -152,12 +152,12 @@ impl TokenInfo {
     /// `true` when the token address equals [`NATIVE_CURRENCY_ADDRESS`].
     ///
     /// ```
-    /// use cow_sdk_chains::{NATIVE_CURRENCY_ADDRESS, TokenInfo};
+    /// use cow_chains::{NATIVE_CURRENCY_ADDRESS, TokenInfo};
     ///
     /// let native = TokenInfo::new(NATIVE_CURRENCY_ADDRESS, 18, "ETH");
     /// assert!(native.is_native_currency());
     ///
-    /// let weth = cow_sdk_chains::wrapped_native_currency(cow_sdk_chains::SupportedChainId::Mainnet);
+    /// let weth = cow_chains::wrapped_native_currency(cow_chains::SupportedChainId::Mainnet);
     /// assert!(!weth.is_native_currency());
     /// ```
     #[must_use]
@@ -175,7 +175,7 @@ impl TokenInfo {
     ///
     /// ```
     /// use alloy_primitives::Address;
-    /// use cow_sdk_chains::TokenInfo;
+    /// use cow_chains::TokenInfo;
     ///
     /// let usdc = TokenInfo::new(Address::ZERO, 6, "USDC");
     /// assert_eq!(usdc.decimals_multiplier(), 1_000_000u128);
@@ -196,7 +196,7 @@ impl TokenInfo {
     ///
     /// ```
     /// use alloy_primitives::Address;
-    /// use cow_sdk_chains::TokenInfo;
+    /// use cow_chains::TokenInfo;
     ///
     /// let usdc = TokenInfo::new(Address::ZERO, 6, "USDC");
     /// assert_eq!(usdc.decimals_u64(), 6u64);
@@ -253,7 +253,7 @@ impl From<TokenInfo> for u8 {
 /// # Example
 ///
 /// ```rust
-/// use cow_sdk_chains::{SupportedChainId, get_wrapped_token_for_chain};
+/// use cow_chains::{SupportedChainId, get_wrapped_token_for_chain};
 ///
 /// let token = get_wrapped_token_for_chain(SupportedChainId::Mainnet);
 /// assert!(token.is_some());
@@ -281,7 +281,7 @@ pub const fn get_wrapped_token_for_chain(chain: SupportedChainId) -> Option<Toke
 /// # Example
 ///
 /// ```
-/// use cow_sdk_chains::{SupportedChainId, wrapped_native_currency};
+/// use cow_chains::{SupportedChainId, wrapped_native_currency};
 ///
 /// let weth = wrapped_native_currency(SupportedChainId::Mainnet);
 /// assert_eq!(weth.symbol, "WETH");

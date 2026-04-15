@@ -1,4 +1,4 @@
-//! `cow-sdk-onchain` — Layer 4 JSON-RPC `eth_call` reader for the `CoW` Protocol SDK.
+//! `cow-onchain` — Layer 4 JSON-RPC `eth_call` reader for the `CoW` Protocol SDK.
 //!
 //! Reads on-chain state (balances, allowances, decimals, permit nonces)
 //! via raw JSON-RPC. Uses a `reqwest` client directly — no alloy-provider
@@ -26,8 +26,8 @@ pub mod erc20;
 pub mod permit;
 
 use alloy_primitives::{Address, B256};
-use cow_sdk_chains::contracts::{IMPLEMENTATION_STORAGE_SLOT, OWNER_STORAGE_SLOT};
-use cow_sdk_error::CowError;
+use cow_chains::contracts::{IMPLEMENTATION_STORAGE_SLOT, OWNER_STORAGE_SLOT};
+use cow_errors::CowError;
 use serde::Deserialize;
 
 /// Reads on-chain state from an Ethereum node via JSON-RPC `eth_call`.

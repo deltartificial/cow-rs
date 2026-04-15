@@ -1,11 +1,11 @@
 //! On-chain `ERC-20` read methods for [`OnchainReader`].
 
 use alloy_primitives::{Address, U256};
-use cow_sdk_erc20::{
+use cow_erc20::{
     build_erc20_allowance_calldata, build_erc20_balance_of_calldata, build_erc20_decimals_calldata,
     build_erc20_name_calldata,
 };
-use cow_sdk_error::CowError;
+use cow_errors::CowError;
 
 use crate::{OnchainReader, decode_string, decode_u8, decode_u256};
 

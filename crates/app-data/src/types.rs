@@ -24,10 +24,10 @@ use std::fmt;
 
 use serde::{Deserialize, Serialize};
 
-// `CowHook` has been pushed down to `cow-sdk-types` (L1) so that sibling
+// `CowHook` has been pushed down to `cow-types` (L1) so that sibling
 // L2 crates (permit, cow-shed) can reference it without depending on
 // app-data. This module re-exports it for backwards compatibility.
-pub use cow_sdk_types::CowHook;
+pub use cow_types::CowHook;
 
 /// Latest app-data schema version this crate targets.
 ///
@@ -1166,7 +1166,7 @@ impl fmt::Display for OrderClassKind {
 }
 
 impl TryFrom<&str> for OrderClassKind {
-    type Error = cow_sdk_error::CowError;
+    type Error = cow_errors::CowError;
 
     /// Parse an [`OrderClassKind`] from the `CoW` Protocol schema string.
     fn try_from(s: &str) -> Result<Self, Self::Error> {
@@ -1175,7 +1175,7 @@ impl TryFrom<&str> for OrderClassKind {
             "limit" => Ok(Self::Limit),
             "liquidity" => Ok(Self::Liquidity),
             "twap" => Ok(Self::Twap),
-            other => Err(cow_sdk_error::CowError::Parse {
+            other => Err(cow_errors::CowError::Parse {
                 field: "OrderClassKind",
                 reason: format!("unknown value: {other}"),
             }),
@@ -1311,7 +1311,7 @@ impl OrderInteractionHooks {
     }
 }
 
-// `CowHook` now lives in `cow-sdk-types`; see the `pub use` at the top of this
+// `CowHook` now lives in `cow-types`; see the `pub use` at the top of this
 // module for the re-export.
 
 /// Widget integration metadata.

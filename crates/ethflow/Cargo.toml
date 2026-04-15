@@ -1,5 +1,5 @@
 [package]
-name = "cow-sdk-ethflow"
+name = "cow-ethflow"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -20,8 +20,8 @@ doctest = false
 
 [dependencies]
 alloy-primitives.workspace = true
-cow-sdk-chains.workspace = true
-cow-sdk-types.workspace = true
+cow-chains.workspace = true
+cow-types.workspace = true
 
 [lints]
 workspace = true

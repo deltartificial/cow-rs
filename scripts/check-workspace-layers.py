@@ -10,7 +10,7 @@ crate, parses its internal dependencies, and enforces:
 2. **No sibling dependencies** — two crates declared on the same layer
    may not depend on each other (Rule 2). This is stricter than Rule 1
    because it also forbids "N depends on N" edges.
-3. **Infrastructure exception** — `cow-sdk-error` is treated as workspace
+3. **Infrastructure exception** — `cow-errors` is treated as workspace
    infrastructure: any layer may depend on it without violating Rule 2.
 4. **Orthogonal crates** are ignored for DAG purposes (they are adapters,
    not ordered layers). They are still required to parse cleanly.
@@ -30,7 +30,7 @@ from typing import Dict, List, Optional, Set, Tuple
 
 ROOT = Path(__file__).resolve().parent.parent
 CRATES_DIR = ROOT / "crates"
-INFRA_CRATES = {"cow-sdk-error"}  # universally dependable
+INFRA_CRATES = {"cow-errors"}  # universally dependable
 # Legacy compat shim — excluded from layer enforcement because it intentionally
 # bundles everything for backwards compatibility.
 EXCLUDED_CRATES = {"cow-rs"}
@@ -41,15 +41,15 @@ EXCLUDED_CRATES = {"cow-rs"}
 ALLOWED_SIBLING_EDGES: Set[Tuple[str, str]] = {
     # settlement encoder currently consumes `UnsignedOrder`, `EncodedTrade`,
     # `SettlementTokenRegistry`, `SignatureData` and `encode_trade` from
-    # cow-sdk-signing. These shared encoding types are slated to move down
-    # to `cow-sdk-types` (L1) in a follow-up pass, at which point this edge
+    # cow-signing. These shared encoding types are slated to move down
+    # to `cow-types` (L1) in a follow-up pass, at which point this edge
     # disappears.
-    ("cow-sdk-settlement", "cow-sdk-signing"),
+    ("cow-settlement", "cow-signing"),
 }
 
 
 def parse_cargo_toml(path: Path) -> Tuple[Optional[str], Optional[object], List[str]]:
-    """Return (crate_name, layer, internal_cow_sdk_deps) for a crate's Cargo.toml.
+    """Return (crate_name, layer, internal_cow_deps) for a crate's Cargo.toml.
 
     Layer is parsed as either an int (normal layers) or the literal string
     "orthogonal". Internal deps are the workspace-internal crate names
@@ -80,7 +80,8 @@ def parse_cargo_toml(path: Path) -> Tuple[Optional[str], Optional[object], List[
 
     # --- Internal deps
     # Find the [dependencies] section only (skip dev-dependencies, build-
-    # dependencies, features, etc.). We look for `cow-sdk-*` crate names.
+    # dependencies, features, etc.). We look for `cow-*` crate names, and
+    # skip `cow-rs` (the legacy compat shim) which doesn't participate.
     deps: List[str] = []
     deps_section = re.search(
         r"^\[dependencies\]\s*\n(.*?)(?=^\[|\Z)",
@@ -93,8 +94,8 @@ def parse_cargo_toml(path: Path) -> Tuple[Optional[str], Optional[object], List[
             line = line.strip()
             if not line or line.startswith("#"):
                 continue
-            m = re.match(r"^(cow-sdk[a-z0-9-]*)\s*[=.]", line)
-            if m:
+            m = re.match(r"^(cow-[a-z0-9-]+)\s*[=.]", line)
+            if m and m.group(1) != "cow-rs":
                 deps.append(m.group(1))
     return name, layer, deps
 
@@ -142,7 +143,7 @@ def main() -> int:
             if dep == name:
                 continue
             if dep not in crates:
-                # Unknown cow-sdk-* dep — probably a typo or a stub not yet added.
+                # Unknown cow-* dep — probably a typo or a stub not yet added.
                 errors.append(f"{name}: unknown workspace dep `{dep}`")
                 continue
             dep_layer = crates[dep][0]

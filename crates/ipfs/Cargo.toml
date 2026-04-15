@@ -1,5 +1,5 @@
 [package]
-name = "cow-sdk-ipfs"
+name = "cow-ipfs"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -19,7 +19,7 @@ layer = 4
 doctest = false
 
 [dependencies]
-cow-sdk-http.workspace = true
+cow-http.workspace = true
 
 [lints]
 workspace = true

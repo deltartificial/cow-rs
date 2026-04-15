@@ -1,4 +1,4 @@
-//! `cow-sdk-ethflow` — Layer 2 `EthFlow` contract helpers for the `CoW` Protocol SDK.
+//! `cow-ethflow` — Layer 2 `EthFlow` contract helpers for the `CoW` Protocol SDK.
 //!
 //! Encode `createOrder` calldata for native-currency orders.
 //!
@@ -21,7 +21,7 @@
 #![warn(missing_docs)]
 
 use alloy_primitives::{Address, B256, U256, keccak256};
-use cow_sdk_types::OnchainOrderData;
+use cow_types::OnchainOrderData;
 
 /// Parameters for a native-currency sell order submitted through the
 /// `EthFlow` contract.
@@ -33,7 +33,7 @@ use cow_sdk_types::OnchainOrderData;
 ///
 /// ```
 /// use alloy_primitives::{Address, B256, U256};
-/// use cow_sdk_ethflow::{EthFlowOrderData, encode_eth_flow_create_order};
+/// use cow_ethflow::{EthFlowOrderData, encode_eth_flow_create_order};
 ///
 /// let order = EthFlowOrderData {
 ///     buy_token: Address::ZERO,
@@ -140,7 +140,7 @@ fn abi_i64(v: i64) -> [u8; 32] {
 ///
 /// ```
 /// use alloy_primitives::{Address, B256, U256};
-/// use cow_sdk_ethflow::{EthFlowOrderData, encode_eth_flow_create_order};
+/// use cow_ethflow::{EthFlowOrderData, encode_eth_flow_create_order};
 ///
 /// let order = EthFlowOrderData {
 ///     buy_token: Address::ZERO,
@@ -183,7 +183,7 @@ pub fn encode_eth_flow_create_order(order: &EthFlowOrderData) -> Vec<u8> {
 /// # Parameters
 ///
 /// * `contract` — the [`Address`] of the `EthFlow` contract on the target chain (use
-///   [`eth_flow_for_env`](cow_sdk_chains::eth_flow_for_env) to look it up).
+///   [`eth_flow_for_env`](cow_chains::eth_flow_for_env) to look it up).
 /// * `order` — the [`EthFlowOrderData`] to encode.
 ///
 /// # Returns
@@ -194,7 +194,7 @@ pub fn encode_eth_flow_create_order(order: &EthFlowOrderData) -> Vec<u8> {
 ///
 /// ```
 /// use alloy_primitives::{Address, B256, U256};
-/// use cow_sdk_ethflow::{EthFlowOrderData, build_eth_flow_transaction};
+/// use cow_ethflow::{EthFlowOrderData, build_eth_flow_transaction};
 ///
 /// let order = EthFlowOrderData {
 ///     buy_token: Address::ZERO,
@@ -239,7 +239,7 @@ pub fn build_eth_flow_transaction(
 /// # Example
 ///
 /// ```
-/// use cow_sdk_ethflow::is_eth_flow_order_data;
+/// use cow_ethflow::is_eth_flow_order_data;
 ///
 /// assert!(!is_eth_flow_order_data(None));
 /// ```

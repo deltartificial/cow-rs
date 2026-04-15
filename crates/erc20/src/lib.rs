@@ -1,4 +1,4 @@
-//! `cow-sdk-erc20` — Layer 2 `ERC-20` calldata builders for the `CoW` Protocol SDK.
+//! `cow-erc20` — Layer 2 `ERC-20` calldata builders for the `CoW` Protocol SDK.
 //!
 //! Provides ABI-encoded calldata for common `ERC-20` and `EIP-2612`
 //! functions needed when preparing `CoW` Protocol orders. All functions
@@ -20,7 +20,7 @@
 //! | [`build_eip2612_version_calldata`] | `version()` | 4 B |
 //!
 //! The spender for swap orders is typically the `VAULT_RELAYER` contract
-//! address exposed by [`cow-sdk-chains`](https://docs.rs/cow-sdk-chains).
+//! address exposed by [`cow-chains`](https://docs.rs/cow-chains).
 
 #![deny(unsafe_code)]
 #![warn(missing_docs)]
@@ -48,7 +48,7 @@ const fn abi_u256(v: U256) -> [u8; 32] {
 /// Build calldata for `ERC20.approve(address spender, uint256 amount)`.
 ///
 /// Call this on the sell token to grant the
-/// [`VAULT_RELAYER`](cow_sdk_chains::contracts::VAULT_RELAYER) (or any other
+/// [`VAULT_RELAYER`](cow_chains::contracts::VAULT_RELAYER) (or any other
 /// spender) the allowance it needs to transfer tokens on your behalf.
 ///
 /// # Parameters
@@ -64,8 +64,8 @@ const fn abi_u256(v: U256) -> [u8; 32] {
 ///
 /// ```rust
 /// use alloy_primitives::{Address, U256};
-/// use cow_sdk_chains::contracts::VAULT_RELAYER;
-/// use cow_sdk_erc20::build_erc20_approve_calldata;
+/// use cow_chains::contracts::VAULT_RELAYER;
+/// use cow_erc20::build_erc20_approve_calldata;
 ///
 /// let calldata = build_erc20_approve_calldata(VAULT_RELAYER, U256::MAX);
 /// assert_eq!(calldata.len(), 68); // 4 (selector) + 32 (address) + 32 (amount)
@@ -98,7 +98,7 @@ pub fn build_erc20_approve_calldata(spender: Address, amount: U256) -> Vec<u8> {
 ///
 /// ```rust
 /// use alloy_primitives::Address;
-/// use cow_sdk_erc20::build_erc20_balance_of_calldata;
+/// use cow_erc20::build_erc20_balance_of_calldata;
 ///
 /// let calldata = build_erc20_balance_of_calldata(Address::ZERO);
 /// assert_eq!(calldata.len(), 36); // 4 (selector) + 32 (address)
@@ -130,8 +130,8 @@ pub fn build_erc20_balance_of_calldata(account: Address) -> Vec<u8> {
 ///
 /// ```rust
 /// use alloy_primitives::Address;
-/// use cow_sdk_chains::contracts::VAULT_RELAYER;
-/// use cow_sdk_erc20::build_erc20_allowance_calldata;
+/// use cow_chains::contracts::VAULT_RELAYER;
+/// use cow_erc20::build_erc20_allowance_calldata;
 ///
 /// let calldata = build_erc20_allowance_calldata(Address::ZERO, VAULT_RELAYER);
 /// assert_eq!(calldata.len(), 68); // 4 (selector) + 32 (owner) + 32 (spender)
@@ -165,7 +165,7 @@ pub fn build_erc20_allowance_calldata(owner: Address, spender: Address) -> Vec<u
 ///
 /// ```rust
 /// use alloy_primitives::{Address, U256};
-/// use cow_sdk_erc20::build_erc20_transfer_calldata;
+/// use cow_erc20::build_erc20_transfer_calldata;
 ///
 /// let cd = build_erc20_transfer_calldata(Address::ZERO, U256::from(100u64));
 /// assert_eq!(cd.len(), 68); // 4 (selector) + 32 (address) + 32 (amount)
@@ -199,7 +199,7 @@ pub fn build_erc20_transfer_calldata(to: Address, amount: U256) -> Vec<u8> {
 ///
 /// ```rust
 /// use alloy_primitives::{Address, U256};
-/// use cow_sdk_erc20::build_erc20_transfer_from_calldata;
+/// use cow_erc20::build_erc20_transfer_from_calldata;
 ///
 /// let cd = build_erc20_transfer_from_calldata(Address::ZERO, Address::ZERO, U256::from(100u64));
 /// assert_eq!(cd.len(), 100); // 4 + 32 + 32 + 32
@@ -223,7 +223,7 @@ pub fn build_erc20_transfer_from_calldata(from: Address, to: Address, amount: U2
 /// # Example
 ///
 /// ```rust
-/// use cow_sdk_erc20::build_erc20_decimals_calldata;
+/// use cow_erc20::build_erc20_decimals_calldata;
 ///
 /// let calldata = build_erc20_decimals_calldata();
 /// assert_eq!(calldata.len(), 4);
@@ -243,7 +243,7 @@ pub fn build_erc20_decimals_calldata() -> Vec<u8> {
 /// # Example
 ///
 /// ```rust
-/// use cow_sdk_erc20::build_erc20_name_calldata;
+/// use cow_erc20::build_erc20_name_calldata;
 ///
 /// let calldata = build_erc20_name_calldata();
 /// assert_eq!(calldata.len(), 4);
@@ -268,7 +268,7 @@ pub fn build_erc20_name_calldata() -> Vec<u8> {
 ///
 /// ```rust
 /// use alloy_primitives::Address;
-/// use cow_sdk_erc20::build_eip2612_nonces_calldata;
+/// use cow_erc20::build_eip2612_nonces_calldata;
 ///
 /// let calldata = build_eip2612_nonces_calldata(Address::ZERO);
 /// assert_eq!(calldata.len(), 36); // 4 (selector) + 32 (address)
@@ -291,7 +291,7 @@ pub fn build_eip2612_nonces_calldata(owner: Address) -> Vec<u8> {
 /// # Example
 ///
 /// ```rust
-/// use cow_sdk_erc20::build_eip2612_version_calldata;
+/// use cow_erc20::build_eip2612_version_calldata;
 ///
 /// let calldata = build_eip2612_version_calldata();
 /// assert_eq!(calldata.len(), 4);

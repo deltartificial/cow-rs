@@ -1,4 +1,4 @@
-//! `cow-sdk-settlement` — Layer 2 settlement encoding and on-chain helpers for the `CoW` Protocol
+//! `cow-settlement` — Layer 2 settlement encoding and on-chain helpers for the `CoW` Protocol
 //! SDK.
 //!
 //! This crate provides tools for building `GPv2Settlement.settle()` calldata,

@@ -1,5 +1,5 @@
 [package]
-name = "cow-sdk-orderbook"
+name = "cow-orderbook"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -27,15 +27,15 @@ wasm = []
 alloy-primitives.workspace = true
 async-trait.workspace = true
 chrono.workspace = true
-cow-sdk-chains.workspace = true
-cow-sdk-error.workspace = true
-cow-sdk-http.workspace = true
-# NOTE (workspace-split migration debt): `cow-sdk-signing` is a sibling L2
+cow-chains.workspace = true
+cow-errors.workspace = true
+cow-http.workspace = true
+# NOTE (workspace-split migration debt): `cow-signing` is a sibling L2
 # crate here referenced for its shared `UnsignedOrder` type. That type will
-# move down to `cow-sdk-types` in a later cleanup pass.
-cow-sdk-signing.workspace = true
-cow-sdk-primitives.workspace = true
-cow-sdk-types.workspace = true
+# move down to `cow-types` in a later cleanup pass.
+cow-signing.workspace = true
+cow-primitives.workspace = true
+cow-types.workspace = true
 foldhash.workspace = true
 progenitor-client.workspace = true
 reqwest.workspace = true

@@ -3,7 +3,7 @@
 //! Abstracts ECDSA signing for dependency injection (tests, custom backends).
 
 use alloy_primitives::{Address, B256, keccak256};
-use cow_sdk_error::CowError;
+use cow_errors::CowError;
 
 /// Abstraction over ECDSA signing used by the SDK.
 ///

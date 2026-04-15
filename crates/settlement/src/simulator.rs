@@ -7,8 +7,8 @@
 use std::fmt;
 
 use alloy_primitives::Address;
-use cow_sdk_chains::{chain::SupportedChainId, contracts::settlement_contract};
-use cow_sdk_error::CowError;
+use cow_chains::{chain::SupportedChainId, contracts::settlement_contract};
+use cow_errors::CowError;
 
 use super::encoder::SettlementEncoder;
 
@@ -325,7 +325,7 @@ fn decode_hex_result(hex_str: &str) -> Result<Vec<u8>, CowError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cow_sdk_chains::contracts::SETTLEMENT_CONTRACT;
+    use cow_chains::contracts::SETTLEMENT_CONTRACT;
 
     // ── SimulationResult tests ───────────────────────────────────────────
 

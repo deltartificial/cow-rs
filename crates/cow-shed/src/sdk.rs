@@ -77,7 +77,7 @@ impl CowShedSdk {
     /// # Example
     ///
     /// ```
-    /// use cow_sdk_cow_shed::CowShedSdk;
+    /// use cow_shed::CowShedSdk;
     ///
     /// let sdk = CowShedSdk::new(1);
     /// assert!(sdk.factory_address().is_some());
@@ -126,7 +126,7 @@ impl CowShedSdk {
         buf
     }
 
-    /// Build a [`CowHook`](cow_sdk_types::CowHook) that calls through this
+    /// Build a [`CowHook`](cow_types::CowHook) that calls through this
     /// user's `CowShed` proxy.
     ///
     /// # Arguments
@@ -137,22 +137,22 @@ impl CowShedSdk {
     ///
     /// # Returns
     ///
-    /// A [`CowHook`](cow_sdk_types::CowHook) with the proxy as the target,
+    /// A [`CowHook`](cow_types::CowHook) with the proxy as the target,
     /// encoded calldata, and an estimated gas limit based on the number of
     /// calls.
     ///
     /// # Errors
     ///
-    /// Returns [`CowError`](cow_sdk_error::CowError) if encoding fails (currently infallible).
+    /// Returns [`CowError`](cow_errors::CowError) if encoding fails (currently infallible).
     pub fn build_hook(
         &self,
         _user: Address,
         proxy: Address,
         params: &CowShedHookParams,
-    ) -> Result<cow_sdk_types::CowHook, cow_sdk_error::CowError> {
+    ) -> Result<cow_types::CowHook, cow_errors::CowError> {
         let calldata = Self::encode_execute_hooks_calldata(params);
         let gas_limit = 100_000_u64 + 50_000_u64 * params.call_count() as u64;
-        Ok(cow_sdk_types::CowHook {
+        Ok(cow_types::CowHook {
             target: format!("{proxy:#x}"),
             call_data: alloy_primitives::hex::encode(&calldata),
             gas_limit: gas_limit.to_string(),

@@ -1,5 +1,5 @@
 [package]
-name = "cow-sdk-settlement"
+name = "cow-settlement"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -20,14 +20,14 @@ doctest = false
 
 [dependencies]
 alloy-primitives.workspace = true
-cow-sdk-chains.workspace = true
-cow-sdk-error.workspace = true
-# NOTE (workspace-split migration debt): depending on `cow-sdk-signing` at L2
+cow-chains.workspace = true
+cow-errors.workspace = true
+# NOTE (workspace-split migration debt): depending on `cow-signing` at L2
 # violates Rule 2 (no sibling deps). The shared encoding types
 # (`UnsignedOrder`, `EncodedTrade`, `SettlementTokenRegistry`, `SignatureData`,
-# `encode_trade`) will be pushed down to `cow-sdk-types` in a later phase.
-cow-sdk-signing.workspace = true
-cow-sdk-types.workspace = true
+# `encode_trade`) will be pushed down to `cow-types` in a later phase.
+cow-signing.workspace = true
+cow-types.workspace = true
 reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true

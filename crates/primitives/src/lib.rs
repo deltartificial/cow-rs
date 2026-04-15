@@ -1,4 +1,4 @@
-//! `cow-sdk-primitives` — Layer 0 foundational constants for the `CoW` Protocol SDK.
+//! `cow-primitives` — Layer 0 foundational constants for the `CoW` Protocol SDK.
 //!
 //! This crate sits at the bottom of the workspace DAG and has **no internal
 //! dependencies**. It exposes:
@@ -8,8 +8,8 @@
 //! - Near Intents attestation constants
 //!
 //! Protocol enums (`OrderKind`, `SigningScheme`, `TokenBalance`, ...) live in
-//! [`cow-sdk-types`](https://docs.rs/cow-sdk-types) (Layer 1) because their
-//! `TryFrom<&str>` impls depend on [`cow-sdk-error`](https://docs.rs/cow-sdk-error).
+//! [`cow-types`](https://docs.rs/cow-types) (Layer 1) because their
+//! `TryFrom<&str>` impls depend on [`cow-errors`](https://docs.rs/cow-errors).
 
 #![deny(unsafe_code)]
 #![warn(missing_docs)]

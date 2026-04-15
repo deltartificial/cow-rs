@@ -3,8 +3,8 @@
 use alloy_primitives::{Address, B256};
 use alloy_signer::Signer as _;
 use alloy_signer_local::PrivateKeySigner;
-use cow_sdk_error::CowError;
-use cow_sdk_types::{EcdsaSigningScheme, SigningScheme};
+use cow_errors::CowError;
+use cow_types::{EcdsaSigningScheme, SigningScheme};
 
 use crate::{
     eip712::{cancellations_hash, domain_separator, order_hash, signing_digest},
@@ -87,7 +87,7 @@ pub async fn sign_order(
 ///
 /// ```rust
 /// use alloy_primitives::Address;
-/// use cow_sdk_signing::presign_result;
+/// use cow_signing::presign_result;
 ///
 /// let owner = Address::ZERO;
 /// let result = presign_result(owner);
@@ -118,7 +118,7 @@ pub fn presign_result(owner: Address) -> SigningResult {
 /// # Example
 ///
 /// ```rust
-/// use cow_sdk_signing::eip1271_result;
+/// use cow_signing::eip1271_result;
 ///
 /// // Hypothetical smart-contract signature (arbitrary bytes)
 /// let sig = vec![0xde, 0xad, 0xbe, 0xef];
@@ -264,7 +264,7 @@ pub fn generate_order_id(chain_id: u64, order: &UnsignedOrder, owner: Address) -
 /// # Example
 ///
 /// ```rust
-/// use cow_sdk_signing::get_domain;
+/// use cow_signing::get_domain;
 ///
 /// let domain = get_domain(1);
 /// assert_eq!(domain.chain_id, 1);

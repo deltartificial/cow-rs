@@ -1,5 +1,5 @@
 [package]
-name = "cow-sdk-permit"
+name = "cow-permit"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -22,8 +22,8 @@ doctest = false
 alloy-primitives.workspace = true
 alloy-signer.workspace = true
 alloy-signer-local.workspace = true
-cow-sdk-error.workspace = true
-cow-sdk-types.workspace = true
+cow-errors.workspace = true
+cow-types.workspace = true
 serde.workspace = true
 
 [dev-dependencies]

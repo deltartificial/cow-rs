@@ -1,4 +1,4 @@
-//! `cow-sdk-trading` — Layer 5 high-level trading SDK for the `CoW` Protocol SDK.
+//! `cow-trading` — Layer 5 high-level trading SDK for the `CoW` Protocol SDK.
 
 #![deny(unsafe_code)]
 #![warn(missing_docs)]

@@ -1,4 +1,4 @@
-//! `cow-sdk-bridging` — Layer 5 cross-chain bridge aggregator for the `CoW` Protocol SDK.
+//! `cow-bridging` — Layer 5 cross-chain bridge aggregator for the `CoW` Protocol SDK.
 //!
 //! Provides:
 //! - A [`BridgingSdk`] that queries multiple bridge providers concurrently

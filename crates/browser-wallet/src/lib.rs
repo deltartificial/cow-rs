@@ -1,4 +1,4 @@
-//! `cow-sdk-browser-wallet` — EIP-1193 browser wallet adapter and WASM bindings.
+//! `cow-browser-wallet` — EIP-1193 browser wallet adapter and WASM bindings.
 //!
 //! This is an **orthogonal** crate in the workspace: it does not belong to
 //! any of the architecture layers L0..L6 because it adapts the native SDK

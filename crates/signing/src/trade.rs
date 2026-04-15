@@ -4,8 +4,8 @@
 //! `TokenRegistry` class from the `TypeScript` `contracts-ts` package.
 
 use alloy_primitives::{Address, B256, Bytes, U256};
-use cow_sdk_error::CowError;
-use cow_sdk_types::SigningScheme;
+use cow_errors::CowError;
+use cow_types::SigningScheme;
 use foldhash::HashMap;
 
 use crate::{
@@ -122,7 +122,7 @@ impl SettlementTokenRegistry {
     ///
     /// ```
     /// use alloy_primitives::address;
-    /// use cow_sdk_signing::trade::SettlementTokenRegistry;
+    /// use cow_signing::trade::SettlementTokenRegistry;
     ///
     /// let mut registry = SettlementTokenRegistry::new();
     /// let token_a = address!("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
@@ -333,7 +333,7 @@ pub fn decode_order(trade: &EncodedTrade, tokens: &[Address]) -> Result<Unsigned
 ///
 /// ```
 /// use alloy_primitives::{B256, U256, address};
-/// use cow_sdk_signing::trade::{SettlementTokenRegistry, Swap, encode_swap_step};
+/// use cow_signing::trade::{SettlementTokenRegistry, Swap, encode_swap_step};
 ///
 /// let mut tokens = SettlementTokenRegistry::new();
 /// let swap = Swap {
@@ -409,7 +409,7 @@ pub struct Eip1271SignatureData {
 ///
 /// ```
 /// use alloy_primitives::{Bytes, address};
-/// use cow_sdk_signing::trade::{Eip1271SignatureData, encode_eip1271_signature_data};
+/// use cow_signing::trade::{Eip1271SignatureData, encode_eip1271_signature_data};
 ///
 /// let data = Eip1271SignatureData {
 ///     verifier: address!("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
@@ -448,7 +448,7 @@ pub fn encode_eip1271_signature_data(data: &Eip1271SignatureData) -> Bytes {
 ///
 /// ```
 /// use alloy_primitives::{Bytes, address};
-/// use cow_sdk_signing::trade::{
+/// use cow_signing::trade::{
 ///     Eip1271SignatureData, decode_signature_owner, encode_eip1271_signature_data,
 /// };
 ///
@@ -492,7 +492,7 @@ pub fn decode_signature_owner(data: &[u8]) -> Result<Address, CowError> {
 ///
 /// ```
 /// use alloy_primitives::{Bytes, address};
-/// use cow_sdk_signing::trade::{
+/// use cow_signing::trade::{
 ///     Eip1271SignatureData, decode_eip1271_signature_data, encode_eip1271_signature_data,
 /// };
 ///
@@ -520,7 +520,7 @@ pub fn decode_eip1271_signature_data(data: &[u8]) -> Result<Eip1271SignatureData
 mod tests {
     use super::*;
     use alloy_primitives::address;
-    use cow_sdk_types::{OrderKind, TokenBalance};
+    use cow_types::{OrderKind, TokenBalance};
 
     #[test]
     fn token_registry_basic() {

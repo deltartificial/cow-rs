@@ -9,7 +9,7 @@ use std::fmt;
 use alloy_primitives::{Address, U256};
 use serde::{Deserialize, Serialize};
 
-use cow_sdk_types::CowHook;
+use cow_types::CowHook;
 
 /// Core parameters for an EIP-2612 permit operation.
 ///

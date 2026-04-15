@@ -2,7 +2,7 @@
 
 use std::pin::Pin;
 
-use cow_sdk_error::CowError;
+use cow_errors::CowError;
 
 use super::types::{QuoteBridgeRequest, QuoteBridgeResponse};
 

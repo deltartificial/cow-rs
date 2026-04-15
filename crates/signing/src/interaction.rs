@@ -44,7 +44,7 @@ impl InteractionLike {
     ///
     /// ```
     /// use alloy_primitives::Address;
-    /// use cow_sdk_signing::interaction::InteractionLike;
+    /// use cow_signing::interaction::InteractionLike;
     ///
     /// let interaction = InteractionLike::new(Address::ZERO);
     /// assert!(interaction.value.is_none());
@@ -104,7 +104,7 @@ impl InteractionLike {
 ///
 /// ```
 /// use alloy_primitives::{Address, U256};
-/// use cow_sdk_signing::interaction::{InteractionLike, normalize_interaction};
+/// use cow_signing::interaction::{InteractionLike, normalize_interaction};
 ///
 /// let like = InteractionLike::new(Address::ZERO);
 /// let normalized = normalize_interaction(like);
@@ -134,7 +134,7 @@ pub fn normalize_interaction(interaction: InteractionLike) -> Interaction {
 ///
 /// ```
 /// use alloy_primitives::Address;
-/// use cow_sdk_signing::interaction::{InteractionLike, normalize_interactions};
+/// use cow_signing::interaction::{InteractionLike, normalize_interactions};
 ///
 /// let interactions =
 ///     vec![InteractionLike::new(Address::ZERO), InteractionLike::new(Address::ZERO)];

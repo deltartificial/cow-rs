@@ -1,4 +1,4 @@
-//! `cow-sdk-error` — shared error type for the `CoW` Protocol SDK.
+//! `cow-errors` — shared error type for the `CoW` Protocol SDK.
 //!
 //! [`CowError`] is the unified error type used across the workspace.
 //! Every fallible function in the SDK currently returns `Result<T, CowError>`.

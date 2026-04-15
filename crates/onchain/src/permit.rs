@@ -1,8 +1,8 @@
 //! On-chain `EIP-2612` read methods for [`OnchainReader`].
 
 use alloy_primitives::{Address, U256};
-use cow_sdk_erc20::{build_eip2612_nonces_calldata, build_eip2612_version_calldata};
-use cow_sdk_error::CowError;
+use cow_erc20::{build_eip2612_nonces_calldata, build_eip2612_version_calldata};
+use cow_errors::CowError;
 
 use crate::{OnchainReader, decode_string, decode_u256};
 

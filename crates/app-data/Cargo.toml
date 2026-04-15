@@ -1,5 +1,5 @@
 [package]
-name = "cow-sdk-app-data"
+name = "cow-app-data"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -25,12 +25,12 @@ schema-validation = ["dep:jsonschema"]
 
 [dependencies]
 alloy-primitives.workspace = true
-cow-sdk-error.workspace = true
-cow-sdk-types.workspace = true
+cow-errors.workspace = true
+cow-types.workspace = true
 foldhash.workspace = true
 jsonschema = { workspace = true, optional = true }
 # NOTE (workspace-split migration debt): `ipfs.rs` uses `reqwest` directly.
-# This transport concern will be moved to a dedicated `cow-sdk-ipfs` (L4)
+# This transport concern will be moved to a dedicated `cow-ipfs` (L4)
 # crate in a later phase.
 reqwest.workspace = true
 serde.workspace = true

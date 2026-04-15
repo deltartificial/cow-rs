@@ -1,5 +1,5 @@
 [package]
-name = "cow-sdk-erc20"
+name = "cow-erc20"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

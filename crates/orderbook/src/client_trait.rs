@@ -4,7 +4,7 @@
 //! (or alternative backends) can provide a mock implementation that
 //! returns canned responses without network I/O.
 
-use cow_sdk_error::CowError;
+use cow_errors::CowError;
 
 use crate::{
     OrderBookApi,
@@ -16,7 +16,7 @@ use crate::{
 /// Abstraction over the `CoW` Protocol orderbook HTTP API.
 ///
 /// [`OrderBookApi`] implements this trait by delegating to its existing async
-/// methods. Consumers (notably `cow-sdk-trading`) accept an
+/// methods. Consumers (notably `cow-trading`) accept an
 /// `Arc<dyn OrderbookClient>` so tests can inject mocks.
 #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
 #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]

@@ -7,7 +7,7 @@
 use std::fmt;
 
 use alloy_primitives::{Address, U256, keccak256};
-use cow_sdk_signing::{
+use cow_signing::{
     trade::{EncodedTrade, SettlementTokenRegistry, SignatureData, encode_trade},
     types::UnsignedOrder,
 };
@@ -481,7 +481,7 @@ mod tests {
     use alloy_primitives::{B256, Bytes, address};
 
     use super::*;
-    use cow_sdk_types::{OrderKind, SigningScheme, TokenBalance};
+    use cow_types::{OrderKind, SigningScheme, TokenBalance};
 
     fn sample_order() -> UnsignedOrder {
         UnsignedOrder {

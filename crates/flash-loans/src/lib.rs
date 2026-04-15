@@ -1,4 +1,4 @@
-//! `cow-sdk-flash-loans` — Layer 5 flash loan orchestration helpers for the `CoW` Protocol SDK.
+//! `cow-flash-loans` — Layer 5 flash loan orchestration helpers for the `CoW` Protocol SDK.
 //!
 //! Supports building pre-interaction hooks that trigger flash loans from
 //! Balancer, `MakerDAO`, or Aave V3 as part of a `CoW` Protocol order

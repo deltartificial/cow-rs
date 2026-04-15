@@ -1,6 +1,6 @@
 //! [`BridgingSdk`] — multi-provider cross-chain bridge aggregator.
 
-use cow_sdk_error::CowError;
+use cow_errors::CowError;
 
 // ── Bridging constants ──────────────────────────────────────────────────────
 

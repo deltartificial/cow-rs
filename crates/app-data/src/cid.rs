@@ -21,7 +21,7 @@
 //! | [`decode_cid`] | raw CID bytes → [`CidComponents`] |
 //! | [`extract_digest`] | `CIDv1` string → digest hex |
 
-use cow_sdk_error::CowError;
+use cow_errors::CowError;
 
 // CIDv1 constants (modern encoding)
 const CID_VERSION: u8 = 0x01;

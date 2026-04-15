@@ -7,7 +7,7 @@ use foldhash::HashMap;
 
 use alloy_primitives::{Address, U256};
 
-use cow_sdk_error::CowError;
+use cow_errors::CowError;
 
 use super::{
     provider::{BridgeProvider, QuoteFuture},
@@ -48,7 +48,7 @@ pub const SOCKET_VERIFIER_ADDRESS: &str = "0xa27A3f5A96DF7D8Be26EE2790999860C00e
 /// happen in practice).
 #[must_use]
 pub fn bungee_approve_and_bridge_v1_addresses() -> HashMap<u64, Address> {
-    use cow_sdk_chains::SupportedChainId;
+    use cow_chains::SupportedChainId;
 
     // Safety: the address literal is a valid hex address.
     let Ok(addr) = BUNGEE_APPROVE_AND_BRIDGE_V1_ADDRESS.parse::<Address>() else {
@@ -310,7 +310,7 @@ pub fn bungee_to_bridge_quote_result(
         signature: None,
         attestation_signature: None,
         quote_body,
-        is_sell: request.kind == cow_sdk_types::OrderKind::Sell,
+        is_sell: request.kind == cow_types::OrderKind::Sell,
         amounts_and_costs,
         expected_fill_time_seconds: Some(estimated_time),
         quote_timestamp,
@@ -557,7 +557,7 @@ pub struct BungeeDepositCallParams {
 /// - The `ApproveAndBridge` contract address is not configured for the chain
 pub fn create_bungee_deposit_call(
     params: &BungeeDepositCallParams,
-) -> Result<cow_sdk_chains::EvmCall, BridgeError> {
+) -> Result<cow_chains::EvmCall, BridgeError> {
     let decoded_tx = decode_bungee_bridge_tx_data(&params.build_tx_data)?;
     let function_selector = decoded_tx.function_selector.to_lowercase();
 
@@ -613,10 +613,10 @@ pub fn create_bungee_deposit_call(
     })?;
 
     // Determine value (native token sends).
-    let native = cow_sdk_chains::NATIVE_CURRENCY_ADDRESS;
+    let native = cow_chains::NATIVE_CURRENCY_ADDRESS;
     let value = if params.request.sell_token == native { params.input_amount } else { U256::ZERO };
 
-    Ok(cow_sdk_chains::EvmCall { to: *to, data: calldata, value })
+    Ok(cow_chains::EvmCall { to: *to, data: calldata, value })
 }
 
 // ── BungeeProvider (HTTP client) ──────────────────────────────────────────────

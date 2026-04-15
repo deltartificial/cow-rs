@@ -1,4 +1,4 @@
-//! `cow-sdk-permit` — Layer 2 EIP-2612 permit utilities for `CoW` Protocol pre-interaction hooks.
+//! `cow-permit` — Layer 2 EIP-2612 permit utilities for `CoW` Protocol pre-interaction hooks.
 //!
 //! This crate ports the `permit-utils` package from the `CoW` Protocol
 //! `TypeScript` SDK. It provides everything needed to sign an EIP-2612 permit

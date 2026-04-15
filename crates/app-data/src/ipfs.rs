@@ -28,7 +28,7 @@ use alloy_primitives::B256;
 use serde::Deserialize;
 use serde_json::json;
 
-use cow_sdk_error::CowError;
+use cow_errors::CowError;
 
 use super::{
     cid::{appdata_hex_to_cid, cid_to_appdata_hex, extract_digest},

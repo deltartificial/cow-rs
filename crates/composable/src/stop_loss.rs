@@ -8,7 +8,7 @@
 
 use alloy_primitives::{Address, B256, U256, keccak256};
 
-use cow_sdk_error::CowError;
+use cow_errors::CowError;
 
 use super::types::ConditionalOrderParams;
 

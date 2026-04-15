@@ -7,7 +7,7 @@
 use alloy_primitives::{Address, B256, U256, keccak256};
 use alloy_signer::Signer as _;
 use alloy_signer_local::PrivateKeySigner;
-use cow_sdk_error::CowError;
+use cow_errors::CowError;
 
 use crate::types::{Erc20PermitInfo, PermitHookData, PermitInfo};
 

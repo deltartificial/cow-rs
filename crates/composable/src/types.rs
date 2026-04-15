@@ -5,7 +5,7 @@ use std::fmt;
 use alloy_primitives::{Address, B256, U256};
 use serde::{Deserialize, Serialize};
 
-use cow_sdk_types::OrderKind;
+use cow_types::OrderKind;
 
 // ── Handler addresses ─────────────────────────────────────────────────────────
 
@@ -746,7 +746,7 @@ impl TwapStruct {
 }
 
 impl TryFrom<&TwapData> for TwapStruct {
-    type Error = cow_sdk_error::CowError;
+    type Error = cow_errors::CowError;
 
     /// Convert a high-level [`TwapData`] into the ABI-level [`TwapStruct`].
     ///
@@ -784,13 +784,13 @@ impl fmt::Display for TwapStruct {
 
 /// Raw on-chain `GPv2Order.DataStruct` as emitted by the `GPv2Settlement` contract.
 ///
-/// Unlike [`UnsignedOrder`](cow_sdk_signing::types::UnsignedOrder), the
+/// Unlike [`UnsignedOrder`](cow_signing::types::UnsignedOrder), the
 /// `kind`, `sell_token_balance`, and `buy_token_balance` fields are stored as
 /// `keccak256` hashes rather than typed enums.
 ///
 /// Use [`from_struct_to_order`](crate::from_struct_to_order) to
 /// decode them into a fully typed
-/// [`UnsignedOrder`](cow_sdk_signing::types::UnsignedOrder).
+/// [`UnsignedOrder`](cow_signing::types::UnsignedOrder).
 ///
 /// Mirrors `GPv2Order.DataStruct` from the `@cowprotocol/composable` SDK.
 #[derive(Debug, Clone)]
@@ -855,8 +855,8 @@ impl GpV2OrderStruct {
     }
 }
 
-impl TryFrom<&GpV2OrderStruct> for cow_sdk_signing::types::UnsignedOrder {
-    type Error = cow_sdk_error::CowError;
+impl TryFrom<&GpV2OrderStruct> for cow_signing::types::UnsignedOrder {
+    type Error = cow_errors::CowError;
 
     /// Decode a raw [`GpV2OrderStruct`] into a fully typed `UnsignedOrder`.
     ///
@@ -884,7 +884,7 @@ pub enum PollResult {
     /// both fields are `None`.
     Success {
         /// The resolved order ready for submission (`None` for offline checks).
-        order: Option<cow_sdk_signing::types::UnsignedOrder>,
+        order: Option<cow_signing::types::UnsignedOrder>,
         /// Hex-encoded signature bytes, `0x`-prefixed (`None` for offline checks).
         signature: Option<String>,
     },
@@ -1026,13 +1026,13 @@ impl PollResult {
         if let Self::TryAtEpoch { epoch } = self { Some(*epoch) } else { None }
     }
 
-    /// Extract the resolved [`UnsignedOrder`](cow_sdk_signing::types::UnsignedOrder)
+    /// Extract the resolved [`UnsignedOrder`](cow_signing::types::UnsignedOrder)
     /// from a [`PollResult::Success`] variant, if present.
     ///
     /// Returns `None` for all other variants, or when `order` is `None`
     /// inside `Success` (e.g. an offline validity check result).
     #[must_use]
-    pub const fn order_ref(&self) -> Option<&cow_sdk_signing::types::UnsignedOrder> {
+    pub const fn order_ref(&self) -> Option<&cow_signing::types::UnsignedOrder> {
         if let Self::Success { order, .. } = self { order.as_ref() } else { None }
     }
 
@@ -1145,7 +1145,7 @@ impl fmt::Display for ProofLocation {
 }
 
 impl TryFrom<u8> for ProofLocation {
-    type Error = cow_sdk_error::CowError;
+    type Error = cow_errors::CowError;
 
     /// Parse a [`ProofLocation`] from its on-chain `uint8` discriminant.
     fn try_from(n: u8) -> Result<Self, Self::Error> {
@@ -1156,7 +1156,7 @@ impl TryFrom<u8> for ProofLocation {
             3 => Ok(Self::Waku),
             4 => Ok(Self::Reserved),
             5 => Ok(Self::Ipfs),
-            other => Err(cow_sdk_error::CowError::Parse {
+            other => Err(cow_errors::CowError::Parse {
                 field: "ProofLocation",
                 reason: format!("unknown discriminant: {other}"),
             }),
@@ -1165,7 +1165,7 @@ impl TryFrom<u8> for ProofLocation {
 }
 
 impl TryFrom<&str> for ProofLocation {
-    type Error = cow_sdk_error::CowError;
+    type Error = cow_errors::CowError;
 
     /// Parse a [`ProofLocation`] from its string label.
     fn try_from(s: &str) -> Result<Self, Self::Error> {
@@ -1176,7 +1176,7 @@ impl TryFrom<&str> for ProofLocation {
             "waku" => Ok(Self::Waku),
             "reserved" => Ok(Self::Reserved),
             "ipfs" => Ok(Self::Ipfs),
-            other => Err(cow_sdk_error::CowError::Parse {
+            other => Err(cow_errors::CowError::Parse {
                 field: "ProofLocation",
                 reason: format!("unknown value: {other}"),
             }),
@@ -2074,7 +2074,7 @@ mod tests {
     fn gpv2_order_try_from_bad_kind_fails() {
         let o = make_gpv2_order();
         // kind is B256::ZERO which is neither sell nor buy hash
-        let result = cow_sdk_signing::types::UnsignedOrder::try_from(&o);
+        let result = cow_signing::types::UnsignedOrder::try_from(&o);
         assert!(result.is_err());
     }
 }

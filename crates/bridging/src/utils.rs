@@ -1,8 +1,8 @@
 //! Bridging utility functions — token adaptation, fee math, provider resolution.
 
 use alloy_primitives::{Address, U256};
-use cow_sdk_chains::SupportedChainId;
-use cow_sdk_types::CowHook;
+use cow_chains::SupportedChainId;
+use cow_types::CowHook;
 use foldhash::{HashMap, HashSet};
 
 use crate::{
@@ -365,7 +365,7 @@ pub fn determine_intermediate_token(
         return Ok(candidates[0]);
     }
 
-    let native = cow_sdk_chains::NATIVE_CURRENCY_ADDRESS;
+    let native = cow_chains::NATIVE_CURRENCY_ADDRESS;
 
     let filtered: Vec<Address> = if allow_intermediate_eq_sell {
         candidates.to_vec()

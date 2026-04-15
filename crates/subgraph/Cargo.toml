@@ -1,5 +1,5 @@
 [package]
-name = "cow-sdk-subgraph"
+name = "cow-subgraph"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -20,9 +20,9 @@ doctest = false
 
 [dependencies]
 alloy-primitives.workspace = true
-cow-sdk-chains.workspace = true
-cow-sdk-error.workspace = true
-cow-sdk-http.workspace = true
+cow-chains.workspace = true
+cow-errors.workspace = true
+cow-http.workspace = true
 reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true

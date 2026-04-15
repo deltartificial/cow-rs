@@ -1,5 +1,5 @@
 [package]
-name = "cow-sdk-browser-wallet"
+name = "cow-browser-wallet"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -34,17 +34,17 @@ wasm = [
 alloy-primitives.workspace = true
 alloy-signer-local.workspace = true
 async-trait.workspace = true
-cow-sdk-app-data.workspace = true
-cow-sdk-chains.workspace = true
-cow-sdk-error.workspace = true
-cow-sdk-ethflow.workspace = true
-cow-sdk-onchain.workspace = true
-cow-sdk-orderbook.workspace = true
-cow-sdk-permit.workspace = true
-cow-sdk-signing.workspace = true
-cow-sdk-subgraph.workspace = true
-cow-sdk-trading.workspace = true
-cow-sdk-types.workspace = true
+cow-app-data.workspace = true
+cow-chains.workspace = true
+cow-errors.workspace = true
+cow-ethflow.workspace = true
+cow-onchain.workspace = true
+cow-orderbook.workspace = true
+cow-permit.workspace = true
+cow-signing.workspace = true
+cow-subgraph.workspace = true
+cow-trading.workspace = true
+cow-types.workspace = true
 getrandom = { workspace = true, optional = true }
 js-sys = { version = "0.3", optional = true }
 serde_json.workspace = true

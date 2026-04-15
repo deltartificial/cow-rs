@@ -1,4 +1,4 @@
-//! `cow-sdk-types` — Layer 1 protocol enums and shared types for the `CoW` Protocol SDK.
+//! `cow-types` — Layer 1 protocol enums and shared types for the `CoW` Protocol SDK.
 //!
 //! This crate defines the protocol-level enums used across the workspace:
 //!
@@ -11,14 +11,14 @@
 //! | [`PriceQuality`] | `Fast` / `Optimal` / `Verified` quote hint |
 //!
 //! Numeric constants (`ZERO`, `ONE`, `MAX_UINT256`, ...) live in
-//! [`cow-sdk-primitives`](https://docs.rs/cow-sdk-primitives).
+//! [`cow-primitives`](https://docs.rs/cow-primitives).
 
 #![deny(unsafe_code)]
 #![warn(missing_docs)]
 
 use std::fmt;
 
-use cow_sdk_error::CowError;
+use cow_errors::CowError;
 use serde::{Deserialize, Serialize};
 
 // ── Shared protocol types pushed down from domain crates ────────────────────
@@ -43,7 +43,7 @@ use serde::{Deserialize, Serialize};
 /// # Example
 ///
 /// ```
-/// use cow_sdk_types::CowHook;
+/// use cow_types::CowHook;
 ///
 /// let hook = CowHook::new("0x1234567890abcdef1234567890abcdef12345678", "0xabcdef00", "100000")
 ///     .with_dapp_id("my-dapp");
@@ -140,7 +140,7 @@ impl fmt::Display for OnchainOrderData {
 /// # Example
 ///
 /// ```
-/// use cow_sdk_types::OrderKind;
+/// use cow_types::OrderKind;
 ///
 /// let kind = OrderKind::Sell;
 /// assert_eq!(kind.as_str(), "sell");
@@ -172,7 +172,7 @@ impl OrderKind {
     /// Returns `true` if this is a sell order.
     ///
     /// ```
-    /// use cow_sdk_types::OrderKind;
+    /// use cow_types::OrderKind;
     ///
     /// assert!(OrderKind::Sell.is_sell());
     /// assert!(!OrderKind::Buy.is_sell());
@@ -185,7 +185,7 @@ impl OrderKind {
     /// Returns `true` if this is a buy order.
     ///
     /// ```
-    /// use cow_sdk_types::OrderKind;
+    /// use cow_types::OrderKind;
     ///
     /// assert!(OrderKind::Buy.is_buy());
     /// assert!(!OrderKind::Sell.is_buy());
@@ -211,7 +211,7 @@ impl fmt::Display for OrderKind {
 /// # Example
 ///
 /// ```
-/// use cow_sdk_types::TokenBalance;
+/// use cow_types::TokenBalance;
 ///
 /// let balance = TokenBalance::Erc20;
 /// assert_eq!(balance.as_str(), "erc20");
@@ -299,7 +299,7 @@ impl fmt::Display for TokenBalance {
 /// # Example
 ///
 /// ```
-/// use cow_sdk_types::SigningScheme;
+/// use cow_types::SigningScheme;
 ///
 /// let scheme = SigningScheme::Eip712;
 /// assert_eq!(scheme.as_str(), "eip712");
@@ -385,7 +385,7 @@ impl fmt::Display for SigningScheme {
 /// # Example
 ///
 /// ```
-/// use cow_sdk_types::{EcdsaSigningScheme, SigningScheme};
+/// use cow_types::{EcdsaSigningScheme, SigningScheme};
 ///
 /// let ecdsa = EcdsaSigningScheme::Eip712;
 /// let full: SigningScheme = ecdsa.into();
@@ -466,7 +466,7 @@ impl From<EcdsaSigningScheme> for SigningScheme {
 /// # Example
 ///
 /// ```
-/// use cow_sdk_types::PriceQuality;
+/// use cow_types::PriceQuality;
 ///
 /// let quality = PriceQuality::Optimal;
 /// assert_eq!(quality.as_str(), "optimal");

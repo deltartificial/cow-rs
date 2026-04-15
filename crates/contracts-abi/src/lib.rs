@@ -1,4 +1,4 @@
-//! `cow-sdk-contracts-abi` — Layer 1 ABI bindings for `CoW` Protocol contracts.
+//! `cow-contracts-abi` — Layer 1 ABI bindings for `CoW` Protocol contracts.
 //!
 //! **Placeholder**: the current SDK hand-encodes calldata in each domain crate
 //! (`erc20`, `ethflow`, `weiroll`, ...). This crate will host `alloy::sol!`

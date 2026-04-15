@@ -1,5 +1,5 @@
 [package]
-name = "cow-sdk-types"
+name = "cow-types"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -17,7 +17,7 @@ layer = 1
 
 [dependencies]
 alloy-primitives.workspace = true
-cow-sdk-error.workspace = true
+cow-errors.workspace = true
 serde.workspace = true
 
 [dev-dependencies]

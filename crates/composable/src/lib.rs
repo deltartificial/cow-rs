@@ -1,4 +1,4 @@
-//! `cow-sdk-composable` — Layer 5 `CoW` Protocol composable (conditional) orders for the `CoW`
+//! `cow-composable` — Layer 5 `CoW` Protocol composable (conditional) orders for the `CoW`
 //! Protocol SDK.
 //!
 //! Composable orders are validated on-chain by handler contracts and managed

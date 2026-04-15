@@ -19,7 +19,7 @@
 
 use alloy_primitives::{Address, U256, address};
 
-use cow_sdk_chains::chains::EvmCall;
+use cow_chains::chains::EvmCall;
 
 /// Canonical Weiroll VM contract address.
 pub const WEIROLL_CONTRACT_ADDRESS: Address = address!("9585c3062Df1C247d5E373Cfca9167F7dC2b5963");
@@ -68,7 +68,7 @@ impl WeirollCommand {
     ///
     /// ```
     /// use alloy_primitives::Address;
-    /// use cow_sdk_weiroll::WeirollCommand;
+    /// use cow_weiroll::WeirollCommand;
     ///
     /// let cmd = WeirollCommand {
     ///     flags: 0x01,
@@ -134,7 +134,7 @@ impl WeirollCommand {
 /// # Example
 ///
 /// ```
-/// use cow_sdk_weiroll::WeirollPlanner;
+/// use cow_weiroll::WeirollPlanner;
 ///
 /// let planner = WeirollPlanner::new();
 /// let script = planner.plan();
@@ -195,7 +195,7 @@ impl WeirollScript {
 /// # Example
 ///
 /// ```
-/// use cow_sdk_weiroll::WeirollCommandFlags;
+/// use cow_weiroll::WeirollCommandFlags;
 ///
 /// let flags = WeirollCommandFlags::Call;
 /// assert_eq!(flags as u8, 0x01);
@@ -243,7 +243,7 @@ pub const WEIROLL_ADDRESS: &str = "0x9585c3062Df1C247d5E373Cfca9167F7dC2b5963";
 ///
 /// ```
 /// use alloy_primitives::Address;
-/// use cow_sdk_weiroll::{WeirollCommandFlags, WeirollContractRef};
+/// use cow_weiroll::{WeirollCommandFlags, WeirollContractRef};
 ///
 /// let contract = WeirollContractRef {
 ///     address: Address::ZERO,
@@ -286,7 +286,7 @@ pub struct WeirollContractRef {
 ///
 /// ```
 /// use alloy_primitives::Address;
-/// use cow_sdk_weiroll::{WeirollCommandFlags, create_weiroll_contract};
+/// use cow_weiroll::{WeirollCommandFlags, create_weiroll_contract};
 ///
 /// let contract = create_weiroll_contract(Address::ZERO, vec![], None);
 /// assert_eq!(contract.command_flags, WeirollCommandFlags::Call);
@@ -331,7 +331,7 @@ pub fn create_weiroll_contract(
 ///
 /// ```
 /// use alloy_primitives::Address;
-/// use cow_sdk_weiroll::{WeirollCommandFlags, create_weiroll_library};
+/// use cow_weiroll::{WeirollCommandFlags, create_weiroll_library};
 ///
 /// let library = create_weiroll_library(Address::ZERO, vec![]);
 /// assert_eq!(library.command_flags, WeirollCommandFlags::DelegateCall);
@@ -366,7 +366,7 @@ pub const fn create_weiroll_library(address: Address, abi: Vec<u8>) -> WeirollCo
 ///
 /// ```
 /// use alloy_primitives::Address;
-/// use cow_sdk_weiroll::{WEIROLL_ADDRESS, WeirollCommand, create_weiroll_delegate_call};
+/// use cow_weiroll::{WEIROLL_ADDRESS, WeirollCommand, create_weiroll_delegate_call};
 ///
 /// let evm_call = create_weiroll_delegate_call(|planner| {
 ///     planner.add_command(WeirollCommand {
@@ -382,7 +382,7 @@ pub const fn create_weiroll_library(address: Address, abi: Vec<u8>) -> WeirollCo
 /// assert_eq!(evm_call.value, alloy_primitives::U256::ZERO);
 /// ```
 ///
-/// [`WEIROLL_ADDRESS`]: cow_sdk_weiroll::WEIROLL_ADDRESS
+/// [`WEIROLL_ADDRESS`]: cow_weiroll::WEIROLL_ADDRESS
 #[must_use]
 pub fn create_weiroll_delegate_call(
     add_to_planner: impl FnOnce(&mut super::WeirollPlanner),
@@ -476,7 +476,7 @@ fn pad_u256(value: usize) -> [u8; 32] {
 /// # Example
 ///
 /// ```
-/// use cow_sdk_weiroll::define_read_only;
+/// use cow_weiroll::define_read_only;
 ///
 /// #[derive(Debug, PartialEq)]
 /// struct Config {
@@ -515,7 +515,7 @@ pub fn define_read_only<T>(mut object: T, setter: impl FnOnce(&mut T)) -> T {
 /// # Example
 ///
 /// ```
-/// use cow_sdk_weiroll::get_static;
+/// use cow_weiroll::get_static;
 ///
 /// let registry: &[(&str, i32)] = &[("version", 1), ("max_depth", 32)];
 ///

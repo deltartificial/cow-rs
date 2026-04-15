@@ -1,5 +1,5 @@
 [package]
-name = "cow-sdk-graph"
+name = "cow-graph"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -19,9 +19,9 @@ layer = 3
 doctest = false
 
 [dependencies]
-# No deps yet — placeholder crate. Will depend on `cow-sdk-http` once the
+# No deps yet — placeholder crate. Will depend on `cow-http` once the
 # `GraphTransport` trait and query-envelope handling migrate here from
-# `cow-sdk-subgraph`.
+# `cow-subgraph`.
 
 [lints]
 workspace = true

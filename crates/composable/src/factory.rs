@@ -2,7 +2,7 @@
 
 use std::fmt;
 
-use cow_sdk_error::CowError;
+use cow_errors::CowError;
 
 use super::{
     gat::{GatOrder, decode_gat_static_input},

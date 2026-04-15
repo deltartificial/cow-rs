@@ -23,26 +23,26 @@ doctest = false
 default = []
 
 [dependencies]
-cow-sdk-app-data.workspace = true
-cow-sdk-bridging.workspace = true
-cow-sdk-chains.workspace = true
-cow-sdk-composable.workspace = true
-cow-sdk-cow-shed.workspace = true
-cow-sdk-erc20.workspace = true
-cow-sdk-error.workspace = true
-cow-sdk-ethflow.workspace = true
-cow-sdk-flash-loans.workspace = true
-cow-sdk-http.workspace = true
-cow-sdk-onchain.workspace = true
-cow-sdk-orderbook.workspace = true
-cow-sdk-permit.workspace = true
-cow-sdk-primitives.workspace = true
-cow-sdk-settlement.workspace = true
-cow-sdk-signing.workspace = true
-cow-sdk-subgraph.workspace = true
-cow-sdk-trading.workspace = true
-cow-sdk-types.workspace = true
-cow-sdk-weiroll.workspace = true
+cow-app-data.workspace = true
+cow-bridging.workspace = true
+cow-chains.workspace = true
+cow-composable.workspace = true
+cow-shed.workspace = true
+cow-erc20.workspace = true
+cow-errors.workspace = true
+cow-ethflow.workspace = true
+cow-flash-loans.workspace = true
+cow-http.workspace = true
+cow-onchain.workspace = true
+cow-orderbook.workspace = true
+cow-permit.workspace = true
+cow-primitives.workspace = true
+cow-settlement.workspace = true
+cow-signing.workspace = true
+cow-subgraph.workspace = true
+cow-trading.workspace = true
+cow-types.workspace = true
+cow-weiroll.workspace = true
 
 [lints]
 workspace = true

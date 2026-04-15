@@ -61,142 +61,142 @@ pub mod traits;
 
 /// Chain configuration, contract addresses and endpoints.
 ///
-/// Re-export of the [`cow_sdk_chains`] crate. The legacy `config` module
+/// Re-export of the [`cow_chains`] crate. The legacy `config` module
 /// name is kept for backwards compatibility until the `cow-sdk` façade
 /// replaces `cow-rs`.
 pub mod config {
-    pub use cow_sdk_chains::*;
+    pub use cow_chains::*;
 }
 
 /// Unified error type for the SDK.
 ///
-/// Re-export of the [`cow_sdk_error`] crate.
+/// Re-export of the [`cow_errors`] crate.
 pub mod error {
-    pub use cow_sdk_error::*;
+    pub use cow_errors::*;
 }
 
 /// Protocol enums and primitive constants.
 ///
-/// Re-export of [`cow_sdk_primitives`] (numeric constants, address helpers)
-/// and [`cow_sdk_types`] (protocol enums like [`OrderKind`], [`SigningScheme`],
+/// Re-export of [`cow_primitives`] (numeric constants, address helpers)
+/// and [`cow_types`] (protocol enums like [`OrderKind`], [`SigningScheme`],
 /// ...).
 pub mod types {
-    pub use cow_sdk_primitives::*;
-    pub use cow_sdk_types::*;
+    pub use cow_primitives::*;
+    pub use cow_types::*;
 }
 
 /// ERC-20 and EIP-2612 calldata builders.
 ///
-/// Re-export of the [`cow_sdk_erc20`] crate.
+/// Re-export of the [`cow_erc20`] crate.
 pub mod erc20 {
-    pub use cow_sdk_erc20::*;
+    pub use cow_erc20::*;
 }
 
 /// `EthFlow` native-currency order encoding.
 ///
-/// Re-export of the [`cow_sdk_ethflow`] crate.
+/// Re-export of the [`cow_ethflow`] crate.
 pub mod ethflow {
-    pub use cow_sdk_ethflow::*;
+    pub use cow_ethflow::*;
 }
 
 /// Weiroll script builder and encoding.
 ///
-/// Re-export of the [`cow_sdk_weiroll`] crate.
+/// Re-export of the [`cow_weiroll`] crate.
 pub mod weiroll {
-    pub use cow_sdk_weiroll::*;
+    pub use cow_weiroll::*;
 }
 
 /// `CoW` Shed proxy contract helpers.
 ///
-/// Re-export of the [`cow_sdk_cow_shed`] crate.
+/// Re-export of the [`cow_shed`] crate.
 pub mod cow_shed {
-    pub use cow_sdk_cow_shed::*;
+    pub use cow_shed::*;
 }
 
 /// EIP-712 order signing, EIP-1271, and `OrderUid` computation.
 ///
-/// Re-export of the [`cow_sdk_signing`] crate.
+/// Re-export of the [`cow_signing`] crate.
 pub mod order_signing {
-    pub use cow_sdk_signing::*;
+    pub use cow_signing::*;
 }
 
 /// EIP-2612 permit utilities.
 ///
-/// Re-export of the [`cow_sdk_permit`] crate.
+/// Re-export of the [`cow_permit`] crate.
 pub mod permit {
-    pub use cow_sdk_permit::*;
+    pub use cow_permit::*;
 }
 
 /// `CoW` Protocol order app-data — metadata schema and hash generation.
 ///
-/// Re-export of the [`cow_sdk_app_data`] crate.
+/// Re-export of the [`cow_app_data`] crate.
 pub mod app_data {
-    pub use cow_sdk_app_data::*;
+    pub use cow_app_data::*;
 }
 
 /// JSON-RPC `eth_call` reader for on-chain state queries.
 ///
-/// Re-export of the [`cow_sdk_onchain`] crate.
+/// Re-export of the [`cow_onchain`] crate.
 pub mod onchain {
-    pub use cow_sdk_onchain::*;
+    pub use cow_onchain::*;
 }
 
 /// `CoW` Protocol orderbook API client and types.
 ///
-/// Re-export of the [`cow_sdk_orderbook`] crate.
+/// Re-export of the [`cow_orderbook`] crate.
 pub mod order_book {
-    pub use cow_sdk_orderbook::*;
+    pub use cow_orderbook::*;
 }
 
 /// `CoW` Protocol subgraph `GraphQL` client.
 ///
-/// Re-export of the [`cow_sdk_subgraph`] crate.
+/// Re-export of the [`cow_subgraph`] crate.
 pub mod subgraph {
-    pub use cow_sdk_subgraph::*;
+    pub use cow_subgraph::*;
 }
 
 /// Flash loan orchestration helpers.
 ///
-/// Re-export of the [`cow_sdk_flash_loans`] crate.
+/// Re-export of the [`cow_flash_loans`] crate.
 pub mod flash_loans {
-    pub use cow_sdk_flash_loans::*;
+    pub use cow_flash_loans::*;
 }
 
 /// `CoW` Protocol composable (conditional) orders.
 ///
-/// Re-export of the [`cow_sdk_composable`] crate.
+/// Re-export of the [`cow_composable`] crate.
 pub mod composable {
-    pub use cow_sdk_composable::*;
+    pub use cow_composable::*;
 }
 
 /// Cross-chain bridge aggregator and provider abstractions.
 ///
-/// Re-export of the [`cow_sdk_bridging`] crate.
+/// Re-export of the [`cow_bridging`] crate.
 pub mod bridging {
-    pub use cow_sdk_bridging::*;
+    pub use cow_bridging::*;
 }
 
 /// High-level trading SDK.
 ///
-/// Re-export of the [`cow_sdk_trading`] crate.
+/// Re-export of the [`cow_trading`] crate.
 pub mod trading {
-    pub use cow_sdk_trading::*;
+    pub use cow_trading::*;
 }
 
 /// EIP-1193 browser wallet adapter and WASM bindings.
 ///
-/// Re-export of the [`cow_sdk_browser_wallet`] crate.
+/// Re-export of the [`cow_browser_wallet`] crate.
 pub mod browser_wallet {
-    pub use cow_sdk_browser_wallet::wallet::*;
+    pub use cow_browser_wallet::wallet::*;
 }
 
 /// `wasm-bindgen` exports (WASM-only).
 ///
-/// Re-export of the [`cow_sdk_browser_wallet::wasm`] module. Only available
+/// Re-export of the [`cow_browser_wallet::wasm`] module. Only available
 /// when the `wasm` feature is enabled on the browser wallet crate.
 #[cfg(feature = "wasm")]
 pub mod wasm {
-    pub use cow_sdk_browser_wallet::wasm::*;
+    pub use cow_browser_wallet::wasm::*;
 }
 
 // ── Convenience re-exports ────────────────────────────────────────────────────

@@ -6,9 +6,9 @@
 //! copied verbatim.
 
 use alloy_primitives::{Address, B256, U256, keccak256};
-use cow_sdk_chains::contracts::SETTLEMENT_CONTRACT;
-use cow_sdk_error::CowError;
-use cow_sdk_types::OrderKind;
+use cow_chains::contracts::SETTLEMENT_CONTRACT;
+use cow_errors::CowError;
+use cow_types::OrderKind;
 
 use crate::types::{OrderDomain, OrderTypedData, UnsignedOrder};
 
@@ -337,7 +337,7 @@ pub fn cancellations_hash(order_uids: &[&str]) -> Result<B256, CowError> {
 ///
 /// ```
 /// use alloy_primitives::B256;
-/// use cow_sdk_signing::hashify;
+/// use cow_signing::hashify;
 ///
 /// let hash = hashify(42);
 /// assert_eq!(hash, B256::left_padding_from(&[42]));
@@ -498,7 +498,7 @@ pub fn normalize_order(order: &UnsignedOrder) -> UnsignedOrder {
 ///
 /// ```
 /// use alloy_primitives::{Address, B256};
-/// use cow_sdk_signing::pack_order_uid_params;
+/// use cow_signing::pack_order_uid_params;
 ///
 /// let uid = pack_order_uid_params(B256::ZERO, Address::ZERO, 1_000_000);
 /// assert!(uid.starts_with("0x"));
@@ -544,7 +544,7 @@ pub struct OrderUidParams {
 ///
 /// ```
 /// use alloy_primitives::{Address, B256};
-/// use cow_sdk_signing::{extract_order_uid_params, pack_order_uid_params};
+/// use cow_signing::{extract_order_uid_params, pack_order_uid_params};
 ///
 /// let digest = B256::ZERO;
 /// let owner = Address::ZERO;
@@ -579,7 +579,7 @@ pub fn extract_order_uid_params(order_uid: &str) -> Result<OrderUidParams, CowEr
 
 #[cfg(test)]
 mod tests {
-    use cow_sdk_types::TokenBalance;
+    use cow_types::TokenBalance;
 
     use super::*;
 

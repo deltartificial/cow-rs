@@ -25,8 +25,8 @@
 //! | [`transform_order`] | Enrich an `Order` with `total_fee` and EthFlow fields |
 
 use alloy_primitives::U256;
-use cow_sdk_primitives::{HUNDRED_THOUSANDS, ONE_HUNDRED_BPS};
-use cow_sdk_types::OrderKind;
+use cow_primitives::{HUNDRED_THOUSANDS, ONE_HUNDRED_BPS};
+use cow_types::OrderKind;
 
 // ── Core types ───────────────────────────────────────────────────────────────
 
@@ -466,7 +466,7 @@ pub fn transform_order(mut order: super::Order) -> super::Order {
         if let Some(user) = order.onchain_user {
             order.owner = user;
         }
-        order.sell_token = cow_sdk_chains::NATIVE_CURRENCY_ADDRESS;
+        order.sell_token = cow_chains::NATIVE_CURRENCY_ADDRESS;
     }
 
     order

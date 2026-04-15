@@ -1,5 +1,5 @@
 [package]
-name = "cow-sdk-signing"
+name = "cow-signing"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -26,9 +26,9 @@ alloy-primitives.workspace = true
 alloy-signer.workspace = true
 alloy-signer-local.workspace = true
 async-trait.workspace = true
-cow-sdk-chains.workspace = true
-cow-sdk-error.workspace = true
-cow-sdk-types.workspace = true
+cow-chains.workspace = true
+cow-errors.workspace = true
+cow-types.workspace = true
 foldhash.workspace = true
 
 [dev-dependencies]

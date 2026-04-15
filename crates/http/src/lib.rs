@@ -1,4 +1,4 @@
-//! `cow-sdk-http` — Layer 3 HTTP transport primitives for the `CoW` Protocol SDK.
+//! `cow-http` — Layer 3 HTTP transport primitives for the `CoW` Protocol SDK.
 //!
 //! Provides the shared rate limiter and retry policy used by every L4
 //! transport client (`orderbook`, `subgraph`, `ipfs`, ...). Future

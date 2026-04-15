@@ -9,10 +9,10 @@
 
 use std::sync::Arc;
 
-use cow_sdk_chains::{Env, SupportedChainId, api_base_url, order_explorer_link};
-use cow_sdk_error::CowError;
+use cow_chains::{Env, SupportedChainId, api_base_url, order_explorer_link};
+use cow_errors::CowError;
 
-use cow_sdk_http::{RateLimiter, RetryPolicy};
+use cow_http::{RateLimiter, RetryPolicy};
 
 use crate::types::{
     AppDataObject, Auction, CompetitionOrderStatus, GetOrdersRequest, GetTradesRequest, Order,
@@ -891,7 +891,7 @@ pub async fn request<T: serde::de::DeserializeOwned>(
 #[must_use]
 pub fn mock_get_order(uid: &str) -> Order {
     use alloy_primitives::Address;
-    use cow_sdk_types::{OrderKind, SigningScheme};
+    use cow_types::{OrderKind, SigningScheme};
 
     use crate::types::OrderStatus;
     Order {

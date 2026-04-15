@@ -1,9 +1,9 @@
 //! Fee and amounts breakdown calculation for quoted trades.
 
 use alloy_primitives::U256;
-use cow_sdk_error::CowError;
-use cow_sdk_orderbook::types::OrderQuoteResponse;
-use cow_sdk_types::OrderKind;
+use cow_errors::CowError;
+use cow_orderbook::types::OrderQuoteResponse;
+use cow_types::OrderKind;
 
 use crate::types::{Amounts, NetworkFee, PartnerFeeCost, ProtocolFeeCost, QuoteAmountsAndCosts};
 
@@ -114,8 +114,8 @@ pub(crate) fn compute_quote_amounts_and_costs(
 mod tests {
     use alloy_primitives::Address;
 
-    use cow_sdk_orderbook::types::QuoteData;
-    use cow_sdk_types::TokenBalance;
+    use cow_orderbook::types::QuoteData;
+    use cow_types::TokenBalance;
 
     use super::*;
 

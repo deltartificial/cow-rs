@@ -4,8 +4,8 @@
 //! `decodeTradeFlags`, `encodeSigningScheme`, and `decodeSigningScheme`
 //! from the `TypeScript` `contracts-ts` package.
 
-use cow_sdk_error::CowError;
-use cow_sdk_types::{OrderKind, SigningScheme, TokenBalance};
+use cow_errors::CowError;
+use cow_types::{OrderKind, SigningScheme, TokenBalance};
 
 /// Order flags extracted from a bitfield.
 ///
@@ -135,8 +135,8 @@ pub const fn encode_buy_token_balance(balance: TokenBalance) -> u8 {
 /// `Eip1271` = 2, `PreSign` = 3).
 ///
 /// ```
-/// use cow_sdk_signing::order_signing::flags::encode_signing_scheme;
-/// use cow_sdk_types::SigningScheme;
+/// use cow_signing::order_signing::flags::encode_signing_scheme;
+/// use cow_types::SigningScheme;
 ///
 /// assert_eq!(encode_signing_scheme(SigningScheme::Eip712), 0b00_00000);
 /// assert_eq!(encode_signing_scheme(SigningScheme::EthSign), 0b01_00000);
@@ -393,8 +393,8 @@ pub fn decode_trade_flags(bits: u8) -> Result<TradeFlags, CowError> {
 /// [`TokenBalance::Erc20`].
 ///
 /// ```
-/// use cow_sdk_signing::order_signing::flags::normalize_buy_token_balance;
-/// use cow_sdk_types::TokenBalance;
+/// use cow_signing::order_signing::flags::normalize_buy_token_balance;
+/// use cow_types::TokenBalance;
 ///
 /// assert_eq!(normalize_buy_token_balance(TokenBalance::Erc20), TokenBalance::Erc20);
 /// assert_eq!(normalize_buy_token_balance(TokenBalance::External), TokenBalance::Erc20);

@@ -1,4 +1,4 @@
-//! `cow-sdk-testing` — dev-only fixtures and helpers for the `CoW` Protocol SDK.
+//! `cow-testing` — dev-only fixtures and helpers for the `CoW` Protocol SDK.
 //!
 //! This crate is **not published**. It is meant to be referenced exclusively
 //! under `[dev-dependencies]` by workspace crates that want to share JSON

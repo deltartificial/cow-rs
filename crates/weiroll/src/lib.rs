@@ -1,4 +1,4 @@
-//! `cow-sdk-weiroll` — Layer 2 Weiroll script builder for the `CoW` Protocol SDK.
+//! `cow-weiroll` — Layer 2 Weiroll script builder for the `CoW` Protocol SDK.
 //!
 //! [Weiroll](https://github.com/weiroll/weiroll) is a minimal VM for
 //! chaining arbitrary EVM calls into a single transaction. This crate
@@ -23,7 +23,7 @@
 //! | [`WeirollContractRef`] | Contract address + ABI + default call flags |
 //! | [`create_weiroll_contract`] | Factory for `CALL`-mode contracts |
 //! | [`create_weiroll_library`] | Factory for `DELEGATECALL`-mode libraries |
-//! | [`create_weiroll_delegate_call`] | Build a complete `execute(...)` [`EvmCall`](cow_sdk_chains::chains::EvmCall) |
+//! | [`create_weiroll_delegate_call`] | Build a complete `execute(...)` [`EvmCall`](cow_chains::chains::EvmCall) |
 
 #![deny(unsafe_code)]
 #![warn(missing_docs)]

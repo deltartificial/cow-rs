@@ -1,5 +1,5 @@
 [package]
-name = "cow-sdk-composable"
+name = "cow-composable"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -21,12 +21,12 @@ doctest = false
 [dependencies]
 alloy-primitives.workspace = true
 chrono.workspace = true
-cow-sdk-chains.workspace = true
-cow-sdk-error.workspace = true
-# NOTE (workspace-split migration debt): dep on `cow-sdk-signing` for
-# the shared `UnsignedOrder` type. Will move to `cow-sdk-types` later.
-cow-sdk-signing.workspace = true
-cow-sdk-types.workspace = true
+cow-chains.workspace = true
+cow-errors.workspace = true
+# NOTE (workspace-split migration debt): dep on `cow-signing` for
+# the shared `UnsignedOrder` type. Will move to `cow-types` later.
+cow-signing.workspace = true
+cow-types.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 

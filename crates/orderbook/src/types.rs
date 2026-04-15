@@ -10,15 +10,15 @@
 use std::fmt;
 
 use alloy_primitives::U256;
-use cow_sdk_error::CowError;
-use cow_sdk_types::{EcdsaSigningScheme, OrderKind, PriceQuality, SigningScheme, TokenBalance};
+use cow_errors::CowError;
+use cow_types::{EcdsaSigningScheme, OrderKind, PriceQuality, SigningScheme, TokenBalance};
 use foldhash::HashMap;
 use serde::{Deserialize, Serialize};
 
-// `OnchainOrderData` has been pushed down to `cow-sdk-types` (L1) so that
-// `cow-sdk-ethflow` (L2) can reference it without depending on this crate.
+// `OnchainOrderData` has been pushed down to `cow-types` (L1) so that
+// `cow-ethflow` (L2) can reference it without depending on this crate.
 // Re-exported at the top level for ergonomic access.
-pub use cow_sdk_types::OnchainOrderData;
+pub use cow_types::OnchainOrderData;
 
 // ── Quote ────────────────────────────────────────────────────────────────────
 
@@ -452,7 +452,7 @@ impl fmt::Display for EthflowData {
     }
 }
 
-// `OnchainOrderData` now lives in `cow-sdk-types`; see the `pub use` at
+// `OnchainOrderData` now lives in `cow-types`; see the `pub use` at
 // the top of this module for the re-export.
 
 // ── Order creation ────────────────────────────────────────────────────────────
@@ -564,10 +564,10 @@ impl OrderCreation {
     /// ```
     #[must_use]
     pub fn from_unsigned_order(
-        order: &cow_sdk_signing::types::UnsignedOrder,
+        order: &cow_signing::types::UnsignedOrder,
         from: alloy_primitives::Address,
         receiver: alloy_primitives::Address,
-        signing: cow_sdk_signing::types::SigningResult,
+        signing: cow_signing::types::SigningResult,
     ) -> Self {
         let effective_receiver = if receiver.is_zero() { from } else { receiver };
         Self {
@@ -1192,7 +1192,7 @@ impl Order {
             return self;
         }
         // Replace sell_token with the native currency sentinel.
-        self.sell_token = cow_sdk_chains::NATIVE_CURRENCY_ADDRESS;
+        self.sell_token = cow_chains::NATIVE_CURRENCY_ADDRESS;
         // Replace owner with the real user behind the EthFlow contract.
         if let Some(user) = self.onchain_user {
             self.owner = user;
@@ -2914,7 +2914,7 @@ mod tests {
         order.onchain_order_data = Some(OnchainOrderData::new(Address::ZERO));
         order.onchain_user = Some(real_user);
         let transformed = order.transform_eth_flow(1);
-        assert_eq!(transformed.sell_token, cow_sdk_chains::NATIVE_CURRENCY_ADDRESS);
+        assert_eq!(transformed.sell_token, cow_chains::NATIVE_CURRENCY_ADDRESS);
         assert_eq!(transformed.owner, real_user);
     }
 

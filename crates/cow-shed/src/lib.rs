@@ -1,4 +1,4 @@
-//! `cow-sdk-cow-shed` — Layer 2 `CowShed` proxy contract helpers for the `CoW` Protocol SDK.
+//! `cow-shed` — Layer 2 `CowShed` proxy contract helpers for the `CoW` Protocol SDK.
 
 #![deny(unsafe_code)]
 #![warn(missing_docs)]

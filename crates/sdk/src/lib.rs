@@ -45,74 +45,74 @@
 // ── Layer 0 ────────────────────────────────────────────────────────────────
 
 /// Numeric constants and zero addresses (L0).
-pub use cow_sdk_primitives as primitives;
+pub use cow_primitives as primitives;
 
 /// Per-chain configuration, contract addresses and canonical endpoints (L0).
-pub use cow_sdk_chains as chains;
+pub use cow_chains as chains;
 
 /// Shared error type (L0).
-pub use cow_sdk_error as error;
+pub use cow_errors as error;
 
 // ── Layer 1 ────────────────────────────────────────────────────────────────
 
 /// Protocol enums (`OrderKind`, `SigningScheme`, ...) and shared protocol types (L1).
-pub use cow_sdk_types as types;
+pub use cow_types as types;
 
 // ── Layer 2 ────────────────────────────────────────────────────────────────
 
 /// EIP-712 signing, `OrderUid` computation (L2).
-pub use cow_sdk_signing as signing;
+pub use cow_signing as signing;
 
 /// App-data schema, validation, CID encoding, hooks metadata (L2).
-pub use cow_sdk_app_data as app_data;
+pub use cow_app_data as app_data;
 
 /// EIP-2612 permit utilities (L2).
-pub use cow_sdk_permit as permit;
+pub use cow_permit as permit;
 
 /// ERC-20 and EIP-2612 calldata builders (L2).
-pub use cow_sdk_erc20 as erc20;
+pub use cow_erc20 as erc20;
 
 /// `EthFlow` native-currency order encoding (L2).
-pub use cow_sdk_ethflow as ethflow;
+pub use cow_ethflow as ethflow;
 
 /// Weiroll script builder (L2).
-pub use cow_sdk_weiroll as weiroll;
+pub use cow_weiroll as weiroll;
 
 /// `CoW` Shed proxy contract helpers (L2).
-pub use cow_sdk_cow_shed as cow_shed;
+pub use cow_shed;
 
 /// Settlement encoder, simulator, vault, refunds (L2).
-pub use cow_sdk_settlement as settlement;
+pub use cow_settlement as settlement;
 
 // ── Layer 3 ────────────────────────────────────────────────────────────────
 
 /// HTTP transport primitives: rate limiter, retry policy (L3).
-pub use cow_sdk_http as http;
+pub use cow_http as http;
 
 // ── Layer 4 ────────────────────────────────────────────────────────────────
 
 /// Orderbook REST API client (L4).
-pub use cow_sdk_orderbook as orderbook;
+pub use cow_orderbook as orderbook;
 
 /// Subgraph `GraphQL` client (L4).
-pub use cow_sdk_subgraph as subgraph;
+pub use cow_subgraph as subgraph;
 
 /// JSON-RPC `eth_call` reader (L4).
-pub use cow_sdk_onchain as onchain;
+pub use cow_onchain as onchain;
 
 // ── Layer 5 ────────────────────────────────────────────────────────────────
 
 /// High-level `TradingSdk` (quote → sign → post → track) (L5).
-pub use cow_sdk_trading as trading;
+pub use cow_trading as trading;
 
 /// Composable (conditional) orders: TWAP, stop-loss, GAT (L5).
-pub use cow_sdk_composable as composable;
+pub use cow_composable as composable;
 
 /// Cross-chain bridge aggregator (L5).
-pub use cow_sdk_bridging as bridging;
+pub use cow_bridging as bridging;
 
 /// Flash loan orchestration helpers (L5).
-pub use cow_sdk_flash_loans as flash_loans;
+pub use cow_flash_loans as flash_loans;
 
 // ── Prelude ────────────────────────────────────────────────────────────────
 
@@ -121,9 +121,9 @@ pub use cow_sdk_flash_loans as flash_loans;
 /// `use cow_sdk::prelude::*;` pulls in the handful of types you need for
 /// 90% of trading flows.
 pub mod prelude {
-    pub use cow_sdk_chains::{Env, SupportedChainId};
-    pub use cow_sdk_error::CowError;
-    pub use cow_sdk_orderbook::OrderBookApi;
-    pub use cow_sdk_trading::{TradeParameters, TradingSdk, TradingSdkConfig};
-    pub use cow_sdk_types::{OrderKind, SigningScheme, TokenBalance};
+    pub use cow_chains::{Env, SupportedChainId};
+    pub use cow_errors::CowError;
+    pub use cow_orderbook::OrderBookApi;
+    pub use cow_trading::{TradeParameters, TradingSdk, TradingSdkConfig};
+    pub use cow_types::{OrderKind, SigningScheme, TokenBalance};
 }
