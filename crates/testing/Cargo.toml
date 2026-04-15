@@ -20,7 +20,8 @@ layer = "orthogonal"
 doctest = false
 
 [dependencies]
-cow-types.workspace = true
+# No deps yet — placeholder crate. Will depend on `cow-types` and other
+# workspace crates once the shared fixtures and test helpers are added.
 
 [lints]
 workspace = true

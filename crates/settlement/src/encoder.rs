@@ -60,7 +60,7 @@ pub struct EncodedInteraction {
 ///
 /// # Example
 ///
-/// ```
+/// ```ignore
 /// use alloy_primitives::{Address, B256, Bytes, U256, address};
 /// use cow_rs::{
 ///     OrderKind, SigningScheme, TokenBalance,

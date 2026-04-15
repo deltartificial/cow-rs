@@ -28,7 +28,7 @@ use crate::{
 /// # Examples
 ///
 /// ```rust,no_run
-/// use cow_rs::bridging::across::across_spoke_pool_addresses;
+/// use cow_bridging::across::across_spoke_pool_addresses;
 ///
 /// let pools = across_spoke_pool_addresses();
 /// // Ethereum Mainnet (chain ID 1)
@@ -89,7 +89,7 @@ pub fn across_spoke_pool_addresses() -> HashMap<u64, Address> {
 /// # Examples
 ///
 /// ```rust,no_run
-/// use cow_rs::bridging::across::across_math_contract_addresses;
+/// use cow_bridging::across::across_math_contract_addresses;
 ///
 /// let addrs = across_math_contract_addresses();
 /// assert!(addrs.contains_key(&1)); // Mainnet
@@ -130,7 +130,7 @@ pub fn across_math_contract_addresses() -> HashMap<u64, Address> {
 /// # Examples
 ///
 /// ```rust,no_run
-/// use cow_rs::bridging::across::across_token_mapping;
+/// use cow_bridging::across::across_token_mapping;
 ///
 /// let mapping = across_token_mapping();
 /// let mainnet = mapping.get(&1).expect("mainnet config");
@@ -236,7 +236,7 @@ pub fn across_token_mapping() -> HashMap<u64, AcrossChainConfig> {
 /// # Examples
 ///
 /// ```rust,no_run
-/// use cow_rs::bridging::across::get_chain_configs;
+/// use cow_bridging::across::get_chain_configs;
 ///
 /// if let Some((source, target)) = get_chain_configs(1, 42161) {
 ///     assert_eq!(source.chain_id, 1);
@@ -269,7 +269,7 @@ pub fn get_chain_configs(
 /// # Examples
 ///
 /// ```rust,no_run
-/// use cow_rs::bridging::across::{across_token_mapping, get_token_symbol};
+/// use cow_bridging::across::{across_token_mapping, get_token_symbol};
 ///
 /// let mapping = across_token_mapping();
 /// let mainnet = mapping.get(&1).unwrap();
@@ -300,7 +300,7 @@ pub fn get_token_symbol(
 /// # Examples
 ///
 /// ```rust,no_run
-/// use cow_rs::bridging::across::{across_token_mapping, get_token_address};
+/// use cow_bridging::across::{across_token_mapping, get_token_address};
 ///
 /// let mapping = across_token_mapping();
 /// let mainnet = mapping.get(&1).unwrap();
@@ -327,7 +327,7 @@ pub fn get_token_address(token_symbol: &str, chain_config: &AcrossChainConfig) -
 /// # Examples
 ///
 /// ```rust,no_run
-/// use cow_rs::bridging::across::{across_token_mapping, get_token_by_address_and_chain_id};
+/// use cow_bridging::across::{across_token_mapping, get_token_by_address_and_chain_id};
 ///
 /// let mapping = across_token_mapping();
 /// let usdc_addr = mapping.get(&1).unwrap().tokens["usdc"];
@@ -485,7 +485,7 @@ fn to_amounts_and_costs(
 /// # Examples
 ///
 /// ```rust,no_run
-/// use cow_rs::bridging::{
+/// use cow_bridging::{
 ///     across::map_across_status_to_bridge_status,
 ///     types::{AcrossDepositStatus, BridgeStatus},
 /// };

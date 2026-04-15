@@ -67,7 +67,7 @@ use super::{
 /// # Example
 ///
 /// ```rust,no_run
-/// use cow_rs::bridging::BridgingSdk;
+/// use cow_bridging::BridgingSdk;
 ///
 /// let sdk = BridgingSdk::new().with_bungee("my-api-key");
 /// assert_eq!(sdk.provider_count(), 1);
@@ -93,7 +93,7 @@ impl BridgingSdk {
     /// # Example
     ///
     /// ```rust
-    /// use cow_rs::bridging::BridgingSdk;
+    /// use cow_bridging::BridgingSdk;
     ///
     /// let sdk = BridgingSdk::new();
     /// assert_eq!(sdk.provider_count(), 0);
@@ -528,7 +528,7 @@ pub async fn get_intermediate_swap_result(
 /// # Example
 ///
 /// ```rust,no_run
-/// use cow_rs::bridging::sdk::create_bridge_request_timeout;
+/// use cow_bridging::sdk::create_bridge_request_timeout;
 ///
 /// # async fn example() {
 /// let timeout = create_bridge_request_timeout(20_000, "Across");
@@ -568,7 +568,7 @@ impl QuoteStrategy {
     /// # Example
     ///
     /// ```rust
-    /// use cow_rs::bridging::sdk::QuoteStrategy;
+    /// use cow_bridging::sdk::QuoteStrategy;
     ///
     /// assert_eq!(QuoteStrategy::Best.name(), "BestQuoteStrategy");
     /// ```

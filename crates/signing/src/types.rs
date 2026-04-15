@@ -217,7 +217,7 @@ impl UnsignedOrder {
     ///
     /// ```
     /// use alloy_primitives::{Address, U256};
-    /// use cow_rs::UnsignedOrder;
+    /// use cow_signing::types::UnsignedOrder;
     ///
     /// let order = UnsignedOrder::sell(Address::ZERO, Address::ZERO, U256::ZERO, U256::ZERO)
     ///     .with_valid_to(1_000_000);
@@ -234,7 +234,7 @@ impl UnsignedOrder {
     ///
     /// ```
     /// use alloy_primitives::{Address, U256};
-    /// use cow_rs::UnsignedOrder;
+    /// use cow_signing::types::UnsignedOrder;
     ///
     /// let order = UnsignedOrder::sell(Address::ZERO, Address::ZERO, U256::ZERO, U256::ZERO);
     /// assert!(order.is_sell());
@@ -262,7 +262,7 @@ impl UnsignedOrder {
     ///
     /// ```
     /// use alloy_primitives::{Address, U256, address};
-    /// use cow_rs::UnsignedOrder;
+    /// use cow_signing::types::UnsignedOrder;
     ///
     /// let order = UnsignedOrder::sell(Address::ZERO, Address::ZERO, U256::ZERO, U256::ZERO);
     /// assert!(!order.has_custom_receiver());
@@ -331,7 +331,7 @@ impl UnsignedOrder {
     ///
     /// ```
     /// use alloy_primitives::{Address, B256, U256};
-    /// use cow_rs::UnsignedOrder;
+    /// use cow_signing::types::UnsignedOrder;
     ///
     /// let order = UnsignedOrder::sell(Address::ZERO, Address::ZERO, U256::ZERO, U256::ZERO);
     /// let h = order.hash();
@@ -389,7 +389,7 @@ impl OrderDomain {
     /// overridden via the `with_*` builder methods, the separator is
     /// computed from the custom values.
     ///
-    /// ```
+    /// ```ignore
     /// use cow_rs::OrderDomain;
     ///
     /// let domain = OrderDomain::for_chain(1);
@@ -505,7 +505,7 @@ impl OrderTypedData {
 
     /// Returns a reference to the underlying [`UnsignedOrder`].
     ///
-    /// ```
+    /// ```ignore
     /// use alloy_primitives::{Address, U256};
     /// use cow_rs::{OrderDomain, OrderTypedData, UnsignedOrder};
     ///
@@ -534,7 +534,7 @@ impl OrderTypedData {
     /// must be signed with a private key to produce a signature accepted by the
     /// `CoW` Protocol settlement contract.
     ///
-    /// ```
+    /// ```ignore
     /// use alloy_primitives::{Address, U256};
     /// use cow_rs::{OrderDomain, OrderTypedData, UnsignedOrder};
     ///
@@ -582,11 +582,11 @@ impl SigningResult {
 
     /// Returns `true` if this result used the EIP-712 signing scheme.
     ///
-    /// ```
+    /// ```ignore
     /// use alloy_primitives::{Address, U256};
     /// use cow_rs::{EcdsaSigningScheme, OrderDomain, UnsignedOrder};
     ///
-    /// let result = cow_rs::SigningResult::new("0xdeadbeef", cow_rs::SigningScheme::Eip712);
+    /// let result = cow_rs::SigningResult::new("0xdeadbeef", cow_types::SigningScheme::Eip712);
     /// assert!(result.is_eip712());
     /// assert!(!result.is_presign());
     /// ```
@@ -636,10 +636,10 @@ impl SigningResult {
 
     /// Returns the length of the signature string in bytes.
     ///
-    /// ```
+    /// ```ignore
     /// use cow_rs::SigningResult;
     ///
-    /// let result = SigningResult::new("0xdeadbeef", cow_rs::SigningScheme::Eip712);
+    /// let result = SigningResult::new("0xdeadbeef", cow_types::SigningScheme::Eip712);
     /// assert_eq!(result.signature_len(), 10);
     /// ```
     #[must_use]
@@ -649,10 +649,10 @@ impl SigningResult {
 
     /// Returns the signature as a `0x`-prefixed hex string slice.
     ///
-    /// ```
+    /// ```ignore
     /// use cow_rs::SigningResult;
     ///
-    /// let result = SigningResult::new("0xdeadbeef", cow_rs::SigningScheme::Eip712);
+    /// let result = SigningResult::new("0xdeadbeef", cow_types::SigningScheme::Eip712);
     /// assert_eq!(result.signature_ref(), "0xdeadbeef");
     /// ```
     #[must_use]

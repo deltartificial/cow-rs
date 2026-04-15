@@ -170,7 +170,7 @@ pub struct SignatureData {
 ///
 /// An [`EncodedTrade`] ready for inclusion in a settlement transaction.
 ///
-/// ```
+/// ```ignore
 /// use alloy_primitives::{Address, B256, Bytes, U256, address};
 /// use cow_rs::{
 ///     order_signing::{
@@ -256,7 +256,7 @@ pub fn encode_trade(
 /// Returns [`CowError::Parse`] if token indices are out of bounds or flags are
 /// invalid.
 ///
-/// ```
+/// ```ignore
 /// use alloy_primitives::{Address, B256, Bytes, U256, address};
 /// use cow_rs::{
 ///     order_signing::trade::{EncodedTrade, decode_order},

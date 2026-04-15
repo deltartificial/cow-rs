@@ -66,7 +66,7 @@ pub struct SubgraphApi {
     client: reqwest::Client,
     base_url: String,
     /// Shared token bucket, identical in shape to the one that backs
-    /// [`super::super::order_book::OrderBookApi`]. Default: 5 req/s.
+    /// `OrderBookApi`. Default: 5 req/s.
     rate_limiter: Arc<RateLimiter>,
     /// Exponential-backoff retry policy for transient `GraphQL` failures.
     retry_policy: RetryPolicy,
@@ -98,7 +98,8 @@ impl SubgraphApi {
     /// # Example
     ///
     /// ```rust
-    /// use cow_rs::{Env, SubgraphApi, SupportedChainId};
+    /// use cow_chains::{Env, SupportedChainId};
+    /// use cow_subgraph::SubgraphApi;
     ///
     /// let api = SubgraphApi::new(SupportedChainId::Mainnet, Env::Prod);
     /// assert!(api.is_ok());
@@ -133,7 +134,7 @@ impl SubgraphApi {
     /// A new [`SubgraphApi`] (infallible).
     ///
     /// ```
-    /// use cow_rs::SubgraphApi;
+    /// use cow_subgraph::SubgraphApi;
     /// let api = SubgraphApi::new_with_url("http://localhost:8080/graphql");
     /// ```
     #[must_use]
@@ -152,7 +153,7 @@ impl SubgraphApi {
     /// shared `Arc` to make several `SubgraphApi` instances throttle
     /// against the same budget — or to make a single budget shared
     /// between a `SubgraphApi` and an
-    /// [`super::super::order_book::OrderBookApi`].
+    /// `OrderBookApi`.
     #[must_use]
     pub fn with_rate_limiter(mut self, limiter: Arc<RateLimiter>) -> Self {
         self.rate_limiter = limiter;
@@ -185,7 +186,8 @@ impl SubgraphApi {
     /// # Example
     ///
     /// ```rust,no_run
-    /// use cow_rs::{Env, SubgraphApi, SupportedChainId};
+    /// use cow_chains::{Env, SupportedChainId};
+    /// use cow_subgraph::SubgraphApi;
     ///
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let api = SubgraphApi::new(SupportedChainId::Mainnet, Env::Prod)?;
@@ -216,7 +218,8 @@ impl SubgraphApi {
     /// # Example
     ///
     /// ```rust,no_run
-    /// use cow_rs::{Env, SubgraphApi, SupportedChainId};
+    /// use cow_chains::{Env, SupportedChainId};
+    /// use cow_subgraph::SubgraphApi;
     ///
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let api = SubgraphApi::new(SupportedChainId::Mainnet, Env::Prod)?;

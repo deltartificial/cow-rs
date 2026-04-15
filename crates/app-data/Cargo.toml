@@ -19,8 +19,12 @@ layer = 2
 doctest = false
 
 [features]
-default = ["schema-validation"]
+default = []
 # Enable runtime JSON schema validation via `jsonschema`.
+# Disabled by default because `jsonschema` transitively pulls `getrandom`
+# 0.3 which requires the `wasm_js` cfg on `wasm32-unknown-unknown`.
+# Opted in from the façade `cow-rs` under a matching `schema-validation`
+# feature (also a default there for native builds only).
 schema-validation = ["dep:jsonschema"]
 
 [dependencies]

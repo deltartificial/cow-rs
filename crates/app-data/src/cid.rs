@@ -62,7 +62,7 @@ const HASH_SHA2_256: u8 = 0x12;
 /// # Example
 ///
 /// ```
-/// use cow_rs::app_data::{appdata_hex_to_cid, cid_to_appdata_hex};
+/// use cow_app_data::{appdata_hex_to_cid, cid_to_appdata_hex};
 ///
 /// let hex = "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890";
 /// let cid = appdata_hex_to_cid(hex).unwrap();
@@ -127,7 +127,7 @@ pub fn appdata_hex_to_cid(app_data_hex: &str) -> Result<String, CowError> {
 /// # Example
 ///
 /// ```
-/// use cow_rs::app_data::{appdata_hex_to_cid, cid_to_appdata_hex};
+/// use cow_app_data::{appdata_hex_to_cid, cid_to_appdata_hex};
 ///
 /// let hex = "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890";
 /// let cid = appdata_hex_to_cid(hex).unwrap();
@@ -253,7 +253,7 @@ pub fn app_data_hex_to_cid_legacy(app_data_hex: &str) -> Result<String, CowError
 /// # Example
 ///
 /// ```
-/// use cow_rs::app_data::{appdata_hex_to_cid, parse_cid};
+/// use cow_app_data::{appdata_hex_to_cid, parse_cid};
 ///
 /// let hex = "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890";
 /// let cid = appdata_hex_to_cid(hex).unwrap();
@@ -306,7 +306,7 @@ pub struct CidComponents {
 /// # Example
 ///
 /// ```
-/// use cow_rs::app_data::{appdata_hex_to_cid, parse_cid};
+/// use cow_app_data::{appdata_hex_to_cid, parse_cid};
 ///
 /// let hex = "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890";
 /// let cid = appdata_hex_to_cid(hex).unwrap();
@@ -360,7 +360,7 @@ pub fn parse_cid(ipfs_hash: &str) -> Result<CidComponents, CowError> {
 /// # Example
 ///
 /// ```
-/// use cow_rs::app_data::decode_cid;
+/// use cow_app_data::decode_cid;
 ///
 /// let mut bytes = vec![0x01, 0x55, 0x1b, 0x20];
 /// bytes.extend_from_slice(&[0u8; 32]); // 32 digest bytes
@@ -412,7 +412,7 @@ pub fn decode_cid(bytes: &[u8]) -> Result<CidComponents, CowError> {
 /// # Example
 ///
 /// ```
-/// use cow_rs::app_data::{appdata_hex_to_cid, extract_digest};
+/// use cow_app_data::{appdata_hex_to_cid, extract_digest};
 ///
 /// let hex = "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890";
 /// let cid = appdata_hex_to_cid(hex).unwrap();

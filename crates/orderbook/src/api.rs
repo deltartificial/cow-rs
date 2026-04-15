@@ -34,7 +34,8 @@ use crate::types::{
 /// # Example
 ///
 /// ```rust,no_run
-/// use cow_rs::{Env, OrderBookApi, SupportedChainId};
+/// use cow_chains::{Env, SupportedChainId};
+/// use cow_orderbook::OrderBookApi;
 ///
 /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 /// let api = OrderBookApi::new(SupportedChainId::Sepolia, Env::Prod);
@@ -94,7 +95,8 @@ impl OrderBookApi {
     /// # Example
     ///
     /// ```rust
-    /// use cow_rs::{Env, OrderBookApi, SupportedChainId};
+    /// use cow_chains::{Env, SupportedChainId};
+    /// use cow_orderbook::OrderBookApi;
     ///
     /// let api = OrderBookApi::new(SupportedChainId::Mainnet, Env::Prod);
     /// ```
@@ -129,7 +131,8 @@ impl OrderBookApi {
     /// # Example
     ///
     /// ```rust
-    /// use cow_rs::{Env, OrderBookApi, SupportedChainId};
+    /// use cow_chains::{Env, SupportedChainId};
+    /// use cow_orderbook::OrderBookApi;
     ///
     /// let api =
     ///     OrderBookApi::new_with_url(SupportedChainId::Mainnet, Env::Prod, "http://localhost:8080");
@@ -154,7 +157,8 @@ impl OrderBookApi {
     /// injecting an `X-API-Key` for the Partner API:
     ///
     /// ```
-    /// use cow_rs::{Env, OrderBookApi, SupportedChainId};
+    /// use cow_chains::{Env, SupportedChainId};
+    /// use cow_orderbook::OrderBookApi;
     ///
     /// let api = OrderBookApi::new(SupportedChainId::Mainnet, Env::Prod)
     ///     .with_header("X-API-Key", "secret-partner-key");
@@ -176,7 +180,8 @@ impl OrderBookApi {
     /// [`Self::with_headers`] calls remain in effect.
     ///
     /// ```
-    /// use cow_rs::{Env, OrderBookApi, SupportedChainId};
+    /// use cow_chains::{Env, SupportedChainId};
+    /// use cow_orderbook::OrderBookApi;
     ///
     /// let api = OrderBookApi::new(SupportedChainId::Mainnet, Env::Prod).with_headers([
     ///     ("X-API-Key", "secret-partner-key"),
@@ -210,7 +215,9 @@ impl OrderBookApi {
     /// ```
     /// use std::sync::Arc;
     ///
-    /// use cow_rs::{Env, OrderBookApi, RateLimiter, SupportedChainId};
+    /// use cow_chains::{Env, SupportedChainId};
+    /// use cow_http::RateLimiter;
+    /// use cow_orderbook::OrderBookApi;
     ///
     /// // One bucket, two client instances share the same 5 rps budget.
     /// let shared = Arc::new(RateLimiter::default_orderbook());
@@ -239,7 +246,9 @@ impl OrderBookApi {
     /// # Example
     ///
     /// ```
-    /// use cow_rs::{Env, OrderBookApi, RetryPolicy, SupportedChainId};
+    /// use cow_chains::{Env, SupportedChainId};
+    /// use cow_http::RetryPolicy;
+    /// use cow_orderbook::OrderBookApi;
     ///
     /// let api = OrderBookApi::new(SupportedChainId::Mainnet, Env::Prod)
     ///     .with_retry_policy(RetryPolicy::no_retry());
@@ -270,7 +279,8 @@ impl OrderBookApi {
     /// # Example
     ///
     /// ```rust,no_run
-    /// use cow_rs::{Env, OrderBookApi, OrderQuoteRequest, SupportedChainId};
+    /// use cow_chains::{Env, SupportedChainId};
+    /// use cow_orderbook::{OrderBookApi, types::OrderQuoteRequest};
     ///
     /// # async fn example(req: &OrderQuoteRequest) -> Result<(), Box<dyn std::error::Error>> {
     /// let api = OrderBookApi::new(SupportedChainId::Mainnet, Env::Prod);
@@ -295,7 +305,8 @@ impl OrderBookApi {
     /// # Example
     ///
     /// ```rust,no_run
-    /// use cow_rs::{Env, OrderBookApi, OrderCreation, SupportedChainId};
+    /// use cow_chains::{Env, SupportedChainId};
+    /// use cow_orderbook::{OrderBookApi, types::OrderCreation};
     ///
     /// # async fn example(order: &OrderCreation) -> Result<(), Box<dyn std::error::Error>> {
     /// let api = OrderBookApi::new(SupportedChainId::Mainnet, Env::Prod);
@@ -320,7 +331,8 @@ impl OrderBookApi {
     /// # Example
     ///
     /// ```rust,no_run
-    /// use cow_rs::{Env, OrderBookApi, SupportedChainId};
+    /// use cow_chains::{Env, SupportedChainId};
+    /// use cow_orderbook::OrderBookApi;
     ///
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let api = OrderBookApi::new(SupportedChainId::Mainnet, Env::Prod);
@@ -348,7 +360,9 @@ impl OrderBookApi {
     /// # Example
     ///
     /// ```rust,no_run
-    /// use cow_rs::{EcdsaSigningScheme, Env, OrderBookApi, OrderCancellations, SupportedChainId};
+    /// use cow_chains::{Env, SupportedChainId};
+    /// use cow_orderbook::{OrderBookApi, types::OrderCancellations};
+    /// use cow_types::EcdsaSigningScheme;
     ///
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let api = OrderBookApi::new(SupportedChainId::Mainnet, Env::Prod);
@@ -421,7 +435,8 @@ impl OrderBookApi {
     ///
     /// ```rust,no_run
     /// use alloy_primitives::address;
-    /// use cow_rs::{Env, GetOrdersRequest, OrderBookApi, SupportedChainId};
+    /// use cow_chains::{Env, SupportedChainId};
+    /// use cow_orderbook::{GetOrdersRequest, OrderBookApi};
     ///
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let api = OrderBookApi::new(SupportedChainId::Mainnet, Env::Prod);
@@ -486,7 +501,8 @@ impl OrderBookApi {
     /// # Example
     ///
     /// ```rust
-    /// use cow_rs::{Env, OrderBookApi, SupportedChainId};
+    /// use cow_chains::{Env, SupportedChainId};
+    /// use cow_orderbook::OrderBookApi;
     ///
     /// let api = OrderBookApi::new(SupportedChainId::Mainnet, Env::Prod);
     /// let link = api.get_order_link("0xabc");
@@ -525,7 +541,8 @@ impl OrderBookApi {
     /// # Example
     ///
     /// ```rust,no_run
-    /// use cow_rs::{Env, OrderBookApi, SupportedChainId};
+    /// use cow_chains::{Env, SupportedChainId};
+    /// use cow_orderbook::OrderBookApi;
     ///
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let api = OrderBookApi::new(SupportedChainId::Mainnet, Env::Prod);

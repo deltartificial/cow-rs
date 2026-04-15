@@ -33,7 +33,7 @@ use super::types::{AppDataDoc, CowHook, Metadata, OrderInteractionHooks, Partner
 /// # Example
 ///
 /// ```
-/// use cow_rs::app_data::{AppDataDoc, ValidationError, validate_app_data_doc};
+/// use cow_app_data::{AppDataDoc, ValidationError, validate_app_data_doc};
 ///
 /// let doc = AppDataDoc::new(""); // empty appCode triggers InvalidAppCode
 /// let result = validate_app_data_doc(&doc);

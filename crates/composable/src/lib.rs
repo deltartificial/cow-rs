@@ -14,10 +14,8 @@
 //!
 //! ```rust,no_run
 //! use alloy_primitives::{Address, B256, U256};
-//! use cow_rs::{
-//!     composable::{DurationOfPart, TwapData, TwapOrder, TwapStartTime},
-//!     types::OrderKind,
-//! };
+//! use cow_composable::{DurationOfPart, TwapData, TwapOrder, TwapStartTime};
+//! use cow_types::OrderKind;
 //!
 //! # fn example() -> Result<(), Box<dyn std::error::Error>> {
 //! let data = TwapData {
@@ -38,7 +36,7 @@
 //! let order = TwapOrder::new(data);
 //! assert!(order.is_valid());
 //! let params = order.to_params()?;
-//! let cd = cow_rs::composable::create_calldata(&params, &[], &[]);
+//! let cd = cow_composable::create_calldata(&params, &[], &[]);
 //! println!("calldata: 0x{}", alloy_primitives::hex::encode(&cd));
 //! # Ok(())
 //! # }

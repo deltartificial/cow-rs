@@ -29,7 +29,7 @@ use super::types::{AppDataDoc, LATEST_APP_DATA_VERSION, Metadata};
 /// `keccak256(json_bytes)`.
 ///
 /// The returned [`B256`] is the 32-byte digest used as the `appData` field in
-/// every [`UnsignedOrder`](cow_signing::types::UnsignedOrder).
+/// every `UnsignedOrder`.
 /// Internally, the document is first passed through [`stringify_deterministic`]
 /// (which sorts all object keys alphabetically and strips whitespace) before
 /// hashing, guaranteeing the same [`AppDataDoc`] always produces the same hash
@@ -54,7 +54,7 @@ use super::types::{AppDataDoc, LATEST_APP_DATA_VERSION, Metadata};
 /// # Example
 ///
 /// ```
-/// use cow_rs::app_data::{AppDataDoc, appdata_hex};
+/// use cow_app_data::{AppDataDoc, appdata_hex};
 ///
 /// let doc = AppDataDoc::new("MyDApp");
 /// let hash = appdata_hex(&doc).unwrap();
@@ -95,7 +95,7 @@ pub fn appdata_hex(doc: &AppDataDoc) -> Result<B256, CowError> {
 /// # Example
 ///
 /// ```
-/// use cow_rs::app_data::build_order_app_data;
+/// use cow_app_data::build_order_app_data;
 ///
 /// let hex = build_order_app_data("MyDApp").unwrap();
 /// assert!(hex.starts_with("0x"));
@@ -138,7 +138,7 @@ pub fn build_order_app_data(app_code: &str) -> Result<String, CowError> {
 /// # Example
 ///
 /// ```
-/// use cow_rs::app_data::{Metadata, Quote, build_app_data_doc};
+/// use cow_app_data::{Metadata, Quote, build_app_data_doc};
 ///
 /// let meta = Metadata::default().with_quote(Quote::new(50));
 /// let hex = build_app_data_doc("MyDApp", meta).unwrap();
@@ -184,7 +184,7 @@ pub fn build_app_data_doc(app_code: &str, metadata: Metadata) -> Result<String, 
 /// # Example
 ///
 /// ```
-/// use cow_rs::app_data::{Metadata, build_app_data_doc_full};
+/// use cow_app_data::{Metadata, build_app_data_doc_full};
 ///
 /// let (json, hex) = build_app_data_doc_full("MyDApp", Metadata::default()).unwrap();
 /// assert!(json.contains("MyDApp"));
@@ -234,7 +234,7 @@ pub fn build_app_data_doc_full(
 /// # Example
 ///
 /// ```
-/// use cow_rs::app_data::{AppDataDoc, appdata_json};
+/// use cow_app_data::{AppDataDoc, appdata_json};
 ///
 /// let doc = AppDataDoc::new("MyDApp");
 /// let json = appdata_json(&doc).unwrap();
@@ -273,7 +273,7 @@ pub fn appdata_json(doc: &AppDataDoc) -> Result<String, CowError> {
 /// # Example
 ///
 /// ```
-/// use cow_rs::app_data::{AppDataDoc, stringify_deterministic};
+/// use cow_app_data::{AppDataDoc, stringify_deterministic};
 ///
 /// let doc = AppDataDoc::new("Test");
 /// let json = stringify_deterministic(&doc).unwrap();
@@ -301,7 +301,7 @@ pub fn stringify_deterministic(doc: &AppDataDoc) -> Result<String, CowError> {
 /// # Example
 ///
 /// ```
-/// use cow_rs::app_data::{AppDataDoc, merge_app_data_doc};
+/// use cow_app_data::{AppDataDoc, merge_app_data_doc};
 ///
 /// let base = AppDataDoc::new("BaseApp");
 /// let override_doc = AppDataDoc::new("OverrideApp");

@@ -253,7 +253,7 @@ pub fn validate_json_with(value: &Value, version: &str) -> Result<(), SchemaErro
 /// # Example
 ///
 /// ```
-/// use cow_rs::app_data::validate_schema_json;
+/// use cow_app_data::validate_schema_json;
 /// use serde_json::json;
 ///
 /// let good = json!({ "version": "1.13.0", "metadata": {} });
@@ -308,7 +308,7 @@ pub fn validate_with(doc: &AppDataDoc, version: &str) -> Result<(), SchemaError>
 /// # Example
 ///
 /// ```
-/// use cow_rs::app_data::{AppDataDoc, validate_schema};
+/// use cow_app_data::{AppDataDoc, validate_schema};
 ///
 /// let doc = AppDataDoc::new("my-app");
 /// validate_schema(&doc).expect("minimal doc should validate");

@@ -22,7 +22,7 @@
 //!
 //! [`RateLimiter`] is cloned cheaply (internally an `Arc<Mutex<_>>`) so a
 //! single instance can be shared across clones of
-//! [`super::api::OrderBookApi`], matching the behaviour of
+//! `OrderBookApi`, matching the behaviour of
 //! `this.rateLimiter` on a `TypeScript` `OrderBookApi` whose instance is
 //! reused by every request.
 
@@ -55,7 +55,7 @@ use tokio::time::Instant;
 /// # Example
 ///
 /// ```
-/// use cow_rs::order_book::RateLimiter;
+/// use cow_http::RateLimiter;
 ///
 /// // Match the upstream default: 5 requests per second, burst of 5.
 /// let limiter = RateLimiter::new(5.0, 5.0);

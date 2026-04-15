@@ -15,7 +15,8 @@
 //! # Example
 //!
 //! ```rust,no_run
-//! use cow_rs::{Env, SubgraphApi, SupportedChainId};
+//! use cow_chains::{Env, SupportedChainId};
+//! use cow_subgraph::SubgraphApi;
 //!
 //! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 //! let api = SubgraphApi::new(SupportedChainId::Mainnet, Env::Prod)?;

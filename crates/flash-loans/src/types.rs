@@ -16,7 +16,7 @@ use alloy_primitives::{Address, U256, address};
 /// # Example
 ///
 /// ```
-/// use cow_rs::flash_loans::FlashLoanProvider;
+/// use cow_flash_loans::FlashLoanProvider;
 ///
 /// let provider = FlashLoanProvider::Balancer;
 /// assert_eq!(provider.name(), "Balancer");
@@ -63,7 +63,7 @@ impl FlashLoanProvider {
     /// # Example
     ///
     /// ```
-    /// use cow_rs::flash_loans::FlashLoanProvider;
+    /// use cow_flash_loans::FlashLoanProvider;
     ///
     /// let addr = FlashLoanProvider::Balancer.contract_address(1);
     /// assert!(addr.is_some());
@@ -106,7 +106,7 @@ impl FlashLoanProvider {
 ///
 /// ```
 /// use alloy_primitives::{Address, U256};
-/// use cow_rs::flash_loans::{FlashLoanParams, FlashLoanProvider};
+/// use cow_flash_loans::{FlashLoanParams, FlashLoanProvider};
 ///
 /// let params = FlashLoanParams::new(
 ///     FlashLoanProvider::Balancer,

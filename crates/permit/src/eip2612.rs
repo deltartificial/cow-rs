@@ -247,7 +247,7 @@ pub fn build_permit_calldata(info: &PermitInfo, signature: [u8; 65]) -> Vec<u8> 
 ///
 /// A [`PermitHookData`] with the target token address, ABI-encoded
 /// calldata, and gas limit. Use [`PermitHookData::into_cow_hook`] to
-/// convert it to a [`CowHook`](crate::app_data::CowHook) for order
+/// convert it to a [`CowHook`](cow_types::CowHook) for order
 /// app-data.
 ///
 /// # Errors

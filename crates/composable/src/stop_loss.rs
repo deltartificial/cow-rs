@@ -180,7 +180,7 @@ impl StopLossOrder {
 ///
 /// ```
 /// use alloy_primitives::{Address, B256, U256};
-/// use cow_rs::composable::{StopLossData, encode_stop_loss_struct};
+/// use cow_composable::{StopLossData, encode_stop_loss_struct};
 ///
 /// let data = StopLossData {
 ///     sell_token: Address::ZERO,
@@ -228,9 +228,7 @@ pub fn encode_stop_loss_struct(d: &StopLossData) -> Vec<u8> {
 ///
 /// ```
 /// use alloy_primitives::{Address, B256, U256};
-/// use cow_rs::composable::{
-///     StopLossData, decode_stop_loss_static_input, encode_stop_loss_struct,
-/// };
+/// use cow_composable::{StopLossData, decode_stop_loss_static_input, encode_stop_loss_struct};
 ///
 /// let data = StopLossData {
 ///     sell_token: Address::ZERO,

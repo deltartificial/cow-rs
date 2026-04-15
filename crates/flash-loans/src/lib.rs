@@ -15,7 +15,7 @@
 //!
 //! ```rust
 //! use alloy_primitives::{Address, U256};
-//! use cow_rs::flash_loans::{FlashLoanParams, FlashLoanProvider, FlashLoanSdk};
+//! use cow_flash_loans::{FlashLoanParams, FlashLoanProvider, FlashLoanSdk};
 //!
 //! let params = FlashLoanParams::new(
 //!     FlashLoanProvider::Balancer,

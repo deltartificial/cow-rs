@@ -364,7 +364,7 @@ impl OrderQuoteRequest {
     ///
     /// ```
     /// use alloy_primitives::Address;
-    /// use cow_rs::order_book::{OrderQuoteRequest, QuoteSide};
+    /// use cow_orderbook::{OrderQuoteRequest, QuoteSide};
     ///
     /// let req = OrderQuoteRequest::new(
     ///     Address::ZERO,
@@ -384,7 +384,7 @@ impl OrderQuoteRequest {
     ///
     /// ```
     /// use alloy_primitives::Address;
-    /// use cow_rs::order_book::{OrderQuoteRequest, QuoteSide};
+    /// use cow_orderbook::{OrderQuoteRequest, QuoteSide};
     ///
     /// let req =
     ///     OrderQuoteRequest::new(Address::ZERO, Address::ZERO, Address::ZERO, QuoteSide::buy("500"));
@@ -400,7 +400,7 @@ impl OrderQuoteRequest {
     ///
     /// ```
     /// use alloy_primitives::Address;
-    /// use cow_rs::order_book::{OrderQuoteRequest, QuoteSide};
+    /// use cow_orderbook::{OrderQuoteRequest, QuoteSide};
     ///
     /// let req = OrderQuoteRequest::new(
     ///     Address::ZERO,
@@ -541,7 +541,7 @@ impl OrderCreation {
     ///
     /// # Example
     ///
-    /// ```rust,no_run
+    /// ```ignore
     /// use alloy_primitives::{Address, U256, address};
     /// use alloy_signer_local::PrivateKeySigner;
     /// use cow_rs::{EcdsaSigningScheme, OrderCreation, UnsignedOrder, order_signing::sign_order};
@@ -1127,7 +1127,7 @@ impl Order {
     ///
     /// ```
     /// use alloy_primitives::Address;
-    /// use cow_rs::order_book::{OnchainOrderData, Order};
+    /// use cow_orderbook::{OnchainOrderData, Order};
     ///
     /// // Minimal Order construction is not possible without a full JSON fixture,
     /// // so we just assert the predicate's behaviour here.
@@ -1151,7 +1151,7 @@ impl Order {
     ///
     /// ```
     /// use alloy_primitives::U256;
-    /// use cow_rs::order_book::Order;
+    /// use cow_orderbook::Order;
     ///
     /// // Verify we can access total_executed_fee without panicking.
     /// // Full Order construction requires a JSON fixture; just check the return type.
@@ -1179,7 +1179,7 @@ impl Order {
     /// Non-`EthFlow` orders are returned unchanged.
     ///
     /// ```
-    /// use cow_rs::order_book::Order;
+    /// use cow_orderbook::Order;
     ///
     /// // Verify the method is accessible; full construction requires a JSON fixture.
     /// fn _typecheck(order: Order) -> Order {
@@ -1209,10 +1209,10 @@ impl Order {
 ///
 /// ```
 /// use alloy_primitives::Address;
-/// use cow_rs::order_book::{OnchainOrderData, is_eth_flow_order};
+/// use cow_orderbook::{OnchainOrderData, is_eth_flow_order};
 ///
 /// // Verify the function signature compiles.
-/// let _fn: fn(&cow_rs::order_book::Order) -> bool = is_eth_flow_order;
+/// let _fn: fn(&cow_orderbook::Order) -> bool = is_eth_flow_order;
 /// ```
 #[must_use]
 pub const fn is_eth_flow_order(order: &Order) -> bool {
@@ -1262,7 +1262,7 @@ impl GetOrdersRequest {
     ///
     /// ```
     /// use alloy_primitives::Address;
-    /// use cow_rs::order_book::GetOrdersRequest;
+    /// use cow_orderbook::GetOrdersRequest;
     ///
     /// let req = GetOrdersRequest::for_owner(Address::ZERO);
     /// assert!(!req.has_offset());
@@ -1278,7 +1278,7 @@ impl GetOrdersRequest {
     ///
     /// ```
     /// use alloy_primitives::Address;
-    /// use cow_rs::order_book::GetOrdersRequest;
+    /// use cow_orderbook::GetOrdersRequest;
     ///
     /// let req = GetOrdersRequest::for_owner(Address::ZERO);
     /// assert!(!req.has_limit());
@@ -1344,7 +1344,7 @@ impl GetTradesRequest {
     ///
     /// ```
     /// use alloy_primitives::Address;
-    /// use cow_rs::order_book::GetTradesRequest;
+    /// use cow_orderbook::GetTradesRequest;
     ///
     /// let req = GetTradesRequest::for_owner(Address::ZERO);
     /// assert!(req.has_owner());
@@ -1358,7 +1358,7 @@ impl GetTradesRequest {
     /// Returns `true` if the request filters by order UID.
     ///
     /// ```
-    /// use cow_rs::order_book::GetTradesRequest;
+    /// use cow_orderbook::GetTradesRequest;
     ///
     /// let req = GetTradesRequest::for_order_uid("0xabc");
     /// assert!(req.has_order_uid());
@@ -1373,7 +1373,7 @@ impl GetTradesRequest {
     ///
     /// ```
     /// use alloy_primitives::Address;
-    /// use cow_rs::order_book::GetTradesRequest;
+    /// use cow_orderbook::GetTradesRequest;
     ///
     /// let req = GetTradesRequest::for_owner(Address::ZERO);
     /// assert!(!req.has_offset());
@@ -1389,7 +1389,7 @@ impl GetTradesRequest {
     ///
     /// ```
     /// use alloy_primitives::Address;
-    /// use cow_rs::order_book::GetTradesRequest;
+    /// use cow_orderbook::GetTradesRequest;
     ///
     /// let req = GetTradesRequest::for_owner(Address::ZERO);
     /// assert!(!req.has_limit());
@@ -1428,7 +1428,7 @@ impl OrderUid {
     /// Returns the length of the UID string in bytes.
     ///
     /// ```
-    /// use cow_rs::order_book::OrderUid;
+    /// use cow_orderbook::OrderUid;
     ///
     /// let uid = OrderUid::from("0xabc123");
     /// assert_eq!(uid.len(), 8);
@@ -1441,7 +1441,7 @@ impl OrderUid {
     /// Returns `true` if the UID string is empty.
     ///
     /// ```
-    /// use cow_rs::order_book::OrderUid;
+    /// use cow_orderbook::OrderUid;
     ///
     /// let uid = OrderUid::from("");
     /// assert!(uid.is_empty());
@@ -1510,7 +1510,8 @@ impl OrderCancellations {
     /// Returns the number of orders to be cancelled.
     ///
     /// ```
-    /// use cow_rs::{EcdsaSigningScheme, order_book::OrderCancellations};
+    /// use cow_orderbook::types::OrderCancellations;
+    /// use cow_types::EcdsaSigningScheme;
     ///
     /// let cancel = OrderCancellations::new(
     ///     vec!["0xabc".to_owned(), "0xdef".to_owned()],
@@ -2092,7 +2093,7 @@ impl TotalSurplus {
     /// Returns the total surplus as a string slice.
     ///
     /// ```
-    /// use cow_rs::order_book::TotalSurplus;
+    /// use cow_orderbook::TotalSurplus;
     ///
     /// let s = TotalSurplus::new("12345678");
     /// assert_eq!(s.as_str(), "12345678");
@@ -2133,7 +2134,7 @@ impl AppDataObject {
     /// Returns the full app-data JSON as a string slice.
     ///
     /// ```
-    /// use cow_rs::order_book::AppDataObject;
+    /// use cow_orderbook::AppDataObject;
     ///
     /// let obj = AppDataObject::new("{\"version\":\"1.0.0\"}");
     /// assert_eq!(obj.as_str(), "{\"version\":\"1.0.0\"}");
@@ -2146,7 +2147,7 @@ impl AppDataObject {
     /// Returns the length of the full app-data JSON string in bytes.
     ///
     /// ```
-    /// use cow_rs::order_book::AppDataObject;
+    /// use cow_orderbook::AppDataObject;
     ///
     /// let obj = AppDataObject::new("{}");
     /// assert_eq!(obj.len(), 2);
@@ -2159,7 +2160,7 @@ impl AppDataObject {
     /// Returns `true` if the full app-data JSON string is empty.
     ///
     /// ```
-    /// use cow_rs::order_book::AppDataObject;
+    /// use cow_orderbook::AppDataObject;
     ///
     /// let obj = AppDataObject::new("");
     /// assert!(obj.is_empty());

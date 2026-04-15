@@ -19,7 +19,9 @@ layer = 4
 doctest = false
 
 [dependencies]
-cow-http.workspace = true
+# No deps yet — placeholder crate. Will depend on `cow-http` and `reqwest`
+# once the `IpfsClient` trait and Pinata adapter migrate here from
+# `cow-app-data`.
 
 [lints]
 workspace = true

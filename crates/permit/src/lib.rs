@@ -27,7 +27,7 @@
 //! ```rust,no_run
 //! use alloy_primitives::{Address, U256, address};
 //! use alloy_signer_local::PrivateKeySigner;
-//! use cow_rs::permit::{Erc20PermitInfo, PermitInfo, build_permit_hook};
+//! use cow_permit::{Erc20PermitInfo, PermitInfo, build_permit_hook};
 //!
 //! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 //! let signer: PrivateKeySigner =

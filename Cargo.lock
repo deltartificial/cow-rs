@@ -1079,7 +1079,6 @@ dependencies = [
  "cow-ethflow",
  "cow-onchain",
  "cow-orderbook",
- "cow-permit",
  "cow-signing",
  "cow-subgraph",
  "cow-trading",
@@ -1120,15 +1119,13 @@ dependencies = [
 [[package]]
 name = "cow-contracts-abi"
 version = "0.1.1"
-dependencies = [
- "alloy-primitives",
-]
 
 [[package]]
 name = "cow-erc20"
 version = "0.1.1"
 dependencies = [
  "alloy-primitives",
+ "cow-chains",
 ]
 
 [[package]]
@@ -1173,9 +1170,6 @@ dependencies = [
 [[package]]
 name = "cow-ipfs"
 version = "0.1.1"
-dependencies = [
- "cow-http",
-]
 
 [[package]]
 name = "cow-onchain"
@@ -1273,7 +1267,6 @@ dependencies = [
  "getrandom 0.2.17",
  "graphql-parser",
  "js-sys",
- "jsonschema",
  "proptest",
  "reqwest",
  "rust_decimal",
@@ -1355,9 +1348,6 @@ dependencies = [
 [[package]]
 name = "cow-testing"
 version = "0.1.1"
-dependencies = [
- "cow-types",
-]
 
 [[package]]
 name = "cow-trading"

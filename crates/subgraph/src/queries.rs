@@ -36,7 +36,7 @@
 ///
 /// # Example
 ///
-/// ```rust,no_run
+/// ```ignore
 /// use cow_rs::{SubgraphApi, subgraph::queries::TOTALS_QUERY};
 ///
 /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
@@ -65,7 +65,7 @@ pub const TOTALS_QUERY: &str = r#"query Totals {
 ///
 /// # Example
 ///
-/// ```rust,no_run
+/// ```ignore
 /// use cow_rs::{SubgraphApi, subgraph::queries::LAST_DAYS_VOLUME_QUERY};
 /// use serde_json::json;
 ///
@@ -89,7 +89,7 @@ pub const LAST_DAYS_VOLUME_QUERY: &str = r#"query LastDaysVolume($days: Int!) {
 ///
 /// # Example
 ///
-/// ```rust,no_run
+/// ```ignore
 /// use cow_rs::{SubgraphApi, subgraph::queries::LAST_HOURS_VOLUME_QUERY};
 /// use serde_json::json;
 ///

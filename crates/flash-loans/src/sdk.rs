@@ -119,7 +119,7 @@ impl FlashLoanSdk {
     ///
     /// ```
     /// use alloy_primitives::{Address, U256};
-    /// use cow_rs::flash_loans::FlashLoanSdk;
+    /// use cow_flash_loans::FlashLoanSdk;
     ///
     /// let calldata = FlashLoanSdk::encode_balancer_flash_loan(
     ///     Address::ZERO,
@@ -219,7 +219,7 @@ impl FlashLoanSdk {
     /// # Returns
     ///
     /// A [`CowHook`](cow_types::CowHook) ready to be attached to an
-    /// order's [`OrderInteractionHooks::pre`](cow_app_data::OrderInteractionHooks).
+    /// order's `OrderInteractionHooks::pre`.
     ///
     /// # Errors
     ///

@@ -18,7 +18,7 @@
 //! # Quick start
 //!
 //! ```rust
-//! use cow_rs::app_data::{AppDataDoc, MetadataApi};
+//! use cow_app_data::{AppDataDoc, MetadataApi};
 //!
 //! let api = MetadataApi::new();
 //! let doc = api.generate_app_data_doc("MyApp");
@@ -30,7 +30,7 @@
 //! # Building app-data for an order
 //!
 //! ```rust
-//! use cow_rs::app_data::{Metadata, Quote, build_app_data_doc, build_order_app_data};
+//! use cow_app_data::{Metadata, Quote, build_app_data_doc, build_order_app_data};
 //!
 //! // Simple: just an app code
 //! let hex = build_order_app_data("MyDApp").unwrap();

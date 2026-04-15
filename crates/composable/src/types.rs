@@ -142,7 +142,7 @@ impl ConditionalOrderParams {
     ///
     /// ```
     /// use alloy_primitives::{Address, B256};
-    /// use cow_rs::composable::ConditionalOrderParams;
+    /// use cow_composable::ConditionalOrderParams;
     ///
     /// let params = ConditionalOrderParams::new(Address::ZERO, B256::ZERO, vec![]);
     /// assert_eq!(params.salt_ref(), &B256::ZERO);
@@ -302,7 +302,7 @@ impl DurationOfPart {
     /// Construct a [`LimitDuration`](Self::LimitDuration) variant.
     ///
     /// ```
-    /// use cow_rs::composable::DurationOfPart;
+    /// use cow_composable::DurationOfPart;
     ///
     /// let d = DurationOfPart::limit(1_800);
     /// assert!(!d.is_auto());
@@ -316,7 +316,7 @@ impl DurationOfPart {
     /// Returns `true` if this is a [`LimitDuration`](Self::LimitDuration) variant.
     ///
     /// ```
-    /// use cow_rs::composable::DurationOfPart;
+    /// use cow_composable::DurationOfPart;
     ///
     /// assert!(DurationOfPart::limit(600).is_limit_duration());
     /// assert!(!DurationOfPart::Auto.is_limit_duration());
@@ -434,7 +434,7 @@ impl TwapData {
     ///
     /// ```
     /// use alloy_primitives::{Address, U256};
-    /// use cow_rs::composable::TwapData;
+    /// use cow_composable::TwapData;
     ///
     /// let twap = TwapData::sell(Address::ZERO, Address::ZERO, U256::ZERO, 4, 3_600);
     /// assert!(twap.is_sell());
@@ -449,10 +449,8 @@ impl TwapData {
     ///
     /// ```
     /// use alloy_primitives::{Address, U256};
-    /// use cow_rs::{
-    ///     OrderKind,
-    ///     composable::{TwapData, TwapStartTime},
-    /// };
+    /// use cow_composable::{TwapData, TwapStartTime};
+    /// use cow_types::OrderKind;
     ///
     /// let mut twap = TwapData::sell(Address::ZERO, Address::ZERO, U256::ZERO, 4, 3_600);
     /// twap.kind = OrderKind::Buy;
@@ -471,7 +469,7 @@ impl TwapData {
     ///
     /// ```
     /// use alloy_primitives::{Address, U256};
-    /// use cow_rs::composable::{TwapData, TwapStartTime};
+    /// use cow_composable::{TwapData, TwapStartTime};
     ///
     /// let twap = TwapData::sell(Address::ZERO, Address::ZERO, U256::ZERO, 4, 3_600)
     ///     .with_start_time(TwapStartTime::At(1_000_000));
@@ -662,7 +660,7 @@ impl TwapData {
     ///
     /// ```
     /// use alloy_primitives::{Address, B256, U256};
-    /// use cow_rs::composable::TwapData;
+    /// use cow_composable::TwapData;
     ///
     /// let twap = TwapData::sell(Address::ZERO, Address::ZERO, U256::ZERO, 4, 3_600);
     /// assert!(!twap.has_app_data());
@@ -999,7 +997,7 @@ impl PollResult {
     /// Returns `None` for all other variants.
     ///
     /// ```
-    /// use cow_rs::composable::PollResult;
+    /// use cow_composable::PollResult;
     ///
     /// let r = PollResult::TryOnBlock { block_number: 12_345_678 };
     /// assert_eq!(r.get_block_number(), Some(12_345_678));
@@ -1015,7 +1013,7 @@ impl PollResult {
     /// Returns `None` for all other variants.
     ///
     /// ```
-    /// use cow_rs::composable::PollResult;
+    /// use cow_composable::PollResult;
     ///
     /// let r = PollResult::TryAtEpoch { epoch: 1_700_000_000 };
     /// assert_eq!(r.get_epoch(), Some(1_700_000_000));
@@ -2256,7 +2254,7 @@ impl Default for TestConditionalOrderParams {
 /// # Example
 ///
 /// ```rust
-/// use cow_rs::composable::create_test_conditional_order;
+/// use cow_composable::create_test_conditional_order;
 ///
 /// let params = create_test_conditional_order(None);
 /// assert!(!params.handler.is_zero());

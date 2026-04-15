@@ -13,7 +13,7 @@
 //! Most users will interact through [`MetadataApi`]:
 //!
 //! ```rust
-//! use cow_rs::app_data::{AppDataDoc, MetadataApi};
+//! use cow_app_data::{AppDataDoc, MetadataApi};
 //!
 //! let api = MetadataApi::new();
 //! let doc = api.generate_app_data_doc("MyApp");
@@ -60,7 +60,7 @@ pub const DEFAULT_IPFS_WRITE_URI: &str = "https://api.pinata.cloud";
 /// # Example
 ///
 /// ```
-/// use cow_rs::app_data::{AppDataDoc, get_app_data_info};
+/// use cow_app_data::{AppDataDoc, get_app_data_info};
 ///
 /// let doc = AppDataDoc::new("MyDApp");
 /// let info = get_app_data_info(&doc).unwrap();
@@ -124,7 +124,7 @@ impl fmt::Display for AppDataInfo {
 /// # Example
 ///
 /// ```
-/// use cow_rs::app_data::Ipfs;
+/// use cow_app_data::Ipfs;
 ///
 /// let ipfs = Ipfs::default()
 ///     .with_read_uri("https://my-gateway.io/ipfs")
@@ -155,7 +155,7 @@ pub struct Ipfs {
 /// # Example
 ///
 /// ```
-/// use cow_rs::app_data::{AppDataDoc, validate_app_data_doc};
+/// use cow_app_data::{AppDataDoc, validate_app_data_doc};
 ///
 /// let result = validate_app_data_doc(&AppDataDoc::new("OK"));
 /// assert!(result.is_valid());
@@ -358,14 +358,14 @@ impl fmt::Display for Ipfs {
 /// # Example
 ///
 /// ```
-/// use cow_rs::app_data::{AppDataDoc, get_app_data_info};
+/// use cow_app_data::{AppDataDoc, get_app_data_info};
 ///
 /// let doc = AppDataDoc::new("CoW Swap");
 /// let info = get_app_data_info(&doc)?;
 /// assert!(!info.cid.is_empty());
 /// assert!(info.app_data_hex.starts_with("0x"));
 /// assert!(!info.app_data_content.is_empty());
-/// # Ok::<(), cow_rs::error::CowError>(())
+/// # Ok::<(), cow_errors::CowError>(())
 /// ```
 pub fn get_app_data_info(doc: &AppDataDoc) -> Result<AppDataInfo, CowError> {
     let app_data_content = stringify_deterministic(doc)?;
@@ -399,7 +399,7 @@ pub fn get_app_data_info(doc: &AppDataDoc) -> Result<AppDataInfo, CowError> {
 /// # Example
 ///
 /// ```
-/// use cow_rs::app_data::{AppDataDoc, MetadataApi, stringify_deterministic};
+/// use cow_app_data::{AppDataDoc, MetadataApi, stringify_deterministic};
 ///
 /// let doc = AppDataDoc::new("CoW Swap");
 /// let canonical_json = stringify_deterministic(&doc)?;
@@ -407,7 +407,7 @@ pub fn get_app_data_info(doc: &AppDataDoc) -> Result<AppDataInfo, CowError> {
 /// let info = api.get_app_data_info_from_str(&canonical_json)?;
 /// assert!(info.app_data_hex.starts_with("0x"));
 /// assert_eq!(info.app_data_content, canonical_json);
-/// # Ok::<(), cow_rs::error::CowError>(())
+/// # Ok::<(), cow_errors::CowError>(())
 /// ```
 pub fn get_app_data_info_from_str(json: &str) -> Result<AppDataInfo, CowError> {
     let hash: alloy_primitives::B256 = alloy_primitives::keccak256(json.as_bytes());
@@ -438,7 +438,7 @@ pub fn get_app_data_info_from_str(json: &str) -> Result<AppDataInfo, CowError> {
 /// # Example
 ///
 /// ```
-/// use cow_rs::app_data::{AppDataDoc, validate_app_data_doc};
+/// use cow_app_data::{AppDataDoc, validate_app_data_doc};
 ///
 /// let doc = AppDataDoc::new("CoW Swap");
 /// let result = validate_app_data_doc(&doc);
@@ -523,9 +523,9 @@ pub fn validate_app_data_doc(doc: &AppDataDoc) -> ValidationResult {
 /// # Example
 ///
 /// ```no_run
-/// use cow_rs::app_data::fetch_doc_from_cid;
+/// use cow_app_data::fetch_doc_from_cid;
 ///
-/// # async fn example() -> Result<(), cow_rs::error::CowError> {
+/// # async fn example() -> Result<(), cow_errors::CowError> {
 /// let cid = "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi";
 /// let doc = fetch_doc_from_cid(cid, None).await?;
 /// assert!(!doc.version.is_empty());
@@ -562,9 +562,9 @@ pub async fn fetch_doc_from_cid(cid: &str, ipfs_uri: Option<&str>) -> Result<App
 /// # Example
 ///
 /// ```no_run
-/// use cow_rs::app_data::fetch_doc_from_app_data_hex;
+/// use cow_app_data::fetch_doc_from_app_data_hex;
 ///
-/// # async fn example() -> Result<(), cow_rs::error::CowError> {
+/// # async fn example() -> Result<(), cow_errors::CowError> {
 /// let hex = "0x0000000000000000000000000000000000000000000000000000000000000000";
 /// let doc = fetch_doc_from_app_data_hex(hex, None).await?;
 /// assert!(!doc.version.is_empty());
@@ -614,9 +614,9 @@ struct PinataResponse {
 /// # Example
 ///
 /// ```no_run
-/// use cow_rs::app_data::{AppDataDoc, Ipfs, upload_app_data_to_pinata};
+/// use cow_app_data::{AppDataDoc, Ipfs, upload_app_data_to_pinata};
 ///
-/// # async fn example() -> Result<(), cow_rs::error::CowError> {
+/// # async fn example() -> Result<(), cow_errors::CowError> {
 /// let doc = AppDataDoc::new("CoW Swap");
 /// let ipfs = Ipfs::default().with_pinata("my-api-key", "my-api-secret");
 /// let cid = upload_app_data_to_pinata(&doc, &ipfs).await?;
@@ -891,7 +891,7 @@ const KNOWN_SCHEMA_VERSIONS: &[&str] = &["0.7.0", "1.3.0"];
 /// # Example
 ///
 /// ```
-/// use cow_rs::app_data::import_schema;
+/// use cow_app_data::import_schema;
 ///
 /// let doc = import_schema("1.3.0").unwrap();
 /// assert_eq!(doc.version, "1.3.0");
@@ -953,7 +953,7 @@ pub fn get_app_data_schema(version: &str) -> Result<AppDataDoc, CowError> {
 /// # Typical workflow
 ///
 /// ```rust
-/// use cow_rs::app_data::{Ipfs, MetadataApi};
+/// use cow_app_data::{Ipfs, MetadataApi};
 ///
 /// // 1. Create the API (with optional IPFS config).
 /// let api = MetadataApi::new();
@@ -1004,7 +1004,7 @@ impl MetadataApi {
     /// # Example
     ///
     /// ```
-    /// use cow_rs::app_data::{Ipfs, MetadataApi};
+    /// use cow_app_data::{Ipfs, MetadataApi};
     ///
     /// let api = MetadataApi::with_ipfs(
     ///     Ipfs::default().with_read_uri("https://my-gateway.io/ipfs").with_pinata("key", "secret"),
@@ -1020,7 +1020,7 @@ impl MetadataApi {
     /// # Example
     ///
     /// ```
-    /// use cow_rs::app_data::MetadataApi;
+    /// use cow_app_data::MetadataApi;
     ///
     /// let api = MetadataApi::new();
     /// let doc = api.generate_app_data_doc("CoW Swap");
@@ -1036,7 +1036,7 @@ impl MetadataApi {
     /// # Example
     ///
     /// ```
-    /// use cow_rs::app_data::{AppDataDoc, MetadataApi};
+    /// use cow_app_data::{AppDataDoc, MetadataApi};
     ///
     /// let api = MetadataApi::new();
     /// let doc = AppDataDoc::new("CoW Swap");
@@ -1090,13 +1090,13 @@ impl MetadataApi {
     /// # Example
     ///
     /// ```
-    /// use cow_rs::app_data::{AppDataDoc, MetadataApi};
+    /// use cow_app_data::{AppDataDoc, MetadataApi};
     ///
     /// let api = MetadataApi::new();
     /// let doc = AppDataDoc::new("CoW Swap");
     /// let info = api.get_app_data_info(&doc)?;
     /// assert!(info.app_data_hex.starts_with("0x"));
-    /// # Ok::<(), cow_rs::error::CowError>(())
+    /// # Ok::<(), cow_errors::CowError>(())
     /// ```
     pub fn get_app_data_info(&self, doc: &AppDataDoc) -> Result<AppDataInfo, CowError> {
         get_app_data_info(doc)
