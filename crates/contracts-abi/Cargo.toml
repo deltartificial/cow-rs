@@ -19,7 +19,9 @@ layer = 1
 doctest = false
 
 [dependencies]
-alloy-primitives.workspace = true
+# No deps yet — placeholder crate. Will depend on `alloy-primitives` and
+# `alloy-sol-types` once the `sol!` bindings for the settlement, vault
+# and composable contracts are generated here.
 
 [lints]
 workspace = true

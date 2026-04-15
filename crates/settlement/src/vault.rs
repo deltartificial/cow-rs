@@ -36,7 +36,7 @@ const BATCH_SWAP_SELECTOR: [u8; 4] = [0x94, 0x5b, 0xce, 0xc9];
 ///
 /// ```
 /// use alloy_primitives::{Address, B256};
-/// use cow_rs::settlement::vault::vault_role_hash;
+/// use cow_settlement::vault::vault_role_hash;
 ///
 /// let hash = vault_role_hash(Address::ZERO, [0x0e, 0x8e, 0x3e, 0x84]);
 /// assert_ne!(hash, B256::ZERO);
@@ -60,7 +60,7 @@ pub fn vault_role_hash(vault: Address, selector: [u8; 4]) -> B256 {
 /// A `Vec` of 4-byte function selectors.
 ///
 /// ```
-/// use cow_rs::settlement::vault::required_vault_role_selectors;
+/// use cow_settlement::vault::required_vault_role_selectors;
 ///
 /// let selectors = required_vault_role_selectors();
 /// assert_eq!(selectors.len(), 2);
@@ -85,7 +85,7 @@ pub fn required_vault_role_selectors() -> Vec<[u8; 4]> {
 ///
 /// ```
 /// use alloy_primitives::{Address, B256};
-/// use cow_rs::settlement::vault::grant_role_calldata;
+/// use cow_settlement::vault::grant_role_calldata;
 ///
 /// let calldata = grant_role_calldata(B256::ZERO, Address::ZERO);
 /// assert_eq!(calldata.len(), 68);
@@ -114,7 +114,7 @@ pub fn grant_role_calldata(role: B256, account: Address) -> Vec<u8> {
 ///
 /// ```
 /// use alloy_primitives::{Address, B256};
-/// use cow_rs::settlement::vault::revoke_role_calldata;
+/// use cow_settlement::vault::revoke_role_calldata;
 ///
 /// let calldata = revoke_role_calldata(B256::ZERO, Address::ZERO);
 /// assert_eq!(calldata.len(), 68);
@@ -149,7 +149,7 @@ pub fn revoke_role_calldata(role: B256, account: Address) -> Vec<u8> {
 ///
 /// ```
 /// use alloy_primitives::{Address, address};
-/// use cow_rs::settlement::vault::required_vault_role_calls;
+/// use cow_settlement::vault::required_vault_role_calls;
 ///
 /// let vault = address!("BA12222222228d8Ba445958a75a0704d566BF2C8");
 /// let authorizer = address!("1111111111111111111111111111111111111111");

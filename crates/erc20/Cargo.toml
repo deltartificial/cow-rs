@@ -21,5 +21,8 @@ doctest = false
 [dependencies]
 alloy-primitives.workspace = true
 
+[dev-dependencies]
+cow-chains.workspace = true
+
 [lints]
 workspace = true

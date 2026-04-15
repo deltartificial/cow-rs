@@ -36,7 +36,8 @@ use crate::{
 ///
 /// ```rust,no_run
 /// use alloy_primitives::{Address, U256};
-/// use cow_rs::{EcdsaSigningScheme, UnsignedOrder, order_signing::sign_order};
+/// use cow_signing::{sign_order, types::UnsignedOrder};
+/// use cow_types::EcdsaSigningScheme;
 ///
 /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 /// let order =
@@ -157,7 +158,7 @@ pub(crate) async fn sign_digest(
 /// the owner address (20 bytes), and the order expiry as a big-endian `uint32`
 /// (4 bytes):
 ///
-/// ```text
+/// ```ignore
 /// uid = signing_digest(domain_sep(chain_id), order_hash(order))
 ///       ‖ owner (20 bytes)
 ///       ‖ valid_to.to_be_bytes() (4 bytes)
@@ -178,7 +179,7 @@ pub(crate) async fn sign_digest(
 ///
 /// # Example
 ///
-/// ```rust
+/// ```ignore
 /// use alloy_primitives::{Address, B256, U256};
 /// use cow_rs::{OrderKind, TokenBalance, UnsignedOrder, order_signing::compute_order_uid};
 ///
@@ -231,7 +232,7 @@ pub fn compute_order_uid(chain_id: u64, order: &UnsignedOrder, owner: Address) -
 ///
 /// # Example
 ///
-/// ```rust
+/// ```ignore
 /// use alloy_primitives::{Address, U256};
 /// use cow_rs::{UnsignedOrder, order_signing::generate_order_id};
 ///

@@ -98,7 +98,8 @@ impl SubgraphApi {
     /// # Example
     ///
     /// ```rust
-    /// use cow_rs::{Env, SubgraphApi, SupportedChainId};
+    /// use cow_chains::{Env, SupportedChainId};
+    /// use cow_subgraph::SubgraphApi;
     ///
     /// let api = SubgraphApi::new(SupportedChainId::Mainnet, Env::Prod);
     /// assert!(api.is_ok());
@@ -133,7 +134,7 @@ impl SubgraphApi {
     /// A new [`SubgraphApi`] (infallible).
     ///
     /// ```
-    /// use cow_rs::SubgraphApi;
+    /// use cow_subgraph::SubgraphApi;
     /// let api = SubgraphApi::new_with_url("http://localhost:8080/graphql");
     /// ```
     #[must_use]
@@ -185,7 +186,8 @@ impl SubgraphApi {
     /// # Example
     ///
     /// ```rust,no_run
-    /// use cow_rs::{Env, SubgraphApi, SupportedChainId};
+    /// use cow_chains::{Env, SupportedChainId};
+    /// use cow_subgraph::SubgraphApi;
     ///
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let api = SubgraphApi::new(SupportedChainId::Mainnet, Env::Prod)?;
@@ -216,7 +218,8 @@ impl SubgraphApi {
     /// # Example
     ///
     /// ```rust,no_run
-    /// use cow_rs::{Env, SubgraphApi, SupportedChainId};
+    /// use cow_chains::{Env, SupportedChainId};
+    /// use cow_subgraph::SubgraphApi;
     ///
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let api = SubgraphApi::new(SupportedChainId::Mainnet, Env::Prod)?;

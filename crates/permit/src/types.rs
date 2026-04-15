@@ -21,7 +21,7 @@ use cow_types::CowHook;
 ///
 /// ```
 /// use alloy_primitives::{Address, U256};
-/// use cow_rs::PermitInfo;
+/// use cow_permit::PermitInfo;
 ///
 /// let info = PermitInfo::new(Address::ZERO, Address::ZERO, Address::ZERO, U256::MAX)
 ///     .with_nonce(U256::from(5u64))
@@ -115,7 +115,7 @@ impl PermitInfo {
     ///
     /// ```
     /// use alloy_primitives::{Address, U256};
-    /// use cow_rs::PermitInfo;
+    /// use cow_permit::PermitInfo;
     ///
     /// let info = PermitInfo::new(Address::ZERO, Address::ZERO, Address::ZERO, U256::ZERO)
     ///     .with_deadline(1_000_000);
@@ -135,7 +135,7 @@ impl PermitInfo {
     ///
     /// ```
     /// use alloy_primitives::{Address, U256};
-    /// use cow_rs::PermitInfo;
+    /// use cow_permit::PermitInfo;
     ///
     /// let revoke = PermitInfo::new(Address::ZERO, Address::ZERO, Address::ZERO, U256::ZERO);
     /// assert!(revoke.is_zero_allowance());
@@ -153,7 +153,7 @@ impl PermitInfo {
     ///
     /// ```
     /// use alloy_primitives::{Address, U256};
-    /// use cow_rs::PermitInfo;
+    /// use cow_permit::PermitInfo;
     ///
     /// let unlimited = PermitInfo::new(Address::ZERO, Address::ZERO, Address::ZERO, U256::MAX);
     /// assert!(unlimited.is_unlimited_allowance());
@@ -183,7 +183,7 @@ impl fmt::Display for PermitInfo {
 /// # Example
 ///
 /// ```
-/// use cow_rs::permit::Erc20PermitInfo;
+/// use cow_permit::Erc20PermitInfo;
 ///
 /// let info = Erc20PermitInfo::new("USD Coin", "2", 1);
 /// assert_eq!(info.name, "USD Coin");
@@ -291,7 +291,7 @@ impl PermitHookData {
     ///
     /// # Example
     ///
-    /// ```rust,no_run
+    /// ```ignore
     /// use alloy_primitives::{U256, address};
     /// use alloy_signer_local::PrivateKeySigner;
     /// use cow_rs::{

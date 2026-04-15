@@ -23,7 +23,7 @@ const PCT_100_PERCENT: u128 = 10u128.pow(18);
 ///
 /// ```
 /// use alloy_primitives::U256;
-/// use cow_rs::bridging::utils::apply_bps;
+/// use cow_bridging::utils::apply_bps;
 ///
 /// let amount = U256::from(10_000u64);
 /// assert_eq!(apply_bps(amount, 50), U256::from(9_950u64));
@@ -106,7 +106,7 @@ pub fn calculate_fee_bps(fee_amount: U256, amount: U256) -> Result<u32, BridgeEr
 /// # Example
 ///
 /// ```
-/// use cow_rs::bridging::utils::calculate_deadline;
+/// use cow_bridging::utils::calculate_deadline;
 ///
 /// let now = 1_700_000_000;
 /// let deadline = calculate_deadline(now, 300);
@@ -421,7 +421,7 @@ pub type QueryParam = (String, Vec<String>);
 /// # Example
 ///
 /// ```
-/// use cow_rs::bridging::utils::object_to_search_params;
+/// use cow_bridging::utils::object_to_search_params;
 ///
 /// let params = vec![
 ///     ("userAddress".to_owned(), vec!["0x123".to_owned()]),
@@ -689,7 +689,7 @@ use super::across::{across_token_mapping, get_token_address, get_token_symbol};
 ///
 /// ```
 /// use alloy_primitives::Address;
-/// use cow_rs::bridging::utils::adapt_token;
+/// use cow_bridging::utils::adapt_token;
 ///
 /// // USDC on Mainnet → USDC on Arbitrum
 /// let mainnet_usdc: Address = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48".parse().unwrap();
@@ -718,7 +718,7 @@ pub fn adapt_token(
 ///
 /// ```
 /// use alloy_primitives::Address;
-/// use cow_rs::bridging::utils::adapt_tokens;
+/// use cow_bridging::utils::adapt_tokens;
 ///
 /// let mainnet_usdc: Address = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48".parse().unwrap();
 /// let results = adapt_tokens(&[mainnet_usdc], 1, 42161);

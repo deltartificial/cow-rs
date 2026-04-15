@@ -55,7 +55,7 @@ use tokio::time::Instant;
 /// # Example
 ///
 /// ```
-/// use cow_rs::order_book::RateLimiter;
+/// use cow_http::RateLimiter;
 ///
 /// // Match the upstream default: 5 requests per second, burst of 5.
 /// let limiter = RateLimiter::new(5.0, 5.0);

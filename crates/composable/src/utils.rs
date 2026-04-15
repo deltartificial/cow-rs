@@ -21,7 +21,7 @@ use super::types::{
 /// # Example
 ///
 /// ```rust
-/// use cow_rs::composable::{COMPOSABLE_COW_ADDRESS, is_composable_cow};
+/// use cow_composable::{COMPOSABLE_COW_ADDRESS, is_composable_cow};
 ///
 /// assert!(is_composable_cow(COMPOSABLE_COW_ADDRESS));
 /// assert!(!is_composable_cow(alloy_primitives::Address::ZERO));
@@ -39,7 +39,8 @@ pub fn is_composable_cow(address: Address) -> bool {
 /// # Example
 ///
 /// ```rust
-/// use cow_rs::{EXTENSIBLE_FALLBACK_HANDLER, composable::is_extensible_fallback_handler};
+/// use cow_chains::contracts::EXTENSIBLE_FALLBACK_HANDLER;
+/// use cow_composable::is_extensible_fallback_handler;
 ///
 /// assert!(is_extensible_fallback_handler(EXTENSIBLE_FALLBACK_HANDLER));
 /// assert!(!is_extensible_fallback_handler(alloy_primitives::Address::ZERO));
@@ -59,7 +60,8 @@ pub fn is_extensible_fallback_handler(address: Address) -> bool {
 /// # Example
 ///
 /// ```rust
-/// use cow_rs::{TokenBalance, composable::balance_to_string};
+/// use cow_composable::balance_to_string;
+/// use cow_types::TokenBalance;
 ///
 /// let h = TokenBalance::Erc20.eip712_hash();
 /// assert_eq!(balance_to_string(h), Some("erc20"));
@@ -88,7 +90,7 @@ pub fn balance_to_string(hash: B256) -> Option<&'static str> {
 /// # Example
 ///
 /// ```rust
-/// use cow_rs::composable::kind_to_string;
+/// use cow_composable::kind_to_string;
 ///
 /// let sell_hash = alloy_primitives::keccak256(b"sell");
 /// assert_eq!(kind_to_string(sell_hash), Some("sell"));
@@ -125,10 +127,8 @@ pub fn kind_to_string(hash: B256) -> Option<&'static str> {
 ///
 /// ```
 /// use alloy_primitives::{Address, B256, U256, keccak256};
-/// use cow_rs::{
-///     OrderKind,
-///     composable::{GpV2OrderStruct, from_struct_to_order},
-/// };
+/// use cow_composable::{GpV2OrderStruct, from_struct_to_order};
+/// use cow_types::OrderKind;
 ///
 /// let s = GpV2OrderStruct {
 ///     sell_token: Address::ZERO,
@@ -187,7 +187,7 @@ fn decode_token_balance(hash: B256) -> Result<TokenBalance, CowError> {
 ///
 /// ```rust
 /// use alloy_primitives::{Address, U256};
-/// use cow_rs::composable::default_token_formatter;
+/// use cow_composable::default_token_formatter;
 ///
 /// let s = default_token_formatter(Address::ZERO, U256::from(42u64));
 /// assert_eq!(s, "42@0x0000000000000000000000000000000000000000");
@@ -206,7 +206,7 @@ pub fn default_token_formatter(address: Address, amount: U256) -> String {
 /// # Example
 ///
 /// ```rust
-/// use cow_rs::composable::{IsValidResult, get_is_valid_result};
+/// use cow_composable::{IsValidResult, get_is_valid_result};
 ///
 /// let valid = IsValidResult::Valid;
 /// assert!(get_is_valid_result(&valid));
@@ -266,7 +266,7 @@ pub fn transform_struct_to_data(params: &ConditionalOrderParams) -> String {
 ///
 /// ```rust
 /// use alloy_primitives::{Address, B256};
-/// use cow_rs::composable::create_set_domain_verifier_tx;
+/// use cow_composable::create_set_domain_verifier_tx;
 ///
 /// let domain = B256::ZERO;
 /// let verifier = Address::ZERO;
@@ -295,7 +295,7 @@ pub fn create_set_domain_verifier_tx(domain: B256, verifier: Address) -> Vec<u8>
 /// # Example
 ///
 /// ```rust
-/// use cow_rs::composable::get_block_info;
+/// use cow_composable::get_block_info;
 ///
 /// let info = get_block_info(12345, 1_700_000_000);
 /// assert_eq!(info.block_number, 12345);
@@ -316,7 +316,7 @@ pub const fn get_block_info(block_number: u64, block_timestamp: u64) -> BlockInf
 ///
 /// ```rust
 /// use alloy_primitives::{Address, B256};
-/// use cow_rs::composable::get_domain_verifier_calldata;
+/// use cow_composable::get_domain_verifier_calldata;
 ///
 /// let safe = Address::ZERO;
 /// let domain = B256::ZERO;
@@ -346,7 +346,7 @@ pub fn get_domain_verifier_calldata(safe: Address, domain: B256) -> Vec<u8> {
 ///
 /// ```rust
 /// use alloy_primitives::{Address, B256};
-/// use cow_rs::composable::get_domain_verifier;
+/// use cow_composable::get_domain_verifier;
 ///
 /// let calldata = get_domain_verifier(Address::ZERO, B256::ZERO);
 /// assert_eq!(calldata.len(), 4 + 64);
@@ -370,7 +370,7 @@ pub fn get_domain_verifier(safe: Address, domain: B256) -> Vec<u8> {
 ///
 /// ```rust
 /// use alloy_primitives::{Address, B256};
-/// use cow_rs::composable::{ConditionalOrderParams, encode_params, is_valid_abi};
+/// use cow_composable::{ConditionalOrderParams, encode_params, is_valid_abi};
 ///
 /// let params =
 ///     ConditionalOrderParams { handler: Address::ZERO, salt: B256::ZERO, static_input: vec![] };

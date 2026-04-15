@@ -30,11 +30,11 @@ chrono.workspace = true
 cow-chains.workspace = true
 cow-errors.workspace = true
 cow-http.workspace = true
+cow-primitives.workspace = true
 # NOTE (workspace-split migration debt): `cow-signing` is a sibling L2
 # crate here referenced for its shared `UnsignedOrder` type. That type will
 # move down to `cow-types` in a later cleanup pass.
 cow-signing.workspace = true
-cow-primitives.workspace = true
 cow-types.workspace = true
 foldhash.workspace = true
 progenitor-client.workspace = true

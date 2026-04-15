@@ -15,7 +15,8 @@
 //! # Quick start
 //!
 //! ```rust,no_run
-//! use cow_rs::{Env, OrderBookApi, SupportedChainId};
+//! use cow_chains::{Env, SupportedChainId};
+//! use cow_orderbook::OrderBookApi;
 //!
 //! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 //! let api = OrderBookApi::new(SupportedChainId::Mainnet, Env::Prod);

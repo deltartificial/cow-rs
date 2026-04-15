@@ -30,7 +30,7 @@ impl TwapOrder {
     ///
     /// ```rust
     /// use alloy_primitives::{Address, U256};
-    /// use cow_rs::composable::{TwapData, TwapOrder};
+    /// use cow_composable::{TwapData, TwapOrder};
     ///
     /// let data = TwapData::sell(Address::ZERO, Address::ZERO, U256::from(1000u64), 4, 3600);
     /// let order = TwapOrder::new(data);
@@ -132,7 +132,7 @@ impl TwapOrder {
     ///
     /// ```rust
     /// use alloy_primitives::{Address, U256};
-    /// use cow_rs::composable::{TwapData, TwapOrder};
+    /// use cow_composable::{TwapData, TwapOrder};
     ///
     /// let data = TwapData::sell(Address::ZERO, Address::ZERO, U256::from(1000u64), 4, 3600)
     ///     .with_buy_amount(U256::from(800u64));
@@ -217,7 +217,7 @@ impl TwapOrder {
     ///
     /// ```
     /// use alloy_primitives::{Address, U256};
-    /// use cow_rs::composable::{TwapData, TwapOrder};
+    /// use cow_composable::{TwapData, TwapOrder};
     ///
     /// let data = TwapData::sell(Address::ZERO, Address::ZERO, U256::from(1_000u64), 4, 3_600);
     /// let order = TwapOrder::new(data);
@@ -232,7 +232,7 @@ impl TwapOrder {
     ///
     /// ```
     /// use alloy_primitives::{Address, U256};
-    /// use cow_rs::composable::{TwapData, TwapOrder};
+    /// use cow_composable::{TwapData, TwapOrder};
     ///
     /// let data = TwapData::sell(Address::ZERO, Address::ZERO, U256::ZERO, 4, 3_600)
     ///     .with_buy_amount(U256::from(800u64));
@@ -271,7 +271,7 @@ impl TwapOrder {
     ///
     /// ```
     /// use alloy_primitives::{Address, U256};
-    /// use cow_rs::composable::{TwapData, TwapOrder, TwapStartTime};
+    /// use cow_composable::{TwapData, TwapOrder, TwapStartTime};
     ///
     /// let data = TwapData::sell(Address::ZERO, Address::ZERO, U256::ZERO, 4, 3_600)
     ///     .with_start_time(TwapStartTime::At(1_000_000));
@@ -312,7 +312,7 @@ impl fmt::Display for TwapOrder {
 ///
 /// ```rust
 /// use alloy_primitives::{Address, B256};
-/// use cow_rs::composable::{ConditionalOrderParams, order_id};
+/// use cow_composable::{ConditionalOrderParams, order_id};
 ///
 /// let params = ConditionalOrderParams {
 ///     handler: Address::ZERO,
@@ -347,7 +347,7 @@ pub fn order_id(params: &ConditionalOrderParams) -> B256 {
 ///
 /// ```rust
 /// use alloy_primitives::Address;
-/// use cow_rs::composable::{ConditionalOrderParams, encode_params};
+/// use cow_composable::{ConditionalOrderParams, encode_params};
 ///
 /// let params = ConditionalOrderParams {
 ///     handler: Address::ZERO,
@@ -384,7 +384,7 @@ pub fn encode_params(params: &ConditionalOrderParams) -> String {
 ///
 /// ```rust
 /// use alloy_primitives::Address;
-/// use cow_rs::composable::{ConditionalOrderParams, decode_params, encode_params};
+/// use cow_composable::{ConditionalOrderParams, decode_params, encode_params};
 ///
 /// let params = ConditionalOrderParams {
 ///     handler: Address::ZERO,
@@ -438,7 +438,7 @@ pub fn decode_params(hex: &str) -> Result<ConditionalOrderParams, CowError> {
 /// # Example
 ///
 /// ```rust
-/// use cow_rs::composable::format_epoch;
+/// use cow_composable::format_epoch;
 ///
 /// let s = format_epoch(1_700_000_000);
 /// assert!(s.starts_with("2023-11-14"));
@@ -495,7 +495,7 @@ fn encode_twap_static_input(d: &TwapData) -> Result<Vec<u8>, CowError> {
 ///
 /// ```rust
 /// use alloy_primitives::{Address, U256};
-/// use cow_rs::composable::{TwapData, data_to_struct};
+/// use cow_composable::{TwapData, data_to_struct};
 ///
 /// let data = TwapData::sell(Address::ZERO, Address::ZERO, U256::from(1000u64), 4, 3600)
 ///     .with_buy_amount(U256::from(800u64));
@@ -543,7 +543,7 @@ pub fn data_to_struct(d: &TwapData) -> Result<TwapStruct, CowError> {
 ///
 /// ```rust
 /// use alloy_primitives::{Address, B256, U256};
-/// use cow_rs::composable::{TwapStruct, struct_to_data};
+/// use cow_composable::{TwapStruct, struct_to_data};
 ///
 /// let s = TwapStruct {
 ///     sell_token: Address::ZERO,
@@ -612,7 +612,7 @@ fn encode_struct(s: &TwapStruct) -> Vec<u8> {
 ///
 /// ```
 /// use alloy_primitives::{Address, U256};
-/// use cow_rs::composable::{
+/// use cow_composable::{
 ///     TwapData, TwapStruct, data_to_struct, decode_twap_struct, encode_twap_struct,
 /// };
 ///
@@ -669,7 +669,7 @@ pub fn decode_twap_static_input(bytes: &[u8]) -> Result<TwapData, CowError> {
 ///
 /// ```rust
 /// use alloy_primitives::{Address, U256};
-/// use cow_rs::composable::{TwapData, data_to_struct, decode_twap_struct, encode_twap_struct};
+/// use cow_composable::{TwapData, data_to_struct, decode_twap_struct, encode_twap_struct};
 ///
 /// let data = TwapData::sell(Address::ZERO, Address::ZERO, U256::from(1000u64), 4, 3600)
 ///     .with_buy_amount(U256::from(800u64));

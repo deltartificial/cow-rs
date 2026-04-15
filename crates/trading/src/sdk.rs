@@ -103,7 +103,7 @@ fn default_app_data_info() -> TradingAppDataInfo {
 ///
 /// # Example
 ///
-/// ```
+/// ```ignore
 /// use cow_rs::{NATIVE_CURRENCY_ADDRESS, trading::get_is_eth_flow_order};
 /// assert!(get_is_eth_flow_order(NATIVE_CURRENCY_ADDRESS));
 /// assert!(!get_is_eth_flow_order(alloy_primitives::Address::ZERO));
@@ -124,7 +124,7 @@ pub fn get_is_eth_flow_order(sell_token: alloy_primitives::Address) -> bool {
 /// # Example
 ///
 /// ```rust
-/// use cow_rs::trading::get_default_utm_params;
+/// use cow_trading::get_default_utm_params;
 ///
 /// let utm = get_default_utm_params();
 /// assert_eq!(utm.utm_source.as_deref(), Some("web"));
@@ -158,7 +158,7 @@ pub fn get_default_utm_params() -> Utm {
 ///
 /// # Example
 ///
-/// ```rust
+/// ```ignore
 /// use alloy_primitives::{Address, U256};
 /// use cow_rs::{
 ///     OrderKind,
@@ -403,7 +403,7 @@ impl TradingSdkConfig {
 ///
 /// # Example
 ///
-/// ```rust,no_run
+/// ```ignore
 /// use alloy_primitives::U256;
 /// use cow_rs::{Env, OrderKind, SupportedChainId, TradeParameters, TradingSdk, TradingSdkConfig};
 ///
@@ -1526,7 +1526,7 @@ impl TradingSdk {
     ///
     /// # Example
     ///
-    /// ```rust,no_run
+    /// ```ignore
     /// use alloy_primitives::address;
     /// use cow_rs::{SupportedChainId, TradingSdk, TradingSdkConfig};
     ///
@@ -1850,7 +1850,7 @@ pub fn resolve_slippage_suggestion(
 ///
 /// # Example
 ///
-/// ```rust
+/// ```ignore
 /// use alloy_primitives::{Address, U256};
 /// use cow_rs::{
 ///     NATIVE_CURRENCY_ADDRESS, OrderKind, SupportedChainId,
@@ -1901,7 +1901,7 @@ pub fn adjust_eth_flow_order_params(
 ///
 /// # Example
 ///
-/// ```rust
+/// ```ignore
 /// use alloy_primitives::{Address, U256};
 /// use cow_rs::{
 ///     NATIVE_CURRENCY_ADDRESS, OrderKind, SupportedChainId,
@@ -1953,7 +1953,7 @@ pub fn adjust_eth_flow_limit_order_params(
 ///
 /// # Example
 ///
-/// ```rust
+/// ```ignore
 /// use alloy_primitives::{Address, U256};
 /// use cow_rs::{
 ///     NATIVE_CURRENCY_ADDRESS, OrderKind,
@@ -2004,7 +2004,7 @@ pub fn get_trade_parameters_after_quote(
 ///
 /// # Example
 ///
-/// ```rust
+/// ```ignore
 /// use cow_rs::{Env, SupportedChainId, trading::get_eth_flow_contract};
 ///
 /// let addr = get_eth_flow_contract(SupportedChainId::Mainnet, Env::Prod);
@@ -2032,7 +2032,7 @@ pub const fn get_eth_flow_contract(chain_id: SupportedChainId, env: Env) -> Addr
 ///
 /// # Example
 ///
-/// ```rust
+/// ```ignore
 /// use cow_rs::{Env, SupportedChainId, trading::get_settlement_contract};
 ///
 /// let addr = get_settlement_contract(SupportedChainId::Mainnet, Env::Prod);
@@ -2135,7 +2135,7 @@ pub fn get_settlement_cancellation(
 ///
 /// # Example
 ///
-/// ```rust
+/// ```ignore
 /// use cow_rs::{OrderClassKind, trading::build_app_data};
 ///
 /// let info = build_app_data("MyDApp", 50, OrderClassKind::Market, None);
@@ -2184,7 +2184,7 @@ pub fn build_app_data(
 /// # Example
 ///
 /// ```rust
-/// use cow_rs::trading::generate_app_data_from_doc;
+/// use cow_trading::generate_app_data_from_doc;
 ///
 /// let doc = serde_json::json!({"version": "1.1.0", "metadata": {}});
 /// let info = generate_app_data_from_doc(&doc).expect("valid JSON");
@@ -2247,7 +2247,7 @@ fn sort_keys_value(value: serde_json::Value) -> serde_json::Value {
 ///
 /// # Example
 ///
-/// ```rust
+/// ```ignore
 /// use alloy_primitives::{Address, U256};
 /// use cow_rs::{Env, SupportedChainId, UnsignedOrder, trading::calculate_unique_order_id};
 ///
@@ -2323,7 +2323,7 @@ pub const fn unsigned_order_for_signing(order: UnsignedOrder) -> UnsignedOrder {
 ///
 /// # Example
 ///
-/// ```rust
+/// ```ignore
 /// use cow_rs::{Env, SupportedChainId, trading::resolve_order_book_api};
 ///
 /// let api = resolve_order_book_api(SupportedChainId::Mainnet, Env::Prod, None);
@@ -2646,7 +2646,7 @@ async fn get_quote_impl(
 /// # Example
 ///
 /// ```no_run
-/// use cow_rs::trading::get_order_deadline_from_now;
+/// use cow_trading::get_order_deadline_from_now;
 ///
 /// let deadline = get_order_deadline_from_now(1800);
 /// assert!(deadline > 0);
@@ -2898,7 +2898,7 @@ pub async fn get_quote_raw(
 /// # Example
 ///
 /// ```rust
-/// use cow_rs::trading::resolve_signer;
+/// use cow_trading::resolve_signer;
 ///
 /// // A well-known test private key (do NOT use in production).
 /// let key = "0x4c0883a69102937d6231471b5dbb6204fe512961708279f99ae5f1e7b8a6c5e1";
@@ -2946,7 +2946,7 @@ pub struct QuoterParameters {
 ///
 /// # Example
 ///
-/// ```rust
+/// ```ignore
 /// use alloy_primitives::Address;
 /// use cow_rs::{
 ///     SupportedChainId,

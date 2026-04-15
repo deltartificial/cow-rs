@@ -10,6 +10,13 @@ yanked = "warn"
 ignore = [
   # paste is unmaintained but deeply embedded via alloy-primitives; no drop-in replacement yet
   "RUSTSEC-2024-0436",
+  # rustls-webpki name-constraint URI-name acceptance; transitively pulled by
+  # reqwest's rustls backend. Waiting for a patched webpki release to land
+  # before upgrading. No local usage of name constraints.
+  "RUSTSEC-2026-0098",
+  # rustls-webpki wildcard name-constraint acceptance; same upstream issue
+  # and same dependency chain as RUSTSEC-2026-0098.
+  "RUSTSEC-2026-0099",
 ]
 
 # ============================================================================

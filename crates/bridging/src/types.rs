@@ -638,7 +638,7 @@ impl BungeeBridge {
     /// # Examples
     ///
     /// ```
-    /// use cow_rs::bridging::types::BungeeBridge;
+    /// use cow_bridging::types::BungeeBridge;
     ///
     /// assert_eq!(BungeeBridge::Across.as_str(), "across");
     /// assert_eq!(BungeeBridge::CircleCctp.as_str(), "cctp");

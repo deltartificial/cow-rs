@@ -20,7 +20,7 @@ doctest = false
 
 [features]
 default = ["native"]
-native = ["dep:tokio"]
+native = ["dep:tokio", "tokio/time"]
 wasm = []
 
 [dependencies]

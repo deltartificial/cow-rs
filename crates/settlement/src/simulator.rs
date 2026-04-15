@@ -20,7 +20,7 @@ use super::encoder::SettlementEncoder;
 /// # Example
 ///
 /// ```
-/// use cow_rs::settlement::simulator::SimulationResult;
+/// use cow_settlement::simulator::SimulationResult;
 ///
 /// let result = SimulationResult::new(true, 150_000, vec![]);
 /// assert!(result.is_success());
@@ -93,7 +93,8 @@ impl fmt::Display for SimulationResult {
 /// # Example
 ///
 /// ```rust
-/// use cow_rs::{SupportedChainId, settlement::simulator::TradeSimulator};
+/// use cow_chains::SupportedChainId;
+/// use cow_settlement::simulator::TradeSimulator;
 ///
 /// let sim = TradeSimulator::new("https://rpc.sepolia.org", SupportedChainId::Sepolia);
 /// ```

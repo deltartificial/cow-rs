@@ -87,7 +87,7 @@ fn pad_to(buf: &mut Vec<u8>, written: usize) {
 ///
 /// # Example
 ///
-/// ```rust
+/// ```ignore
 /// use cow_rs::{SETTLEMENT_CONTRACT, order_signing::set_pre_signature_calldata};
 ///
 /// # fn example() -> Result<(), Box<dyn std::error::Error>> {

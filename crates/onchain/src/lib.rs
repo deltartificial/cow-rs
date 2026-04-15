@@ -8,7 +8,7 @@
 //!
 //! ```rust,no_run
 //! use alloy_primitives::{Address, U256, address};
-//! use cow_rs::OnchainReader;
+//! use cow_onchain::OnchainReader;
 //!
 //! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 //! let reader = OnchainReader::new("https://rpc.sepolia.org");
@@ -73,7 +73,7 @@ impl OnchainReader {
     /// # Example
     ///
     /// ```rust
-    /// use cow_rs::OnchainReader;
+    /// use cow_onchain::OnchainReader;
     /// let reader = OnchainReader::new("https://rpc.sepolia.org");
     /// ```
     #[must_use]

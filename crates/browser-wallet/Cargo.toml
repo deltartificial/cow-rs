@@ -17,6 +17,11 @@ categories = ["api-bindings", "wasm"]
 [package.metadata.workspace.layer]
 layer = "orthogonal"
 
+[package.metadata.cargo-udeps.ignore]
+# `serde-wasm-bindgen` is only pulled in by the `wasm` feature; udeps
+# runs with default features and does not see that gated usage.
+normal = ["serde-wasm-bindgen"]
+
 [lib]
 doctest = false
 
@@ -40,15 +45,14 @@ cow-errors.workspace = true
 cow-ethflow.workspace = true
 cow-onchain.workspace = true
 cow-orderbook.workspace = true
-cow-permit.workspace = true
 cow-signing.workspace = true
 cow-subgraph.workspace = true
 cow-trading.workspace = true
 cow-types.workspace = true
 getrandom = { workspace = true, optional = true }
 js-sys = { version = "0.3", optional = true }
-serde_json.workspace = true
 serde-wasm-bindgen = { workspace = true, optional = true }
+serde_json.workspace = true
 wasm-bindgen = { workspace = true, optional = true }
 wasm-bindgen-futures = { workspace = true, optional = true }
 

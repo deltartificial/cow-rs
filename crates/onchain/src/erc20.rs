@@ -27,7 +27,7 @@ impl OnchainReader {
     ///
     /// ```rust,no_run
     /// use alloy_primitives::{U256, address};
-    /// use cow_rs::OnchainReader;
+    /// use cow_onchain::OnchainReader;
     ///
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let reader = OnchainReader::new("https://rpc.sepolia.org");
@@ -68,7 +68,7 @@ impl OnchainReader {
     ///
     /// ```rust,no_run
     /// use alloy_primitives::{U256, address};
-    /// use cow_rs::OnchainReader;
+    /// use cow_onchain::OnchainReader;
     ///
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let reader = OnchainReader::new("https://rpc.sepolia.org");
@@ -112,7 +112,7 @@ impl OnchainReader {
     ///
     /// ```rust,no_run
     /// use alloy_primitives::address;
-    /// use cow_rs::OnchainReader;
+    /// use cow_onchain::OnchainReader;
     ///
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let reader = OnchainReader::new("https://rpc.sepolia.org");

@@ -155,7 +155,7 @@ impl GatOrder {
 ///
 /// ```
 /// use alloy_primitives::{Address, B256, U256};
-/// use cow_rs::composable::{GatData, GpV2OrderStruct, encode_gat_struct};
+/// use cow_composable::{GatData, GpV2OrderStruct, encode_gat_struct};
 ///
 /// let order = GpV2OrderStruct {
 ///     sell_token: Address::ZERO,
@@ -206,9 +206,7 @@ pub fn encode_gat_struct(d: &GatData) -> Vec<u8> {
 ///
 /// ```
 /// use alloy_primitives::{Address, B256, U256};
-/// use cow_rs::composable::{
-///     GatData, GpV2OrderStruct, decode_gat_static_input, encode_gat_struct,
-/// };
+/// use cow_composable::{GatData, GpV2OrderStruct, decode_gat_static_input, encode_gat_struct};
 ///
 /// let order = GpV2OrderStruct {
 ///     sell_token: Address::repeat_byte(0x01),

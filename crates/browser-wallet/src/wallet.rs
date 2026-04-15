@@ -643,7 +643,7 @@ impl JsBrowserWallet {
 ///
 /// ```rust
 /// use alloy_primitives::Address;
-/// use cow_rs::browser_wallet::MockBrowserWallet;
+/// use cow_browser_wallet::wallet::MockBrowserWallet;
 ///
 /// let mut mock = MockBrowserWallet::new(Address::ZERO, 1);
 /// mock.connect();

@@ -29,18 +29,30 @@ doctest = true
 
 [features]
 default = ["native", "schema-validation"]
-native = ["dep:tokio", "reqwest/rustls", "tokio/rt-multi-thread"]
+native = [
+  "cow-bridging/native",
+  "cow-http/native",
+  "cow-orderbook/native",
+  "dep:tokio",
+  "reqwest/rustls",
+  "tokio/rt-multi-thread",
+]
 wasm = [
-  "getrandom/js",
+  "cow-bridging/wasm",
+  "cow-browser-wallet/wasm",
+  "cow-http/wasm",
+  "cow-orderbook/wasm",
   "dep:js-sys",
+  "dep:serde-wasm-bindgen",
   "dep:wasm-bindgen",
   "dep:wasm-bindgen-futures",
-  "dep:serde-wasm-bindgen",
+  "getrandom/js",
 ]
-# Enables runtime JSON Schema validation for AppData documents via `jsonschema`.
-# Disabled on wasm by default because jsonschema pulls getrandom 0.3 which
-# requires a `wasm_js` cfg flag; wasm consumers can still opt in explicitly.
-schema-validation = ["dep:jsonschema"]
+# Enables runtime JSON Schema validation for AppData documents via
+# `jsonschema`. Disabled on wasm by default because `jsonschema` pulls
+# `getrandom` 0.3 which requires a `wasm_js` cfg flag on
+# `wasm32-unknown-unknown`. Wasm consumers can still opt in explicitly.
+schema-validation = ["cow-app-data/schema-validation"]
 
 [dependencies]
 alloy-primitives.workspace = true
@@ -53,7 +65,6 @@ cow-bridging.workspace = true
 cow-browser-wallet.workspace = true
 cow-chains.workspace = true
 cow-composable.workspace = true
-cow-shed.workspace = true
 cow-erc20.workspace = true
 cow-errors.workspace = true
 cow-ethflow.workspace = true
@@ -64,6 +75,7 @@ cow-orderbook.workspace = true
 cow-permit.workspace = true
 cow-primitives.workspace = true
 cow-settlement.workspace = true
+cow-shed.workspace = true
 cow-signing.workspace = true
 cow-subgraph.workspace = true
 cow-trading.workspace = true
@@ -73,7 +85,6 @@ foldhash.workspace = true
 futures.workspace = true
 getrandom = { workspace = true, optional = true }
 js-sys = { version = "0.3", optional = true }
-jsonschema = { workspace = true, optional = true }
 reqwest.workspace = true
 rust_decimal.workspace = true
 serde.workspace = true

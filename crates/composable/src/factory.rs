@@ -45,9 +45,7 @@ impl ConditionalOrderKind {
     ///
     /// ```
     /// use alloy_primitives::B256;
-    /// use cow_rs::composable::{
-    ///     ConditionalOrderFactory, ConditionalOrderParams, TWAP_HANDLER_ADDRESS,
-    /// };
+    /// use cow_composable::{ConditionalOrderFactory, ConditionalOrderParams, TWAP_HANDLER_ADDRESS};
     ///
     /// let params = ConditionalOrderParams {
     ///     handler: TWAP_HANDLER_ADDRESS,
@@ -56,7 +54,7 @@ impl ConditionalOrderKind {
     /// };
     /// // An unknown handler resolves to Unknown, not Twap.
     /// use alloy_primitives::Address;
-    /// let unknown = cow_rs::composable::ConditionalOrderKind::Unknown(ConditionalOrderParams {
+    /// let unknown = cow_composable::ConditionalOrderKind::Unknown(ConditionalOrderParams {
     ///     handler: Address::ZERO,
     ///     salt: B256::ZERO,
     ///     static_input: vec![],
@@ -73,7 +71,7 @@ impl ConditionalOrderKind {
     ///
     /// ```
     /// use alloy_primitives::{Address, B256};
-    /// use cow_rs::composable::{ConditionalOrderKind, ConditionalOrderParams};
+    /// use cow_composable::{ConditionalOrderKind, ConditionalOrderParams};
     ///
     /// let unknown = ConditionalOrderKind::Unknown(ConditionalOrderParams {
     ///     handler: Address::ZERO,
@@ -91,7 +89,7 @@ impl ConditionalOrderKind {
     ///
     /// ```
     /// use alloy_primitives::{Address, B256};
-    /// use cow_rs::composable::{ConditionalOrderKind, ConditionalOrderParams};
+    /// use cow_composable::{ConditionalOrderKind, ConditionalOrderParams};
     ///
     /// let unknown = ConditionalOrderKind::Unknown(ConditionalOrderParams {
     ///     handler: Address::ZERO,

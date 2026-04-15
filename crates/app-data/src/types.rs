@@ -89,7 +89,7 @@ pub const LATEST_USER_CONSENTS_METADATA_VERSION: &str = "0.1.0";
 /// # Example
 ///
 /// ```
-/// use cow_rs::app_data::{AppDataDoc, OrderClassKind, Quote, Referrer};
+/// use cow_app_data::{AppDataDoc, OrderClassKind, Quote, Referrer};
 ///
 /// let doc = AppDataDoc::new("MyDApp")
 ///     .with_environment("production")
@@ -137,7 +137,7 @@ impl AppDataDoc {
     /// # Example
     ///
     /// ```
-    /// use cow_rs::app_data::AppDataDoc;
+    /// use cow_app_data::AppDataDoc;
     ///
     /// let doc = AppDataDoc::new("MyDApp");
     /// assert_eq!(doc.app_code.as_deref(), Some("MyDApp"));
@@ -245,7 +245,7 @@ impl AppDataDoc {
     /// # Example
     ///
     /// ```
-    /// use cow_rs::app_data::{AppDataDoc, PartnerFee, PartnerFeeEntry};
+    /// use cow_app_data::{AppDataDoc, PartnerFee, PartnerFeeEntry};
     ///
     /// let doc = AppDataDoc::new("MyDApp")
     ///     .with_partner_fee(PartnerFee::single(PartnerFeeEntry::volume(50, "0xRecipient")));
@@ -404,7 +404,7 @@ impl fmt::Display for AppDataDoc {
 /// # Example
 ///
 /// ```
-/// use cow_rs::app_data::{Metadata, Quote, Referrer};
+/// use cow_app_data::{Metadata, Quote, Referrer};
 ///
 /// let meta = Metadata::default()
 ///     .with_referrer(Referrer::code("COWRS-PARTNER"))
@@ -791,7 +791,7 @@ impl Referrer {
     /// # Example
     ///
     /// ```
-    /// use cow_rs::app_data::Referrer;
+    /// use cow_app_data::Referrer;
     ///
     /// let r = Referrer::address("0xb6BAd41ae76A11D10f7b0E664C5007b908bC77C9");
     /// assert_eq!(r.as_address(), Some("0xb6BAd41ae76A11D10f7b0E664C5007b908bC77C9"));
@@ -811,7 +811,7 @@ impl Referrer {
     /// # Example
     ///
     /// ```
-    /// use cow_rs::app_data::Referrer;
+    /// use cow_app_data::Referrer;
     ///
     /// let r = Referrer::code("COWRS");
     /// assert_eq!(r.as_code(), Some("COWRS"));
@@ -895,7 +895,7 @@ impl Utm {
     /// # Example
     ///
     /// ```
-    /// use cow_rs::app_data::Utm;
+    /// use cow_app_data::Utm;
     ///
     /// let utm = Utm::new().with_source("twitter").with_campaign("launch-2025");
     /// assert!(utm.has_source());
@@ -1028,7 +1028,7 @@ impl fmt::Display for Utm {
 /// # Example
 ///
 /// ```
-/// use cow_rs::app_data::Quote;
+/// use cow_app_data::Quote;
 ///
 /// // 0.5 % slippage with smart slippage enabled
 /// let quote = Quote::new(50).with_smart_slippage();
@@ -1061,7 +1061,7 @@ impl Quote {
     /// # Example
     ///
     /// ```
-    /// use cow_rs::app_data::Quote;
+    /// use cow_app_data::Quote;
     ///
     /// let q = Quote::new(50);
     /// assert_eq!(q.slippage_bips, 50);
@@ -1102,7 +1102,7 @@ impl fmt::Display for Quote {
 /// # Example
 ///
 /// ```
-/// use cow_rs::app_data::OrderClassKind;
+/// use cow_app_data::OrderClassKind;
 ///
 /// let kind = OrderClassKind::Limit;
 /// assert_eq!(kind.as_str(), "limit");
@@ -1226,7 +1226,7 @@ impl fmt::Display for OrderClass {
 /// # Example
 ///
 /// ```
-/// use cow_rs::app_data::{CowHook, OrderInteractionHooks};
+/// use cow_app_data::{CowHook, OrderInteractionHooks};
 ///
 /// let pre_hook =
 ///     CowHook::new("0x1234567890abcdef1234567890abcdef12345678", "0xabcdef00", "50000");
@@ -1266,7 +1266,7 @@ impl OrderInteractionHooks {
     /// # Example
     ///
     /// ```
-    /// use cow_rs::app_data::{CowHook, OrderInteractionHooks};
+    /// use cow_app_data::{CowHook, OrderInteractionHooks};
     ///
     /// let pre =
     ///     vec![CowHook::new("0x1234567890abcdef1234567890abcdef12345678", "0x095ea7b3", "50000")];
@@ -1342,7 +1342,7 @@ impl Widget {
     /// # Example
     ///
     /// ```
-    /// use cow_rs::app_data::Widget;
+    /// use cow_app_data::Widget;
     ///
     /// let w = Widget::new("WidgetHost").with_environment("production");
     /// assert_eq!(w.app_code, "WidgetHost");
@@ -1394,7 +1394,7 @@ impl fmt::Display for Widget {
 /// # Example
 ///
 /// ```
-/// use cow_rs::app_data::PartnerFeeEntry;
+/// use cow_app_data::PartnerFeeEntry;
 ///
 /// // 0.5 % volume-based fee
 /// let fee = PartnerFeeEntry::volume(50, "0xRecipientAddress");
@@ -1439,7 +1439,7 @@ impl PartnerFeeEntry {
     /// # Example
     ///
     /// ```
-    /// use cow_rs::app_data::PartnerFeeEntry;
+    /// use cow_app_data::PartnerFeeEntry;
     ///
     /// let fee = PartnerFeeEntry::volume(50, "0xRecipient");
     /// assert_eq!(fee.volume_bps(), Some(50));
@@ -1476,7 +1476,7 @@ impl PartnerFeeEntry {
     /// # Example
     ///
     /// ```
-    /// use cow_rs::app_data::PartnerFeeEntry;
+    /// use cow_app_data::PartnerFeeEntry;
     ///
     /// let fee = PartnerFeeEntry::surplus(30, 100, "0xRecipient");
     /// assert_eq!(fee.surplus_bps(), Some(30));
@@ -1513,7 +1513,7 @@ impl PartnerFeeEntry {
     /// # Example
     ///
     /// ```
-    /// use cow_rs::app_data::PartnerFeeEntry;
+    /// use cow_app_data::PartnerFeeEntry;
     ///
     /// let fee = PartnerFeeEntry::price_improvement(20, 80, "0xRecipient");
     /// assert_eq!(fee.price_improvement_bps(), Some(20));
@@ -1622,7 +1622,7 @@ impl PartnerFee {
     /// # Example
     ///
     /// ```
-    /// use cow_rs::app_data::{PartnerFee, PartnerFeeEntry};
+    /// use cow_app_data::{PartnerFee, PartnerFeeEntry};
     ///
     /// let fee = PartnerFee::single(PartnerFeeEntry::volume(50, "0xAddr"));
     /// assert!(fee.is_single());
@@ -1664,7 +1664,7 @@ impl PartnerFee {
     /// or the vector length for [`Multiple`](Self::Multiple).
     ///
     /// ```
-    /// use cow_rs::app_data::{PartnerFee, PartnerFeeEntry};
+    /// use cow_app_data::{PartnerFee, PartnerFeeEntry};
     ///
     /// let fee = PartnerFee::single(PartnerFeeEntry::volume(50, "0x1234"));
     /// assert_eq!(fee.count(), 1);
@@ -1712,7 +1712,7 @@ impl fmt::Display for PartnerFee {
 /// # Example
 ///
 /// ```
-/// use cow_rs::app_data::{PartnerFee, PartnerFeeEntry, get_partner_fee_bps};
+/// use cow_app_data::{PartnerFee, PartnerFeeEntry, get_partner_fee_bps};
 ///
 /// let fee = PartnerFee::single(PartnerFeeEntry::volume(50, "0x1234"));
 /// assert_eq!(get_partner_fee_bps(Some(&fee)), Some(50));
@@ -1746,7 +1746,7 @@ impl ReplacedOrder {
     /// # Example
     ///
     /// ```
-    /// use cow_rs::app_data::ReplacedOrder;
+    /// use cow_app_data::ReplacedOrder;
     ///
     /// let uid = format!("0x{}", "ab".repeat(56)); // 0x + 112 hex chars
     /// let ro = ReplacedOrder::new(&uid);
@@ -1774,7 +1774,7 @@ impl fmt::Display for ReplacedOrder {
 /// # Example
 ///
 /// ```
-/// use cow_rs::app_data::types::Bridging;
+/// use cow_app_data::types::Bridging;
 ///
 /// let bridging = Bridging::new("across", "42161", "0xTokenOnArbitrum").with_quote_id("quote-123");
 /// assert!(bridging.has_quote_id());
@@ -1823,7 +1823,7 @@ impl Bridging {
     /// # Example
     ///
     /// ```
-    /// use cow_rs::app_data::types::Bridging;
+    /// use cow_app_data::types::Bridging;
     ///
     /// let b = Bridging::new("across", "42161", "0xTokenOnArbitrum");
     /// assert_eq!(b.provider, "across");
@@ -1947,7 +1947,7 @@ impl fmt::Display for Bridging {
 /// # Example
 ///
 /// ```
-/// use cow_rs::app_data::types::Flashloan;
+/// use cow_app_data::types::Flashloan;
 ///
 /// let fl = Flashloan::new(
 ///     "1000000000000000000", // 1 ETH in wei
@@ -1994,7 +1994,7 @@ impl Flashloan {
     /// # Example
     ///
     /// ```
-    /// use cow_rs::app_data::types::Flashloan;
+    /// use cow_app_data::types::Flashloan;
     ///
     /// let fl = Flashloan::new("1000000000000000000", "0xPool", "0xToken")
     ///     .with_protocol_adapter("0xAdapter")
@@ -2088,7 +2088,7 @@ impl WrapperEntry {
     /// # Example
     ///
     /// ```
-    /// use cow_rs::app_data::types::WrapperEntry;
+    /// use cow_app_data::types::WrapperEntry;
     ///
     /// let w = WrapperEntry::new("0xWrapperContract").with_is_omittable(true);
     /// assert!(w.is_omittable());
@@ -2182,7 +2182,7 @@ impl UserConsent {
     /// # Example
     ///
     /// ```
-    /// use cow_rs::app_data::types::UserConsent;
+    /// use cow_app_data::types::UserConsent;
     ///
     /// let consent = UserConsent::new("https://cow.fi/tos", "2025-04-07");
     /// assert_eq!(consent.terms, "https://cow.fi/tos");

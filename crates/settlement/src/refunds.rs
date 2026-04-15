@@ -17,7 +17,7 @@ use cow_errors::CowError;
 /// # Example
 ///
 /// ```
-/// use cow_rs::settlement::refunds::{OrderRefund, RefundType};
+/// use cow_settlement::refunds::{OrderRefund, RefundType};
 ///
 /// let refund = OrderRefund::new("0xabcd".to_owned(), RefundType::Settlement);
 /// assert_eq!(refund.refund_type, RefundType::Settlement);
@@ -114,7 +114,7 @@ impl fmt::Display for RefundType {
 /// # Example
 ///
 /// ```
-/// use cow_rs::settlement::refunds::settlement_refund_calldata;
+/// use cow_settlement::refunds::settlement_refund_calldata;
 ///
 /// let uid = "0x".to_owned() + &"ab".repeat(56);
 /// let calldata = settlement_refund_calldata(&uid).unwrap();
@@ -158,7 +158,7 @@ pub fn settlement_refund_calldata(order_uid: &str) -> Result<Vec<u8>, CowError> 
 /// # Example
 ///
 /// ```
-/// use cow_rs::settlement::refunds::ethflow_refund_calldata;
+/// use cow_settlement::refunds::ethflow_refund_calldata;
 ///
 /// let uid = "0x".to_owned() + &"ab".repeat(56);
 /// let calldata = ethflow_refund_calldata(&uid).unwrap();
@@ -200,7 +200,7 @@ pub fn ethflow_refund_calldata(order_uid: &str) -> Result<Vec<u8>, CowError> {
 ///
 /// ```
 /// use alloy_primitives::U256;
-/// use cow_rs::settlement::refunds::is_refundable;
+/// use cow_settlement::refunds::is_refundable;
 ///
 /// assert!(is_refundable(U256::ZERO, U256::from(1000)));
 /// assert!(is_refundable(U256::from(500), U256::from(1000)));
@@ -229,7 +229,7 @@ pub fn is_refundable(filled_amount: U256, total_amount: U256) -> bool {
 ///
 /// ```
 /// use alloy_primitives::U256;
-/// use cow_rs::settlement::refunds::refund_amount;
+/// use cow_settlement::refunds::refund_amount;
 ///
 /// assert_eq!(refund_amount(U256::from(300), U256::from(1000)), U256::from(700));
 /// assert_eq!(refund_amount(U256::from(1000), U256::from(1000)), U256::ZERO);

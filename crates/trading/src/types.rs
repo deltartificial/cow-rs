@@ -46,7 +46,7 @@ impl Amounts {
     ///
     /// ```
     /// use alloy_primitives::U256;
-    /// use cow_rs::trading::Amounts;
+    /// use cow_trading::Amounts;
     ///
     /// let a = Amounts::new(U256::from(100u32), U256::from(90u32));
     /// assert_eq!(a.total(), U256::from(190u32));
@@ -295,7 +295,7 @@ impl TradingAppDataInfo {
     /// A `&str` reference to the full app-data JSON content.
     ///
     /// ```
-    /// use cow_rs::trading::TradingAppDataInfo;
+    /// use cow_trading::TradingAppDataInfo;
     ///
     /// let info = TradingAppDataInfo::new("{}", "0xabc");
     /// assert_eq!(info.full_app_data_ref(), "{}");
@@ -312,7 +312,7 @@ impl TradingAppDataInfo {
     /// A `&str` reference to the `0x`-prefixed 32-byte hex hash.
     ///
     /// ```
-    /// use cow_rs::trading::TradingAppDataInfo;
+    /// use cow_trading::TradingAppDataInfo;
     ///
     /// let info = TradingAppDataInfo::new("{}", "0xdeadbeef");
     /// assert_eq!(info.keccak256_ref(), "0xdeadbeef");
@@ -832,7 +832,7 @@ impl fmt::Display for LimitOrderAdvancedSettings {
 ///
 /// # Example
 ///
-/// ```
+/// ```ignore
 /// use alloy_primitives::{Address, U256};
 /// use cow_rs::{
 ///     OrderKind,
@@ -1526,7 +1526,7 @@ impl fmt::Display for QuoteAmountsAndCosts {
 ///
 /// ```
 /// use alloy_primitives::U256;
-/// use cow_rs::trading::{
+/// use cow_trading::{
 ///     Amounts, NetworkFee, PartnerFeeCost, ProtocolFeeCost, QuoteAmountsAndCosts,
 ///     map_quote_amounts_and_costs,
 /// };

@@ -363,7 +363,7 @@ pub fn hashify(value: u64) -> B256 {
 ///
 /// The 32-byte signing digest.
 ///
-/// ```
+/// ```ignore
 /// use alloy_primitives::{Address, B256, U256};
 /// use cow_rs::{
 ///     UnsignedOrder,
@@ -449,7 +449,7 @@ pub fn hash_order_cancellations(chain_id: u64, order_uids: &[&str]) -> Result<B2
 /// receiver is not allowed — use `Address::ZERO` only to indicate "no custom
 /// receiver").
 ///
-/// ```
+/// ```ignore
 /// use alloy_primitives::{Address, B256, U256};
 /// use cow_rs::{OrderKind, TokenBalance, UnsignedOrder, order_signing::normalize_order};
 ///

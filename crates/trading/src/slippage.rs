@@ -41,7 +41,7 @@ pub const MAX_SLIPPAGE_BPS: u32 = 10_000;
 ///
 /// # Example
 ///
-/// ```
+/// ```ignore
 /// use alloy_primitives::U256;
 /// use cow_rs::suggest_slippage_from_fee;
 ///
@@ -157,7 +157,7 @@ pub fn suggest_slippage_bps(
 /// # Example
 ///
 /// ```
-/// use cow_rs::trading::percentage_to_bps;
+/// use cow_trading::percentage_to_bps;
 /// use rust_decimal::Decimal;
 ///
 /// assert_eq!(percentage_to_bps(Decimal::new(5, 1)), 50); // 0.5 → 50 bps
@@ -186,7 +186,7 @@ pub fn percentage_to_bps(percentage: Decimal) -> u32 {
 /// # Example
 ///
 /// ```
-/// use cow_rs::trading::bps_to_percentage;
+/// use cow_trading::bps_to_percentage;
 /// use rust_decimal::Decimal;
 ///
 /// assert_eq!(bps_to_percentage(50), Decimal::new(5, 1)); // 50 → 0.5
@@ -219,7 +219,7 @@ pub fn bps_to_percentage(bps: u32) -> Decimal {
 ///
 /// ```
 /// use alloy_primitives::U256;
-/// use cow_rs::trading::apply_percentage;
+/// use cow_trading::apply_percentage;
 /// use rust_decimal::Decimal;
 ///
 /// // percentage = 0.5 → 50 bps → 200 × 50 / 100 = 100

@@ -202,7 +202,7 @@ pub fn decode_amounts_bungee_tx_data(
 /// # Example
 ///
 /// ```
-/// use cow_rs::bridging::{bungee::get_bungee_bridge_from_display_name, types::BungeeBridge};
+/// use cow_bridging::{bungee::get_bungee_bridge_from_display_name, types::BungeeBridge};
 ///
 /// assert_eq!(get_bungee_bridge_from_display_name("Across"), Some(BungeeBridge::Across));
 /// assert_eq!(get_bungee_bridge_from_display_name("Unknown"), None);
@@ -226,7 +226,7 @@ pub fn get_bungee_bridge_from_display_name(display_name: &str) -> Option<BungeeB
 /// # Example
 ///
 /// ```
-/// use cow_rs::bridging::{bungee::get_display_name_from_bungee_bridge, types::BungeeBridge};
+/// use cow_bridging::{bungee::get_display_name_from_bungee_bridge, types::BungeeBridge};
 ///
 /// assert_eq!(get_display_name_from_bungee_bridge(BungeeBridge::Across), "Across");
 /// ```
