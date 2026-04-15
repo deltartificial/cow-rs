@@ -15,9 +15,13 @@ categories = ["api-bindings", "cryptography::cryptocurrencies"]
 [package.metadata.workspace.layer]
 layer = 1
 
+[lib]
+doctest = false
+
 [dependencies]
 alloy-primitives.workspace = true
 cow-errors.workspace = true
+foldhash.workspace = true
 serde.workspace = true
 
 [dev-dependencies]

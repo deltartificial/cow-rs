@@ -33,7 +33,9 @@
 //! skips the network call.
 
 use alloy_primitives::{U256, address};
-use cow_rs::{BridgingSdk, OrderKind, QuoteBridgeRequest, SupportedChainId};
+use cow_bridging::{BridgingSdk, QuoteBridgeRequest};
+use cow_chains::SupportedChainId;
+use cow_types::OrderKind;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

@@ -36,7 +36,7 @@
 //! cargo run --example app_data
 //! ```
 
-use cow_rs::{
+use cow_app_data::{
     AppDataDoc, Metadata, MetadataApi, OrderInteractionHooks, PartnerFee, PartnerFeeEntry, Quote,
     Referrer, Utm, appdata_hex, appdata_hex_to_cid, cid_to_appdata_hex, stringify_deterministic,
     validate_app_data_doc,

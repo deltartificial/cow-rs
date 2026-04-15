@@ -22,11 +22,6 @@ doctest = false
 alloy-primitives.workspace = true
 cow-chains.workspace = true
 cow-errors.workspace = true
-# NOTE (workspace-split migration debt): depending on `cow-signing` at L2
-# violates Rule 2 (no sibling deps). The shared encoding types
-# (`UnsignedOrder`, `EncodedTrade`, `SettlementTokenRegistry`, `SignatureData`,
-# `encode_trade`) will be pushed down to `cow-types` in a later phase.
-cow-signing.workspace = true
 cow-types.workspace = true
 reqwest.workspace = true
 serde.workspace = true

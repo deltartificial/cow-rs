@@ -41,10 +41,9 @@
 //! Make sure your wallet holds Sepolia WETH.
 
 use alloy_primitives::U256;
-use cow_rs::{
-    OrderKind, SupportedChainId, TradeParameters, TradingSdk, TradingSdkConfig,
-    order_explorer_link, wrapped_native_currency,
-};
+use cow_chains::{SupportedChainId, order_explorer_link, wrapped_native_currency};
+use cow_trading::{TradeParameters, TradingSdk, TradingSdkConfig};
+use cow_types::OrderKind;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

@@ -26,7 +26,7 @@
 //! cargo run --example chain_config
 //! ```
 
-use cow_rs::{
+use cow_chains::{
     SupportedChainId, all_supported_chain_ids, is_supported_chain, order_explorer_link,
     settlement_contract, supported_chain_info, vault_relayer, wrapped_native_currency,
 };

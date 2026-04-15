@@ -31,11 +31,12 @@
 
 use alloy_primitives::{Address, B256, U256};
 use alloy_signer_local::PrivateKeySigner;
-use cow_rs::{
-    EcdsaSigningScheme, OrderKind, SupportedChainId, TokenBalance, UnsignedOrder,
-    build_order_typed_data, compute_order_uid, domain_separator, order_hash, sign_order,
-    signing_digest,
+use cow_chains::SupportedChainId;
+use cow_signing::{
+    UnsignedOrder, build_order_typed_data, compute_order_uid, domain_separator, order_hash,
+    sign_order, signing_digest,
 };
+use cow_types::{EcdsaSigningScheme, OrderKind, TokenBalance};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

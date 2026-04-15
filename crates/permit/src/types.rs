@@ -291,13 +291,10 @@ impl PermitHookData {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
     /// use alloy_primitives::{U256, address};
     /// use alloy_signer_local::PrivateKeySigner;
-    /// use cow_rs::{
-    ///     Metadata, OrderInteractionHooks, build_app_data_doc,
-    ///     permit::{Erc20PermitInfo, PermitInfo, build_permit_hook},
-    /// };
+    /// use cow_permit::{Erc20PermitInfo, PermitInfo, build_permit_hook};
     ///
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let signer: PrivateKeySigner =
@@ -312,11 +309,6 @@ impl PermitHookData {
     /// };
     /// let erc20_info = Erc20PermitInfo { name: "USD Coin".into(), version: "2".into(), chain_id: 1 };
     /// let hook = build_permit_hook(&info, &erc20_info, &signer).await?.into_cow_hook();
-    /// let metadata = Metadata {
-    ///     hooks: Some(OrderInteractionHooks { pre: Some(vec![hook]), ..Default::default() }),
-    ///     ..Default::default()
-    /// };
-    /// let app_data_hex = build_app_data_doc("MyApp", metadata)?;
     /// # Ok(())
     /// # }
     /// ```

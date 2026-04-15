@@ -33,11 +33,12 @@
 //! ```
 
 use alloy_primitives::{Address, B256, U256};
-use cow_rs::{
-    COMPOSABLE_COW_ADDRESS, DurationOfPart, OrderKind, SupportedChainId, TWAP_HANDLER_ADDRESS,
-    TwapData, TwapOrder, TwapStartTime, data_to_struct, decode_twap_struct, encode_twap_struct,
-    struct_to_data, wrapped_native_currency,
+use cow_chains::{SupportedChainId, wrapped_native_currency};
+use cow_composable::{
+    COMPOSABLE_COW_ADDRESS, DurationOfPart, TWAP_HANDLER_ADDRESS, TwapData, TwapOrder,
+    TwapStartTime, data_to_struct, decode_twap_struct, encode_twap_struct, struct_to_data,
 };
+use cow_types::OrderKind;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let chain_id = SupportedChainId::Mainnet;

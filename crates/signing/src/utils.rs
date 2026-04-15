@@ -179,9 +179,10 @@ pub(crate) async fn sign_digest(
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```no_run
 /// use alloy_primitives::{Address, B256, U256};
-/// use cow_rs::{OrderKind, TokenBalance, UnsignedOrder, order_signing::compute_order_uid};
+/// use cow_signing::compute_order_uid;
+/// use cow_types::{OrderKind, TokenBalance, UnsignedOrder};
 ///
 /// let order = UnsignedOrder {
 ///     sell_token: Address::ZERO,
@@ -232,9 +233,10 @@ pub fn compute_order_uid(chain_id: u64, order: &UnsignedOrder, owner: Address) -
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```no_run
 /// use alloy_primitives::{Address, U256};
-/// use cow_rs::{UnsignedOrder, order_signing::generate_order_id};
+/// use cow_signing::generate_order_id;
+/// use cow_types::UnsignedOrder;
 ///
 /// let order = UnsignedOrder::sell(Address::ZERO, Address::ZERO, U256::ZERO, U256::ZERO);
 /// let uid = generate_order_id(1, &order, Address::ZERO);

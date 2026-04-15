@@ -36,8 +36,8 @@
 ///
 /// # Example
 ///
-/// ```ignore
-/// use cow_rs::{SubgraphApi, subgraph::queries::TOTALS_QUERY};
+/// ```no_run
+/// use cow_subgraph::{SubgraphApi, queries::TOTALS_QUERY};
 ///
 /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 /// let api = SubgraphApi::new_with_url("http://localhost:8080/graphql");
@@ -65,8 +65,9 @@ pub const TOTALS_QUERY: &str = r#"query Totals {
 ///
 /// # Example
 ///
-/// ```ignore
-/// use cow_rs::{SubgraphApi, subgraph::queries::LAST_DAYS_VOLUME_QUERY};
+/// ```no_run
+/// use cow_subgraph::SubgraphApi;
+/// use cow_subgraph::queries::LAST_DAYS_VOLUME_QUERY;
 /// use serde_json::json;
 ///
 /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
@@ -89,8 +90,9 @@ pub const LAST_DAYS_VOLUME_QUERY: &str = r#"query LastDaysVolume($days: Int!) {
 ///
 /// # Example
 ///
-/// ```ignore
-/// use cow_rs::{SubgraphApi, subgraph::queries::LAST_HOURS_VOLUME_QUERY};
+/// ```no_run
+/// use cow_subgraph::SubgraphApi;
+/// use cow_subgraph::queries::LAST_HOURS_VOLUME_QUERY;
 /// use serde_json::json;
 ///
 /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {

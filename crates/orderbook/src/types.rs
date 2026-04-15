@@ -541,10 +541,12 @@ impl OrderCreation {
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
     /// use alloy_primitives::{Address, U256, address};
     /// use alloy_signer_local::PrivateKeySigner;
-    /// use cow_rs::{EcdsaSigningScheme, OrderCreation, UnsignedOrder, order_signing::sign_order};
+    /// use cow_orderbook::types::OrderCreation;
+    /// use cow_signing::sign_order;
+    /// use cow_types::{EcdsaSigningScheme, UnsignedOrder};
     ///
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let signer: PrivateKeySigner =
@@ -564,7 +566,7 @@ impl OrderCreation {
     /// ```
     #[must_use]
     pub fn from_unsigned_order(
-        order: &cow_signing::types::UnsignedOrder,
+        order: &cow_types::UnsignedOrder,
         from: alloy_primitives::Address,
         receiver: alloy_primitives::Address,
         signing: cow_signing::types::SigningResult,

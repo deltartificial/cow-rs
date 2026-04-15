@@ -36,10 +36,8 @@
 //! ```
 
 use alloy_primitives::Address;
-use cow_rs::{
-    Env, OrderBookApi, QuoteSide, SupportedChainId, order_book::OrderQuoteRequest,
-    wrapped_native_currency,
-};
+use cow_chains::{Env, SupportedChainId, wrapped_native_currency};
+use cow_orderbook::{OrderBookApi, OrderQuoteRequest, QuoteSide};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

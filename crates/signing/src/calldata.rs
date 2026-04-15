@@ -87,8 +87,9 @@ fn pad_to(buf: &mut Vec<u8>, written: usize) {
 ///
 /// # Example
 ///
-/// ```ignore
-/// use cow_rs::{SETTLEMENT_CONTRACT, order_signing::set_pre_signature_calldata};
+/// ```no_run
+/// use cow_chains::contracts::SETTLEMENT_CONTRACT;
+/// use cow_signing::set_pre_signature_calldata;
 ///
 /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
 /// let uid = "0x".to_owned() + &"ab".repeat(56); // 56-byte dummy UID

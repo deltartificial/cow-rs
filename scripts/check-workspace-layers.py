@@ -38,14 +38,7 @@ EXCLUDED_CRATES = {"cow-rs"}
 # check would flag but are tolerated while the underlying refactor is in
 # flight. Each entry **must** have a tracking reason. Shrink this set to
 # zero before the next major release.
-ALLOWED_SIBLING_EDGES: Set[Tuple[str, str]] = {
-    # settlement encoder currently consumes `UnsignedOrder`, `EncodedTrade`,
-    # `SettlementTokenRegistry`, `SignatureData` and `encode_trade` from
-    # cow-signing. These shared encoding types are slated to move down
-    # to `cow-types` (L1) in a follow-up pass, at which point this edge
-    # disappears.
-    ("cow-settlement", "cow-signing"),
-}
+ALLOWED_SIBLING_EDGES: Set[Tuple[str, str]] = set()
 
 
 def parse_cargo_toml(path: Path) -> Tuple[Optional[str], Optional[object], List[str]]:

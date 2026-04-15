@@ -35,9 +35,8 @@
 //! ```
 
 use alloy_primitives::Address;
-use cow_rs::{
-    Env, OrderBookApi, SupportedChainId, order_book::GetOrdersRequest, order_explorer_link,
-};
+use cow_chains::{Env, SupportedChainId, order_explorer_link};
+use cow_orderbook::{GetOrdersRequest, OrderBookApi};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

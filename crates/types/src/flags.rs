@@ -5,7 +5,8 @@
 //! from the `TypeScript` `contracts-ts` package.
 
 use cow_errors::CowError;
-use cow_types::{OrderKind, SigningScheme, TokenBalance};
+
+use crate::{OrderKind, SigningScheme, TokenBalance};
 
 /// Order flags extracted from a bitfield.
 ///
@@ -135,8 +136,7 @@ pub const fn encode_buy_token_balance(balance: TokenBalance) -> u8 {
 /// `Eip1271` = 2, `PreSign` = 3).
 ///
 /// ```
-/// use cow_signing::flags::encode_signing_scheme;
-/// use cow_types::SigningScheme;
+/// use cow_types::{SigningScheme, flags::encode_signing_scheme};
 ///
 /// assert_eq!(encode_signing_scheme(SigningScheme::Eip712), 0b00_00000);
 /// assert_eq!(encode_signing_scheme(SigningScheme::EthSign), 0b01_00000);
@@ -167,10 +167,10 @@ pub const fn encode_signing_scheme(scheme: SigningScheme) -> u8 {
 /// A `u8` bitfield combining the kind, partially-fillable, sell-token-balance,
 /// and buy-token-balance flags.
 ///
-/// ```ignore
-/// use cow_rs::{
+/// ```no_run
+/// use cow_types::{
 ///     OrderKind, TokenBalance,
-///     order_signing::flags::{OrderFlags, encode_order_flags},
+///     flags::{OrderFlags, encode_order_flags},
 /// };
 ///
 /// let flags = OrderFlags {
@@ -213,10 +213,10 @@ pub const fn encode_order_flags(flags: &OrderFlags) -> u8 {
 ///
 /// Returns [`CowError::Parse`] if any flag field has an invalid index.
 ///
-/// ```ignore
-/// use cow_rs::{
+/// ```no_run
+/// use cow_types::{
 ///     OrderKind, TokenBalance,
-///     order_signing::flags::{OrderFlags, decode_order_flags, encode_order_flags},
+///     flags::{OrderFlags, decode_order_flags, encode_order_flags},
 /// };
 ///
 /// let flags = OrderFlags {
@@ -280,10 +280,10 @@ pub fn decode_order_flags(bits: u8) -> Result<OrderFlags, CowError> {
 ///
 /// Returns [`CowError::Parse`] if the signing scheme index is invalid.
 ///
-/// ```ignore
-/// use cow_rs::{
+/// ```no_run
+/// use cow_types::{
 ///     SigningScheme,
-///     order_signing::flags::{decode_signing_scheme, encode_signing_scheme},
+///     flags::{decode_signing_scheme, encode_signing_scheme},
 /// };
 ///
 /// let bits = encode_signing_scheme(SigningScheme::Eip1271);
@@ -313,10 +313,10 @@ pub fn decode_signing_scheme(bits: u8) -> Result<SigningScheme, CowError> {
 /// A `u8` bitfield combining order flags (bits 0-4) and signing scheme
 /// (bits 5-6).
 ///
-/// ```ignore
-/// use cow_rs::{
+/// ```no_run
+/// use cow_types::{
 ///     OrderKind, SigningScheme, TokenBalance,
-///     order_signing::flags::{OrderFlags, TradeFlags, encode_trade_flags},
+///     flags::{OrderFlags, TradeFlags, encode_trade_flags},
 /// };
 ///
 /// let flags = TradeFlags {
@@ -351,10 +351,10 @@ pub const fn encode_trade_flags(flags: &TradeFlags) -> u8 {
 ///
 /// Returns [`CowError::Parse`] if any flag field has an invalid index.
 ///
-/// ```ignore
-/// use cow_rs::{
+/// ```no_run
+/// use cow_types::{
 ///     OrderKind, SigningScheme, TokenBalance,
-///     order_signing::flags::{OrderFlags, TradeFlags, decode_trade_flags, encode_trade_flags},
+///     flags::{OrderFlags, TradeFlags, decode_trade_flags, encode_trade_flags},
 /// };
 ///
 /// let flags = TradeFlags {
@@ -393,8 +393,7 @@ pub fn decode_trade_flags(bits: u8) -> Result<TradeFlags, CowError> {
 /// [`TokenBalance::Erc20`].
 ///
 /// ```
-/// use cow_signing::flags::normalize_buy_token_balance;
-/// use cow_types::TokenBalance;
+/// use cow_types::{TokenBalance, flags::normalize_buy_token_balance};
 ///
 /// assert_eq!(normalize_buy_token_balance(TokenBalance::Erc20), TokenBalance::Erc20);
 /// assert_eq!(normalize_buy_token_balance(TokenBalance::External), TokenBalance::Erc20);

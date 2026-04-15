@@ -31,11 +31,11 @@
 //! ```
 
 use alloy_primitives::{U256, address, hex};
-use cow_rs::{
-    SupportedChainId, build_eip2612_nonces_calldata, build_erc20_allowance_calldata,
-    build_erc20_approve_calldata, build_erc20_balance_of_calldata, build_erc20_decimals_calldata,
-    build_erc20_name_calldata, build_erc20_transfer_calldata, build_erc20_transfer_from_calldata,
-    cow_protocol_vault_relayer_address,
+use cow_chains::{SupportedChainId, cow_protocol_vault_relayer_address};
+use cow_erc20::{
+    build_eip2612_nonces_calldata, build_erc20_allowance_calldata, build_erc20_approve_calldata,
+    build_erc20_balance_of_calldata, build_erc20_decimals_calldata, build_erc20_name_calldata,
+    build_erc20_transfer_calldata, build_erc20_transfer_from_calldata,
 };
 
 fn print_call(label: &str, cd: &[u8]) {

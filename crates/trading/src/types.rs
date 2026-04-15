@@ -832,15 +832,12 @@ impl fmt::Display for LimitOrderAdvancedSettings {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```no_run
 /// use alloy_primitives::{Address, U256};
-/// use cow_rs::{
-///     OrderKind,
-///     trading::{
-///         LimitOrderAdvancedSettings, LimitTradeParameters,
-///         apply_settings_to_limit_trade_parameters,
-///     },
+/// use cow_trading::{
+///     LimitOrderAdvancedSettings, LimitTradeParameters, apply_settings_to_limit_trade_parameters,
 /// };
+/// use cow_types::OrderKind;
 ///
 /// let params = LimitTradeParameters {
 ///     kind: OrderKind::Sell,

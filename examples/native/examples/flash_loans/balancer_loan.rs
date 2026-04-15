@@ -30,7 +30,7 @@
 //! ```
 
 use alloy_primitives::{U256, address};
-use cow_rs::{FlashLoanParams, FlashLoanProvider, FlashLoanSdk};
+use cow_flash_loans::{FlashLoanParams, FlashLoanProvider, FlashLoanSdk};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // ── Flash loan: 100 000 DAI on Mainnet ───────────────────────────────────

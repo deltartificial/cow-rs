@@ -30,10 +30,9 @@
 //! **WARNING**: This example submits a real order on Sepolia testnet.
 
 use alloy_primitives::U256;
-use cow_rs::{
-    LimitTradeParameters, OrderKind, SupportedChainId, TradingSdk, TradingSdkConfig,
-    order_explorer_link, wrapped_native_currency,
-};
+use cow_chains::{SupportedChainId, order_explorer_link, wrapped_native_currency};
+use cow_trading::{LimitTradeParameters, TradingSdk, TradingSdkConfig};
+use cow_types::OrderKind;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

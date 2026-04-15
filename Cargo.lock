@@ -1190,6 +1190,7 @@ name = "cow-orderbook"
 version = "0.1.1"
 dependencies = [
  "alloy-primitives",
+ "alloy-signer-local",
  "async-trait",
  "chrono",
  "cow-chains",
@@ -1287,7 +1288,22 @@ version = "0.1.0"
 dependencies = [
  "alloy-primitives",
  "alloy-signer-local",
- "cow-rs",
+ "cow-app-data",
+ "cow-bridging",
+ "cow-chains",
+ "cow-composable",
+ "cow-erc20",
+ "cow-ethflow",
+ "cow-flash-loans",
+ "cow-onchain",
+ "cow-orderbook",
+ "cow-permit",
+ "cow-shed",
+ "cow-signing",
+ "cow-subgraph",
+ "cow-trading",
+ "cow-types",
+ "cow-weiroll",
  "tokio",
 ]
 
@@ -1298,7 +1314,6 @@ dependencies = [
  "alloy-primitives",
  "cow-chains",
  "cow-errors",
- "cow-signing",
  "cow-types",
  "reqwest",
  "serde",
@@ -1374,6 +1389,7 @@ version = "0.1.1"
 dependencies = [
  "alloy-primitives",
  "cow-errors",
+ "foldhash 0.2.0",
  "serde",
  "serde_json",
 ]

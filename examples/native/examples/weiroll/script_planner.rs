@@ -33,7 +33,7 @@
 //! ```
 
 use alloy_primitives::{Address, address, hex, keccak256};
-use cow_rs::{
+use cow_weiroll::{
     WEIROLL_ADDRESS, WeirollCommand, WeirollCommandFlags, WeirollPlanner,
     create_weiroll_delegate_call,
 };

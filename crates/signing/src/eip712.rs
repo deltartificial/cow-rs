@@ -363,12 +363,10 @@ pub fn hashify(value: u64) -> B256 {
 ///
 /// The 32-byte signing digest.
 ///
-/// ```ignore
+/// ```no_run
 /// use alloy_primitives::{Address, B256, U256};
-/// use cow_rs::{
-///     UnsignedOrder,
-///     order_signing::{domain_separator, hash_typed_data, order_hash},
-/// };
+/// use cow_signing::{domain_separator, hash_typed_data, order_hash};
+/// use cow_types::UnsignedOrder;
 ///
 /// let order = UnsignedOrder::sell(Address::ZERO, Address::ZERO, U256::ZERO, U256::ZERO);
 /// let ds = domain_separator(1);
@@ -449,9 +447,10 @@ pub fn hash_order_cancellations(chain_id: u64, order_uids: &[&str]) -> Result<B2
 /// receiver is not allowed — use `Address::ZERO` only to indicate "no custom
 /// receiver").
 ///
-/// ```ignore
+/// ```no_run
 /// use alloy_primitives::{Address, B256, U256};
-/// use cow_rs::{OrderKind, TokenBalance, UnsignedOrder, order_signing::normalize_order};
+/// use cow_signing::normalize_order;
+/// use cow_types::{OrderKind, TokenBalance, UnsignedOrder};
 ///
 /// let order = UnsignedOrder {
 ///     sell_token: Address::ZERO,

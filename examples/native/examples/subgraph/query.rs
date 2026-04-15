@@ -23,7 +23,8 @@
 //! cargo run --example subgraph_query
 //! ```
 
-use cow_rs::{Env, SubgraphApi, SupportedChainId};
+use cow_chains::{Env, SupportedChainId};
+use cow_subgraph::SubgraphApi;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
