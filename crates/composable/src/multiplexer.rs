@@ -5,7 +5,7 @@ use std::fmt;
 use alloy_primitives::{B256, keccak256};
 use serde::{Deserialize, Serialize};
 
-use crate::error::CowError;
+use cow_sdk_error::CowError;
 
 use super::{
     order_id,

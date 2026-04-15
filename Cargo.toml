@@ -197,11 +197,14 @@ chrono = { version = "0.4", features = ["serde"] }
 # Internal crates
 cow-rs = { path = "crates/cow-rs", version = "0.1.1" }
 cow-sdk-app-data = { path = "crates/app-data", version = "0.1.1" }
+cow-sdk-bridging = { path = "crates/bridging", version = "0.1.1" }
 cow-sdk-chains = { path = "crates/chains", version = "0.1.1" }
+cow-sdk-composable = { path = "crates/composable", version = "0.1.1" }
 cow-sdk-cow-shed = { path = "crates/cow-shed", version = "0.1.1" }
 cow-sdk-erc20 = { path = "crates/erc20", version = "0.1.1" }
 cow-sdk-error = { path = "crates/error", version = "0.1.1" }
 cow-sdk-ethflow = { path = "crates/ethflow", version = "0.1.1" }
+cow-sdk-flash-loans = { path = "crates/flash-loans", version = "0.1.1" }
 cow-sdk-onchain = { path = "crates/onchain", version = "0.1.1" }
 cow-sdk-orderbook = { path = "crates/orderbook", version = "0.1.1" }
 cow-sdk-permit = { path = "crates/permit", version = "0.1.1" }
@@ -209,6 +212,7 @@ cow-sdk-primitives = { path = "crates/primitives", version = "0.1.1" }
 cow-sdk-settlement = { path = "crates/settlement", version = "0.1.1" }
 cow-sdk-signing = { path = "crates/signing", version = "0.1.1" }
 cow-sdk-subgraph = { path = "crates/subgraph", version = "0.1.1" }
+cow-sdk-trading = { path = "crates/trading", version = "0.1.1" }
 cow-sdk-types = { path = "crates/types", version = "0.1.1" }
 cow-sdk-weiroll = { path = "crates/weiroll", version = "0.1.1" }
 foldhash = { version = "0.2", features = ["std"] }

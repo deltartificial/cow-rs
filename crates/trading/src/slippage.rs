@@ -234,7 +234,7 @@ pub fn apply_percentage(value: U256, percentage: Decimal) -> U256 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::trading::types::{Amounts, NetworkFee, PartnerFeeCost, ProtocolFeeCost};
+    use crate::types::{Amounts, NetworkFee, PartnerFeeCost, ProtocolFeeCost};
 
     // ── suggest_slippage_from_fee ────────────────────────────────────────────
 

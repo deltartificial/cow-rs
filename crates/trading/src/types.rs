@@ -3,12 +3,9 @@
 use std::fmt;
 
 use alloy_primitives::{Address, U256};
-
-use crate::{
-    order_book::types::OrderQuoteResponse,
-    order_signing::types::{OrderTypedData, UnsignedOrder},
-    types::OrderKind,
-};
+use cow_sdk_orderbook::types::OrderQuoteResponse;
+use cow_sdk_signing::types::{OrderTypedData, UnsignedOrder};
+use cow_sdk_types::OrderKind;
 
 /// Amounts at a specific stage of the fee pipeline.
 #[derive(Debug, Clone, Copy, Default)]
@@ -462,11 +459,11 @@ impl fmt::Display for TradingTransactionParams {
 pub struct PostTradeAdditionalParams {
     /// Override for the order signing scheme.
     ///
-    /// Defaults to [`EcdsaSigningScheme::Eip712`](crate::types::EcdsaSigningScheme::Eip712)
+    /// Defaults to [`EcdsaSigningScheme::Eip712`](cow_sdk_types::EcdsaSigningScheme::Eip712)
     /// for EOA wallets.  Use
-    /// [`SigningScheme::PreSign`](crate::types::SigningScheme::PreSign) for
+    /// [`SigningScheme::PreSign`](cow_sdk_types::SigningScheme::PreSign) for
     /// smart-contract wallets.
-    pub signing_scheme: Option<crate::types::SigningScheme>,
+    pub signing_scheme: Option<cow_sdk_types::SigningScheme>,
     /// Network gas cost in wei, expressed as a decimal string.
     ///
     /// Used when computing adjusted quote amounts.  Set to `None` to use the
@@ -484,13 +481,13 @@ impl PostTradeAdditionalParams {
     ///
     /// # Arguments
     ///
-    /// * `scheme` — the [`SigningScheme`](crate::types::SigningScheme) to use for this order.
+    /// * `scheme` — the [`SigningScheme`](cow_sdk_types::SigningScheme) to use for this order.
     ///
     /// # Returns
     ///
     /// The modified [`PostTradeAdditionalParams`] with the signing scheme set.
     #[must_use]
-    pub const fn with_signing_scheme(mut self, scheme: crate::types::SigningScheme) -> Self {
+    pub const fn with_signing_scheme(mut self, scheme: cow_sdk_types::SigningScheme) -> Self {
         self.signing_scheme = Some(scheme);
         self
     }
@@ -578,7 +575,7 @@ pub struct SwapAdvancedSettings {
     ///
     /// Takes precedence over [`TradeParameters::partner_fee`] and the
     /// SDK-level [`crate::TradingSdkConfig::partner_fee`].
-    pub partner_fee: Option<crate::app_data::types::PartnerFee>,
+    pub partner_fee: Option<cow_sdk_app_data::types::PartnerFee>,
 }
 
 impl SwapAdvancedSettings {
@@ -616,13 +613,13 @@ impl SwapAdvancedSettings {
     ///
     /// # Arguments
     ///
-    /// * `fee` — the [`PartnerFee`](crate::app_data::types::PartnerFee) to apply.
+    /// * `fee` — the [`PartnerFee`](cow_sdk_app_data::types::PartnerFee) to apply.
     ///
     /// # Returns
     ///
     /// The modified [`SwapAdvancedSettings`] with the partner fee set.
     #[must_use]
-    pub fn with_partner_fee(mut self, fee: crate::app_data::types::PartnerFee) -> Self {
+    pub fn with_partner_fee(mut self, fee: cow_sdk_app_data::types::PartnerFee) -> Self {
         self.partner_fee = Some(fee);
         self
     }
@@ -677,7 +674,7 @@ pub struct LimitOrderAdvancedSettings {
     /// Absolute order expiry timestamp.  Overrides `valid_for` in the params.
     pub valid_to: Option<u32>,
     /// Partner fee override (replaces any fee set at the config level).
-    pub partner_fee: Option<crate::app_data::types::PartnerFee>,
+    pub partner_fee: Option<cow_sdk_app_data::types::PartnerFee>,
     /// Whether the order may be partially filled.
     pub partially_fillable: Option<bool>,
     /// Pre-computed app-data hash override (`0x`-prefixed `bytes32`).
@@ -719,13 +716,13 @@ impl LimitOrderAdvancedSettings {
     ///
     /// # Arguments
     ///
-    /// * `fee` — the [`PartnerFee`](crate::app_data::types::PartnerFee) to apply.
+    /// * `fee` — the [`PartnerFee`](cow_sdk_app_data::types::PartnerFee) to apply.
     ///
     /// # Returns
     ///
     /// The modified [`LimitOrderAdvancedSettings`] with the partner fee set.
     #[must_use]
-    pub fn with_partner_fee(mut self, fee: crate::app_data::types::PartnerFee) -> Self {
+    pub fn with_partner_fee(mut self, fee: cow_sdk_app_data::types::PartnerFee) -> Self {
         self.partner_fee = Some(fee);
         self
     }
@@ -1008,7 +1005,7 @@ pub struct TradeParameters {
     ///
     /// When set, this fee policy is embedded in the order's app-data for this trade only,
     /// overriding any partner fee configured at the [`crate::TradingSdkConfig`] level.
-    pub partner_fee: Option<crate::app_data::types::PartnerFee>,
+    pub partner_fee: Option<cow_sdk_app_data::types::PartnerFee>,
 }
 
 impl TradeParameters {
@@ -1239,7 +1236,7 @@ impl LimitTradeParameters {
         buy_amount: U256,
     ) -> Self {
         Self {
-            kind: crate::types::OrderKind::Sell,
+            kind: cow_sdk_types::OrderKind::Sell,
             sell_token,
             buy_token,
             sell_amount,
@@ -1273,7 +1270,7 @@ impl LimitTradeParameters {
         buy_amount: U256,
     ) -> Self {
         Self {
-            kind: crate::types::OrderKind::Buy,
+            kind: cow_sdk_types::OrderKind::Buy,
             sell_token,
             buy_token,
             sell_amount,
@@ -1618,7 +1615,7 @@ where
 #[derive(Debug, Clone)]
 pub struct LimitTradeParameters {
     /// Sell or buy direction.
-    pub kind: crate::types::OrderKind,
+    pub kind: cow_sdk_types::OrderKind,
     /// Token to sell.
     pub sell_token: Address,
     /// Token to buy.
@@ -1645,7 +1642,7 @@ pub struct LimitTradeParameters {
     /// Per-trade partner fee override.
     ///
     /// When set, replaces any partner fee configured at the [`crate::TradingSdkConfig`] level.
-    pub partner_fee: Option<crate::app_data::types::PartnerFee>,
+    pub partner_fee: Option<cow_sdk_app_data::types::PartnerFee>,
 }
 
 /// The result of a successful order submission.
@@ -1657,7 +1654,7 @@ pub struct OrderPostingResult {
     /// The unique order identifier returned by `POST /api/v1/orders`.
     pub order_id: String,
     /// The signing scheme used.
-    pub signing_scheme: crate::types::SigningScheme,
+    pub signing_scheme: cow_sdk_types::SigningScheme,
     /// Hex-encoded signature (format depends on `signing_scheme`).
     pub signature: String,
     /// The order struct that was signed.
@@ -1670,7 +1667,7 @@ impl OrderPostingResult {
     /// # Arguments
     ///
     /// * `order_id` — the unique order identifier from `POST /api/v1/orders`.
-    /// * `signing_scheme` — the [`SigningScheme`](crate::types::SigningScheme) used.
+    /// * `signing_scheme` — the [`SigningScheme`](cow_sdk_types::SigningScheme) used.
     /// * `signature` — hex-encoded signature string.
     /// * `order_to_sign` — the order struct that was signed.
     ///
@@ -1680,7 +1677,7 @@ impl OrderPostingResult {
     #[must_use]
     pub fn new(
         order_id: impl Into<String>,
-        signing_scheme: crate::types::SigningScheme,
+        signing_scheme: cow_sdk_types::SigningScheme,
         signature: impl Into<String>,
         order_to_sign: UnsignedOrder,
     ) -> Self {
@@ -1697,10 +1694,10 @@ impl OrderPostingResult {
     /// # Returns
     ///
     /// `true` when `signing_scheme` is
-    /// [`SigningScheme::Eip712`](crate::types::SigningScheme::Eip712).
+    /// [`SigningScheme::Eip712`](cow_sdk_types::SigningScheme::Eip712).
     #[must_use]
     pub const fn is_eip712(&self) -> bool {
-        matches!(self.signing_scheme, crate::types::SigningScheme::Eip712)
+        matches!(self.signing_scheme, cow_sdk_types::SigningScheme::Eip712)
     }
 
     /// Returns `true` if the order was signed with `eth_sign` (`EIP-191`).
@@ -1708,10 +1705,10 @@ impl OrderPostingResult {
     /// # Returns
     ///
     /// `true` when `signing_scheme` is
-    /// [`SigningScheme::EthSign`](crate::types::SigningScheme::EthSign).
+    /// [`SigningScheme::EthSign`](cow_sdk_types::SigningScheme::EthSign).
     #[must_use]
     pub const fn is_eth_sign(&self) -> bool {
-        matches!(self.signing_scheme, crate::types::SigningScheme::EthSign)
+        matches!(self.signing_scheme, cow_sdk_types::SigningScheme::EthSign)
     }
 
     /// Returns `true` if the order was signed with `EIP-1271` (smart-contract signature).
@@ -1719,10 +1716,10 @@ impl OrderPostingResult {
     /// # Returns
     ///
     /// `true` when `signing_scheme` is
-    /// [`SigningScheme::Eip1271`](crate::types::SigningScheme::Eip1271).
+    /// [`SigningScheme::Eip1271`](cow_sdk_types::SigningScheme::Eip1271).
     #[must_use]
     pub const fn is_eip1271(&self) -> bool {
-        matches!(self.signing_scheme, crate::types::SigningScheme::Eip1271)
+        matches!(self.signing_scheme, cow_sdk_types::SigningScheme::Eip1271)
     }
 
     /// Returns `true` if the order uses a pre-signature (on-chain sign-later flow).
@@ -1730,10 +1727,10 @@ impl OrderPostingResult {
     /// # Returns
     ///
     /// `true` when `signing_scheme` is
-    /// [`SigningScheme::PreSign`](crate::types::SigningScheme::PreSign).
+    /// [`SigningScheme::PreSign`](cow_sdk_types::SigningScheme::PreSign).
     #[must_use]
     pub const fn is_presign(&self) -> bool {
-        matches!(self.signing_scheme, crate::types::SigningScheme::PreSign)
+        matches!(self.signing_scheme, cow_sdk_types::SigningScheme::PreSign)
     }
 
     /// Returns the order UID string.
@@ -1824,9 +1821,9 @@ pub struct BuildAppDataParams {
     /// Slippage tolerance in basis points.
     pub slippage_bps: u32,
     /// Order class classification.
-    pub order_class: crate::app_data::types::OrderClassKind,
+    pub order_class: cow_sdk_app_data::types::OrderClassKind,
     /// Optional partner fee to embed in the app-data.
-    pub partner_fee: Option<crate::app_data::types::PartnerFee>,
+    pub partner_fee: Option<cow_sdk_app_data::types::PartnerFee>,
 }
 
 impl BuildAppDataParams {
@@ -1845,7 +1842,7 @@ impl BuildAppDataParams {
     pub fn new(
         app_code: impl Into<String>,
         slippage_bps: u32,
-        order_class: crate::app_data::types::OrderClassKind,
+        order_class: cow_sdk_app_data::types::OrderClassKind,
     ) -> Self {
         Self { app_code: app_code.into(), slippage_bps, order_class, partner_fee: None }
     }
@@ -1854,13 +1851,13 @@ impl BuildAppDataParams {
     ///
     /// # Arguments
     ///
-    /// * `fee` — the [`PartnerFee`](crate::app_data::types::PartnerFee) to embed.
+    /// * `fee` — the [`PartnerFee`](cow_sdk_app_data::types::PartnerFee) to embed.
     ///
     /// # Returns
     ///
     /// The modified [`BuildAppDataParams`] with the partner fee set.
     #[must_use]
-    pub fn with_partner_fee(mut self, fee: crate::app_data::types::PartnerFee) -> Self {
+    pub fn with_partner_fee(mut self, fee: cow_sdk_app_data::types::PartnerFee) -> Self {
         self.partner_fee = Some(fee);
         self
     }
@@ -2013,10 +2010,8 @@ mod tests {
 
     use alloy_primitives::B256;
 
-    use crate::{
-        app_data::types::{OrderClassKind, PartnerFee, PartnerFeeEntry},
-        types::{SigningScheme, TokenBalance},
-    };
+    use cow_sdk_app_data::types::{OrderClassKind, PartnerFee, PartnerFeeEntry};
+    use cow_sdk_types::{SigningScheme, TokenBalance};
 
     // ── Amounts ─────────────────────────────────────────────────────────────
 

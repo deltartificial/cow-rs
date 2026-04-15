@@ -1,0 +1,37 @@
+[package]
+name = "cow-sdk-trading"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "High-level trading SDK for the CoW Protocol (quote → sign → post → track)."
+readme = "../../README.md"
+keywords = ["cow", "cowprotocol", "defi", "ethereum", "sdk"]
+categories = ["api-bindings", "cryptography::cryptocurrencies"]
+
+[package.metadata.workspace.layer]
+layer = 5
+
+[lib]
+doctest = false
+
+[dependencies]
+alloy-primitives.workspace = true
+alloy-signer-local.workspace = true
+cow-sdk-app-data.workspace = true
+cow-sdk-chains.workspace = true
+cow-sdk-erc20.workspace = true
+cow-sdk-error.workspace = true
+cow-sdk-ethflow.workspace = true
+cow-sdk-onchain.workspace = true
+cow-sdk-orderbook.workspace = true
+cow-sdk-signing.workspace = true
+cow-sdk-types.workspace = true
+rust_decimal.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

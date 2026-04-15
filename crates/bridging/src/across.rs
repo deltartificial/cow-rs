@@ -1,20 +1,17 @@
 //! Across Protocol bridge provider — types, constants, and utility functions.
 
+use alloy_primitives::{Address, U256};
+use cow_sdk_chains::SupportedChainId;
+use cow_sdk_types::OrderKind;
 use foldhash::HashMap;
 
-use alloy_primitives::{Address, U256};
-
 use crate::{
-    OrderKind,
-    bridging::{
-        types::{
-            AcrossChainConfig, AcrossDepositStatus, AcrossSuggestedFeesResponse, BridgeAmounts,
-            BridgeCosts, BridgeError, BridgeFees, BridgeLimits, BridgeQuoteAmountsAndCosts,
-            BridgeQuoteResult, BridgeStatus, BridgingFee,
-        },
-        utils::{apply_bps, apply_pct_fee, pct_to_bps},
+    types::{
+        AcrossChainConfig, AcrossDepositStatus, AcrossSuggestedFeesResponse, BridgeAmounts,
+        BridgeCosts, BridgeError, BridgeFees, BridgeLimits, BridgeQuoteAmountsAndCosts,
+        BridgeQuoteResult, BridgeStatus, BridgingFee,
     },
-    config::SupportedChainId,
+    utils::{apply_bps, apply_pct_fee, pct_to_bps},
 };
 
 // ── Contract addresses ────────────────────────────────────────────────────────
@@ -574,7 +571,7 @@ pub struct CowTradeEvent {
 
 // ── Event parsing ────────────────────────────────────────────────────────────
 
-use crate::bridging::types::AcrossDepositEvent;
+use crate::types::AcrossDepositEvent;
 use alloy_primitives::{hex, keccak256};
 
 /// Compute the keccak-256 topic hash for the Across `FundsDeposited` event.
@@ -751,8 +748,8 @@ pub fn get_cow_trade_events(
     settlement_override: Option<Address>,
 ) -> Vec<CowTradeEvent> {
     // Resolve settlement contract address for this chain.
-    let chain = crate::config::SupportedChainId::try_from_u64(chain_id);
-    let default_settlement = chain.map(crate::config::settlement_contract);
+    let chain = cow_sdk_chains::SupportedChainId::try_from_u64(chain_id);
+    let default_settlement = chain.map(cow_sdk_chains::settlement_contract);
 
     let topic0 = cow_trade_event_topic0();
 
@@ -817,7 +814,7 @@ fn parse_cow_trade_event(log: &EvmLogEntry) -> Option<CowTradeEvent> {
 
 // ── Deposit parameter extraction ─────────────────────────────────────────────
 
-use crate::bridging::types::BridgingDepositParams;
+use crate::types::BridgingDepositParams;
 
 /// Extract bridging deposit parameters from a transaction receipt's logs.
 ///
@@ -870,7 +867,7 @@ pub fn get_deposit_params(
 
 // ── Deposit call construction ────────────────────────────────────────────────
 
-use crate::bridging::types::QuoteBridgeRequest;
+use crate::types::QuoteBridgeRequest;
 
 /// Parameters for building an Across deposit call via `SpokePool.depositV3`.
 #[derive(Debug, Clone)]
@@ -901,7 +898,7 @@ pub struct AcrossDepositCallParams {
 /// configured for the sell chain.
 pub fn create_across_deposit_call(
     params: &AcrossDepositCallParams,
-) -> Result<crate::config::EvmCall, BridgeError> {
+) -> Result<cow_sdk_chains::EvmCall, BridgeError> {
     let spoke_pools = across_spoke_pool_addresses();
     let spoke_pool = spoke_pools.get(&params.request.sell_chain_id).ok_or_else(|| {
         BridgeError::TxBuildError(format!(
@@ -946,9 +943,8 @@ pub fn create_across_deposit_call(
     calldata.extend_from_slice(&pad_u256(params.request.sell_amount));
     // outputAmount: sell_amount minus fee (simplified; TS uses math contract)
     let total_fee_pct: u128 = suggested.total_relay_fee.pct.parse().map_or(0, |v| v);
-    let output_amount =
-        crate::bridging::utils::apply_pct_fee(params.request.sell_amount, total_fee_pct)
-            .map_or(params.request.sell_amount, |v| v);
+    let output_amount = crate::utils::apply_pct_fee(params.request.sell_amount, total_fee_pct)
+        .map_or(params.request.sell_amount, |v| v);
     calldata.extend_from_slice(&pad_u256(output_amount));
     // destinationChainId
     calldata.extend_from_slice(&pad_u256(U256::from(params.request.buy_chain_id)));
@@ -964,7 +960,7 @@ pub fn create_across_deposit_call(
     calldata.extend_from_slice(&pad_u256(U256::from(12u64 * 32))); // offset to message
     calldata.extend_from_slice(&pad_u256(U256::ZERO)); // length = 0
 
-    Ok(crate::config::EvmCall { to: *spoke_pool, data: calldata, value: U256::ZERO })
+    Ok(cow_sdk_chains::EvmCall { to: *spoke_pool, data: calldata, value: U256::ZERO })
 }
 
 /// Left-pad an address to 32 bytes (ABI encoding).

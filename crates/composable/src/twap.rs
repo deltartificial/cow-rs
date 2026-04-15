@@ -3,8 +3,8 @@
 use std::fmt;
 
 use alloy_primitives::{Address, B256, U256, keccak256};
-
-use crate::{error::CowError, types::OrderKind};
+use cow_sdk_error::CowError;
+use cow_sdk_types::OrderKind;
 
 use super::types::{
     ConditionalOrderParams, DurationOfPart, PollResult, TWAP_HANDLER_ADDRESS, TwapData,

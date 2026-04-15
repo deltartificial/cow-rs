@@ -1,4 +1,7 @@
-//! High-level trading SDK and fee-breakdown types.
+//! `cow-sdk-trading` — Layer 5 high-level trading SDK for the `CoW` Protocol SDK.
+
+#![deny(unsafe_code)]
+#![warn(missing_docs)]
 
 pub mod costs;
 pub mod sdk;

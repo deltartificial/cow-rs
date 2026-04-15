@@ -1,5 +1,5 @@
 [package]
-name = "cow-sdk-orderbook"
+name = "cow-sdk-bridging"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -7,13 +7,13 @@ authors.workspace = true
 license.workspace = true
 repository.workspace = true
 homepage.workspace = true
-description = "HTTP client for the CoW Protocol orderbook REST API (generated from OpenAPI)."
+description = "Cross-chain bridge aggregator for the CoW Protocol SDK (Across, Bungee)."
 readme = "../../README.md"
 keywords = ["cow", "cowprotocol", "defi", "ethereum", "sdk"]
 categories = ["api-bindings", "cryptography::cryptocurrencies"]
 
 [package.metadata.workspace.layer]
-layer = 4
+layer = 5
 
 [lib]
 doctest = false
@@ -25,31 +25,21 @@ wasm = []
 
 [dependencies]
 alloy-primitives.workspace = true
-async-trait.workspace = true
-chrono.workspace = true
 cow-sdk-chains.workspace = true
 cow-sdk-error.workspace = true
-# NOTE (workspace-split migration debt): `cow-sdk-signing` is a sibling L2
-# crate here referenced for its shared `UnsignedOrder` type. That type will
-# move down to `cow-sdk-types` in a later cleanup pass.
-cow-sdk-signing.workspace = true
-cow-sdk-primitives.workspace = true
 cow-sdk-types.workspace = true
 foldhash.workspace = true
-progenitor-client.workspace = true
+futures.workspace = true
 reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+thiserror.workspace = true
 tokio = { workspace = true, optional = true }
 tracing.workspace = true
 
-[build-dependencies]
-openapiv3.workspace = true
-prettyplease.workspace = true
-progenitor-impl.workspace = true
-serde_json.workspace = true
-serde_yaml.workspace = true
-syn = "2"
+[dev-dependencies]
+alloy-signer-local.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
 [lints]
 workspace = true

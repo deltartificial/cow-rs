@@ -1,6 +1,6 @@
 //! [`BridgingSdk`] — multi-provider cross-chain bridge aggregator.
 
-use crate::CowError;
+use cow_sdk_error::CowError;
 
 // ── Bridging constants ──────────────────────────────────────────────────────
 
@@ -294,7 +294,7 @@ pub fn assert_is_quote_and_post(
 
 // ── Cross-chain order flow ───────────────────────────────────────────────────
 
-use crate::bridging::{
+use crate::{
     across::{EvmLogEntry, get_deposit_params},
     types::{BridgeHook, BridgeQuoteResult, BridgeStatus, BridgeStatusResult, CrossChainOrder},
 };
@@ -635,21 +635,21 @@ pub async fn execute_provider_quotes(
                 match result {
                     Ok(quote) => MultiQuoteResult {
                         provider_dapp_id: name,
-                        quote: Some(crate::bridging::types::BridgeQuoteAmountsAndCosts {
-                            before_fee: crate::bridging::types::BridgeAmounts {
+                        quote: Some(crate::types::BridgeQuoteAmountsAndCosts {
+                            before_fee: crate::types::BridgeAmounts {
                                 sell_amount: quote.sell_amount,
                                 buy_amount: quote.buy_amount,
                             },
-                            after_fee: crate::bridging::types::BridgeAmounts {
+                            after_fee: crate::types::BridgeAmounts {
                                 sell_amount: quote.sell_amount,
                                 buy_amount: quote.buy_amount.saturating_sub(quote.fee_amount),
                             },
-                            after_slippage: crate::bridging::types::BridgeAmounts {
+                            after_slippage: crate::types::BridgeAmounts {
                                 sell_amount: quote.sell_amount,
                                 buy_amount: quote.buy_amount.saturating_sub(quote.fee_amount),
                             },
-                            costs: crate::bridging::types::BridgeCosts {
-                                bridging_fee: crate::bridging::types::BridgingFee {
+                            costs: crate::types::BridgeCosts {
+                                bridging_fee: crate::types::BridgingFee {
                                     fee_bps: 0,
                                     amount_in_sell_currency: quote.fee_amount,
                                     amount_in_buy_currency: quote.fee_amount,
@@ -711,7 +711,7 @@ pub async fn fetch_multi_quote(
 
     // Fill timeout results
     let dapp_ids: Vec<String> = sdk.providers.iter().map(|p| p.name().to_owned()).collect();
-    crate::bridging::utils::fill_timeout_results(&mut results, &dapp_ids);
+    crate::utils::fill_timeout_results(&mut results, &dapp_ids);
 
     // Sort by buy amount after slippage (best first)
     results.sort_by(|a, b| {

@@ -5,15 +5,13 @@
 //! conversion from raw on-chain structs to typed orders.
 
 use alloy_primitives::{Address, B256, U256, keccak256};
+use cow_sdk_chains::contracts::EXTENSIBLE_FALLBACK_HANDLER;
+use cow_sdk_error::CowError;
+use cow_sdk_signing::types::UnsignedOrder;
+use cow_sdk_types::{OrderKind, TokenBalance};
 
 use super::types::{
     BlockInfo, COMPOSABLE_COW_ADDRESS, ConditionalOrderParams, GpV2OrderStruct, IsValidResult,
-};
-use crate::{
-    config::contracts::EXTENSIBLE_FALLBACK_HANDLER,
-    error::CowError,
-    order_signing::types::UnsignedOrder,
-    types::{OrderKind, TokenBalance},
 };
 
 /// Returns `true` if `address` is the canonical `ComposableCow` factory address.

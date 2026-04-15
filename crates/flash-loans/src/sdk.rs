@@ -6,7 +6,7 @@
 
 use alloy_primitives::{Address, U256, keccak256};
 
-use crate::CowError;
+use cow_sdk_error::CowError;
 
 use super::types::{FlashLoanParams, FlashLoanProvider};
 
@@ -61,7 +61,7 @@ pub const ADAPTER_DOMAIN_VERSION: &str = "1";
 /// `FlashLoanSdk` is a unit struct with static methods — no instances are
 /// needed. It provides calldata encoding for supported providers and a
 /// convenience method to build a complete
-/// [`CowHook`](crate::app_data::CowHook) ready to attach to an order's
+/// [`CowHook`](cow_sdk_types::CowHook) ready to attach to an order's
 /// app-data.
 ///
 /// Currently only **Balancer** flash loan encoding is implemented. `MakerDAO`
@@ -201,12 +201,12 @@ impl FlashLoanSdk {
         buf
     }
 
-    /// Build a [`CowHook`](crate::app_data::CowHook) that triggers a flash
+    /// Build a [`CowHook`](cow_sdk_types::CowHook) that triggers a flash
     /// loan pre-interaction.
     ///
     /// Looks up the provider's contract address on the specified chain,
     /// encodes the flash loan calldata, and wraps everything in a
-    /// [`CowHook`](crate::app_data::CowHook) with a default gas limit of
+    /// [`CowHook`](cow_sdk_types::CowHook) with a default gas limit of
     /// `500_000`.
     ///
     /// # Parameters
@@ -218,8 +218,8 @@ impl FlashLoanSdk {
     ///
     /// # Returns
     ///
-    /// A [`CowHook`](crate::app_data::CowHook) ready to be attached to an
-    /// order's [`OrderInteractionHooks::pre`](crate::app_data::OrderInteractionHooks).
+    /// A [`CowHook`](cow_sdk_types::CowHook) ready to be attached to an
+    /// order's [`OrderInteractionHooks::pre`](cow_sdk_app_data::OrderInteractionHooks).
     ///
     /// # Errors
     ///
@@ -230,7 +230,7 @@ impl FlashLoanSdk {
         params: &FlashLoanParams,
         receiver: Address,
         user_data: &[u8],
-    ) -> Result<crate::app_data::CowHook, CowError> {
+    ) -> Result<cow_sdk_types::CowHook, CowError> {
         let contract = params.provider.contract_address(params.chain_id).ok_or_else(|| {
             CowError::Unsupported {
                 message: format!(
@@ -255,7 +255,7 @@ impl FlashLoanSdk {
             }
         };
 
-        Ok(crate::app_data::CowHook {
+        Ok(cow_sdk_types::CowHook {
             target: format!("{contract:#x}"),
             call_data: alloy_primitives::hex::encode(&calldata),
             gas_limit: "500000".to_owned(),

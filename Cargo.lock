@@ -1043,11 +1043,14 @@ dependencies = [
  "async-trait",
  "chrono",
  "cow-sdk-app-data",
+ "cow-sdk-bridging",
  "cow-sdk-chains",
+ "cow-sdk-composable",
  "cow-sdk-cow-shed",
  "cow-sdk-erc20",
  "cow-sdk-error",
  "cow-sdk-ethflow",
+ "cow-sdk-flash-loans",
  "cow-sdk-onchain",
  "cow-sdk-orderbook",
  "cow-sdk-permit",
@@ -1055,6 +1058,7 @@ dependencies = [
  "cow-sdk-settlement",
  "cow-sdk-signing",
  "cow-sdk-subgraph",
+ "cow-sdk-trading",
  "cow-sdk-types",
  "cow-sdk-weiroll",
  "foldhash 0.2.0",
@@ -1102,6 +1106,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "cow-sdk-bridging"
+version = "0.1.1"
+dependencies = [
+ "alloy-primitives",
+ "alloy-signer-local",
+ "cow-sdk-chains",
+ "cow-sdk-error",
+ "cow-sdk-types",
+ "foldhash 0.2.0",
+ "futures",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "cow-sdk-chains"
 version = "0.1.1"
 dependencies = [
@@ -1109,6 +1132,20 @@ dependencies = [
  "cow-sdk-error",
  "foldhash 0.2.0",
  "serde",
+]
+
+[[package]]
+name = "cow-sdk-composable"
+version = "0.1.1"
+dependencies = [
+ "alloy-primitives",
+ "chrono",
+ "cow-sdk-chains",
+ "cow-sdk-error",
+ "cow-sdk-signing",
+ "cow-sdk-types",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -1145,6 +1182,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "cow-sdk-flash-loans"
+version = "0.1.1"
+dependencies = [
+ "alloy-primitives",
+ "cow-sdk-error",
+ "cow-sdk-types",
+]
+
+[[package]]
 name = "cow-sdk-onchain"
 version = "0.1.1"
 dependencies = [
@@ -1163,6 +1209,7 @@ name = "cow-sdk-orderbook"
 version = "0.1.1"
 dependencies = [
  "alloy-primitives",
+ "async-trait",
  "chrono",
  "cow-sdk-chains",
  "cow-sdk-error",
@@ -1244,6 +1291,25 @@ dependencies = [
  "graphql-parser",
  "reqwest",
  "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "cow-sdk-trading"
+version = "0.1.1"
+dependencies = [
+ "alloy-primitives",
+ "alloy-signer-local",
+ "cow-sdk-app-data",
+ "cow-sdk-chains",
+ "cow-sdk-erc20",
+ "cow-sdk-error",
+ "cow-sdk-ethflow",
+ "cow-sdk-onchain",
+ "cow-sdk-orderbook",
+ "cow-sdk-signing",
+ "cow-sdk-types",
+ "rust_decimal",
  "serde_json",
 ]
 

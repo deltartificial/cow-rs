@@ -1,10 +1,13 @@
-//! Cross-chain bridge aggregator and provider abstractions.
+//! `cow-sdk-bridging` — Layer 5 cross-chain bridge aggregator for the `CoW` Protocol SDK.
 //!
-//! This module provides:
+//! Provides:
 //! - A [`BridgingSdk`] that queries multiple bridge providers concurrently
 //! - Provider implementations for [Bungee](bungee) and [Across](across)
 //! - Utility functions for fee math, token selection, and hook handling
 //! - Comprehensive types for quotes, statuses, and deposit parameters
+
+#![deny(unsafe_code)]
+#![warn(missing_docs)]
 
 pub mod across;
 pub mod bungee;

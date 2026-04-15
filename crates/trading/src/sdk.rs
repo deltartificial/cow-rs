@@ -2,41 +2,39 @@
 
 use std::sync::Arc;
 
-use alloy_primitives::Address;
+use alloy_primitives::{Address, U256};
 use alloy_signer_local::PrivateKeySigner;
-
-use alloy_primitives::U256;
+use cow_sdk_app_data::{
+    build_app_data_doc, build_app_data_doc_full,
+    types::{Metadata, OrderClass, OrderClassKind, PartnerFee, Quote, Utm},
+};
+use cow_sdk_chains::{
+    Env, NATIVE_CURRENCY_ADDRESS, SETTLEMENT_CONTRACT, SupportedChainId, VAULT_RELAYER,
+};
+use cow_sdk_erc20::build_erc20_approve_calldata;
+use cow_sdk_error::CowError;
+use cow_sdk_onchain::OnchainReader;
+use cow_sdk_orderbook::{
+    Order, OrderBookApi,
+    types::{
+        AppDataObject, Auction, CompetitionOrderStatus, GetOrdersRequest, GetTradesRequest,
+        OrderCancellations, OrderCreation, OrderQuoteRequest, OrderQuoteResponse, QuoteSide,
+        SolverCompetition, TotalSurplus, Trade,
+    },
+};
+use cow_sdk_signing::{
+    build_order_typed_data, invalidate_order_calldata, set_pre_signature_calldata, sign_order,
+    sign_order_cancellations, types::UnsignedOrder,
+};
+use cow_sdk_types::{EcdsaSigningScheme, OrderKind, TokenBalance};
 
 use crate::{
-    app_data::{
-        build_app_data_doc, build_app_data_doc_full,
-        types::{Metadata, OrderClass, OrderClassKind, PartnerFee, Quote, Utm},
+    costs::compute_quote_amounts_and_costs,
+    types::{
+        LimitTradeParameters, LimitTradeParametersFromQuote, OrderPostingResult,
+        PostTradeAdditionalParams, QuoteResults, SwapAdvancedSettings, TradeParameters,
+        TradingAppDataInfo, TradingTransactionParams,
     },
-    config::{Env, NATIVE_CURRENCY_ADDRESS, SETTLEMENT_CONTRACT, SupportedChainId, VAULT_RELAYER},
-    erc20::build_erc20_approve_calldata,
-    error::CowError,
-    onchain::OnchainReader,
-    order_book::{
-        Order, OrderBookApi,
-        types::{
-            AppDataObject, Auction, CompetitionOrderStatus, GetOrdersRequest, GetTradesRequest,
-            OrderCancellations, OrderCreation, OrderQuoteRequest, OrderQuoteResponse, QuoteSide,
-            SolverCompetition, TotalSurplus, Trade,
-        },
-    },
-    order_signing::{
-        build_order_typed_data, invalidate_order_calldata, set_pre_signature_calldata, sign_order,
-        sign_order_cancellations, types::UnsignedOrder,
-    },
-    trading::{
-        costs::compute_quote_amounts_and_costs,
-        types::{
-            LimitTradeParameters, LimitTradeParametersFromQuote, OrderPostingResult,
-            PostTradeAdditionalParams, QuoteResults, SwapAdvancedSettings, TradeParameters,
-            TradingAppDataInfo, TradingTransactionParams,
-        },
-    },
-    types::{EcdsaSigningScheme, OrderKind, TokenBalance},
 };
 
 /// Default order TTL in seconds (30 minutes).
@@ -240,7 +238,7 @@ pub struct TradingSdkConfig {
     /// Uses `Arc<dyn OrderbookClient>` for shared ownership and object safety.
     /// Wrapped in `Option` to maintain backwards compatibility with existing
     /// constructors.
-    pub orderbook_client: Option<Arc<dyn crate::traits::OrderbookClient>>,
+    pub orderbook_client: Option<Arc<dyn cow_sdk_orderbook::OrderbookClient>>,
 }
 
 impl std::fmt::Debug for TradingSdkConfig {
@@ -374,7 +372,7 @@ impl TradingSdkConfig {
         self
     }
 
-    /// Inject a custom [`OrderbookClient`](crate::traits::OrderbookClient) implementation.
+    /// Inject a custom [`OrderbookClient`](cow_sdk_orderbook::OrderbookClient) implementation.
     ///
     /// When set, the [`TradingSdk`] will use this client for all orderbook
     /// operations instead of the default [`OrderBookApi`]. This enables
@@ -390,7 +388,7 @@ impl TradingSdkConfig {
     #[must_use]
     pub fn with_orderbook_client(
         mut self,
-        client: Arc<dyn crate::traits::OrderbookClient>,
+        client: Arc<dyn cow_sdk_orderbook::OrderbookClient>,
     ) -> Self {
         self.orderbook_client = Some(client);
         self
@@ -446,7 +444,7 @@ pub struct TradingSdk {
     api: Arc<OrderBookApi>,
     signer: Arc<PrivateKeySigner>,
     /// Optional injected orderbook client for testing or custom backends.
-    orderbook_client: Option<Arc<dyn crate::traits::OrderbookClient>>,
+    orderbook_client: Option<Arc<dyn cow_sdk_orderbook::OrderbookClient>>,
 }
 
 impl std::fmt::Debug for TradingSdk {
@@ -543,7 +541,7 @@ impl TradingSdk {
     ///
     /// A new [`TradingSdk`] with the injected orderbook client.
     #[must_use]
-    pub fn with_orderbook(mut self, client: Arc<dyn crate::traits::OrderbookClient>) -> Self {
+    pub fn with_orderbook(mut self, client: Arc<dyn cow_sdk_orderbook::OrderbookClient>) -> Self {
         self.orderbook_client = Some(client);
         self
     }
@@ -551,11 +549,11 @@ impl TradingSdk {
     /// Return the injected orderbook client, or fall back to the default
     /// [`OrderBookApi`].
     #[allow(dead_code, reason = "public API surface for future integration and downstream use")]
-    fn resolve_orderbook(&self) -> Arc<dyn crate::traits::OrderbookClient> {
+    fn resolve_orderbook(&self) -> Arc<dyn cow_sdk_orderbook::OrderbookClient> {
         if let Some(ref client) = self.orderbook_client {
             Arc::clone(client)
         } else {
-            Arc::clone(&self.api) as Arc<dyn crate::traits::OrderbookClient>
+            Arc::clone(&self.api) as Arc<dyn cow_sdk_orderbook::OrderbookClient>
         }
     }
 
@@ -823,7 +821,7 @@ impl TradingSdk {
     /// A URL string pointing to `https://explorer.cow.fi/{network}/orders/{uid}`.
     #[must_use]
     pub fn get_order_link(&self, order_uid: &str) -> String {
-        crate::config::chain::order_explorer_link(self.config.chain_id, order_uid)
+        cow_sdk_chains::chain::order_explorer_link(self.config.chain_id, order_uid)
     }
 
     /// Fetch the native-currency price of `token` (price of 1 token in the
@@ -1010,7 +1008,7 @@ impl TradingSdk {
         &self,
         order: &UnsignedOrder,
     ) -> Result<OrderPostingResult, CowError> {
-        use crate::order_signing::presign_result;
+        use cow_sdk_signing::presign_result;
         let owner = self.signer.address();
         let signing = presign_result(owner);
         let order_id = self
@@ -1064,7 +1062,7 @@ impl TradingSdk {
         order: &UnsignedOrder,
         signature_bytes: &[u8],
     ) -> Result<OrderPostingResult, CowError> {
-        use crate::order_signing::eip1271_result;
+        use cow_sdk_signing::eip1271_result;
         let signing = eip1271_result(signature_bytes);
         let owner = self.signer.address();
         let order_id = self
@@ -1574,19 +1572,19 @@ impl TradingSdk {
 
     /// Build the on-chain transaction params for a native-currency sell order via `EthFlow`.
     ///
-    /// Returns an [`EthFlowTransaction`](crate::ethflow::EthFlowTransaction) containing the
+    /// Returns an [`EthFlowTransaction`](cow_sdk_ethflow::EthFlowTransaction) containing the
     /// `EthFlow` contract address, ABI-encoded calldata, and the ETH value to attach.
     ///
     /// The caller is responsible for sending the transaction with the correct ETH value.
     ///
     /// # Arguments
     ///
-    /// * `order` — the [`EthFlowOrderData`](crate::ethflow::EthFlowOrderData) describing the
+    /// * `order` — the [`EthFlowOrderData`](cow_sdk_ethflow::EthFlowOrderData) describing the
     ///   native-currency sell order.
     ///
     /// # Returns
     ///
-    /// An [`EthFlowTransaction`](crate::ethflow::EthFlowTransaction) ready to be sent on-chain.
+    /// An [`EthFlowTransaction`](cow_sdk_ethflow::EthFlowTransaction) ready to be sent on-chain.
     ///
     /// # Errors
     ///
@@ -1594,15 +1592,13 @@ impl TradingSdk {
     /// returned for API consistency with other `TradingSdk` methods.
     pub async fn get_eth_flow_transaction(
         &self,
-        order: &crate::ethflow::EthFlowOrderData,
-    ) -> Result<crate::ethflow::EthFlowTransaction, CowError> {
-        use crate::{
-            config::{ETH_FLOW_PROD, ETH_FLOW_STAGING},
-            ethflow::build_eth_flow_transaction,
-        };
+        order: &cow_sdk_ethflow::EthFlowOrderData,
+    ) -> Result<cow_sdk_ethflow::EthFlowTransaction, CowError> {
+        use cow_sdk_chains::{ETH_FLOW_PROD, ETH_FLOW_STAGING};
+        use cow_sdk_ethflow::build_eth_flow_transaction;
         let contract = match self.config.env {
-            crate::config::Env::Prod => ETH_FLOW_PROD,
-            crate::config::Env::Staging => ETH_FLOW_STAGING,
+            cow_sdk_chains::Env::Prod => ETH_FLOW_PROD,
+            cow_sdk_chains::Env::Staging => ETH_FLOW_STAGING,
         };
         Ok(build_eth_flow_transaction(contract, order))
     }
@@ -1707,13 +1703,13 @@ pub fn get_order_to_sign(
 ///
 /// # Returns
 ///
-/// An [`OrderTypedData`](crate::order_signing::types::OrderTypedData) ready
+/// An [`OrderTypedData`](cow_sdk_signing::types::OrderTypedData) ready
 /// for EIP-712 signing.
 #[must_use]
 pub const fn get_order_typed_data(
     chain_id: SupportedChainId,
     order_to_sign: UnsignedOrder,
-) -> crate::order_signing::types::OrderTypedData {
+) -> cow_sdk_signing::types::OrderTypedData {
     build_order_typed_data(order_to_sign, chain_id.as_u64())
 }
 
@@ -1823,10 +1819,10 @@ pub fn resolve_slippage_suggestion(
     let costs = compute_quote_amounts_and_costs(quote, 0).ok()?;
     let default_bps = get_default_slippage_bps(chain_id, is_eth_flow);
 
-    let suggested = crate::trading::slippage::suggest_slippage_bps(
+    let suggested = crate::slippage::suggest_slippage_bps(
         &costs,
-        crate::trading::slippage::DEFAULT_FEE_SLIPPAGE_FACTOR_PCT,
-        crate::trading::slippage::DEFAULT_VOLUME_SLIPPAGE_BPS,
+        crate::slippage::DEFAULT_FEE_SLIPPAGE_FACTOR_PCT,
+        crate::slippage::DEFAULT_VOLUME_SLIPPAGE_BPS,
         if is_eth_flow { default_bps } else { 0 },
     );
 
@@ -1884,7 +1880,7 @@ pub fn adjust_eth_flow_order_params(
     chain_id: SupportedChainId,
     params: TradeParameters,
 ) -> TradeParameters {
-    let wrapped = crate::config::wrapped_native_currency(chain_id);
+    let wrapped = cow_sdk_chains::wrapped_native_currency(chain_id);
     TradeParameters { sell_token: wrapped.address, ..params }
 }
 
@@ -1933,7 +1929,7 @@ pub fn adjust_eth_flow_limit_order_params(
     chain_id: SupportedChainId,
     params: LimitTradeParameters,
 ) -> LimitTradeParameters {
-    let wrapped = crate::config::wrapped_native_currency(chain_id);
+    let wrapped = cow_sdk_chains::wrapped_native_currency(chain_id);
     LimitTradeParameters { sell_token: wrapped.address, ..params }
 }
 
@@ -2016,7 +2012,7 @@ pub fn get_trade_parameters_after_quote(
 /// ```
 #[must_use]
 pub const fn get_eth_flow_contract(chain_id: SupportedChainId, env: Env) -> Address {
-    crate::config::eth_flow_for_env(chain_id, env)
+    cow_sdk_chains::eth_flow_for_env(chain_id, env)
 }
 
 /// Resolve the settlement contract address for a given chain and environment.
@@ -2044,7 +2040,7 @@ pub const fn get_eth_flow_contract(chain_id: SupportedChainId, env: Env) -> Addr
 /// ```
 #[must_use]
 pub const fn get_settlement_contract(chain_id: SupportedChainId, env: Env) -> Address {
-    crate::config::settlement_contract_for_env(chain_id, env)
+    cow_sdk_chains::settlement_contract_for_env(chain_id, env)
 }
 
 /// Build an on-chain cancellation transaction for an ETH-flow order.
@@ -2074,7 +2070,7 @@ pub fn get_eth_flow_cancellation(
     order_uid: &str,
 ) -> Result<TradingTransactionParams, CowError> {
     let contract = get_eth_flow_contract(chain_id, env);
-    let data = crate::order_signing::invalidate_order_calldata(order_uid)?;
+    let data = cow_sdk_signing::invalidate_order_calldata(order_uid)?;
     Ok(TradingTransactionParams {
         data,
         to: contract,
@@ -2109,7 +2105,7 @@ pub fn get_settlement_cancellation(
     order_uid: &str,
 ) -> Result<TradingTransactionParams, CowError> {
     let contract = get_settlement_contract(chain_id, env);
-    let data = crate::order_signing::invalidate_order_calldata(order_uid)?;
+    let data = cow_sdk_signing::invalidate_order_calldata(order_uid)?;
     Ok(TradingTransactionParams {
         data,
         to: contract,
@@ -2267,10 +2263,10 @@ pub fn calculate_unique_order_id(
     order: &UnsignedOrder,
     env: Env,
 ) -> String {
-    use crate::config::MAX_VALID_TO_EPOCH;
+    use cow_sdk_chains::MAX_VALID_TO_EPOCH;
 
-    let wrapped = crate::config::wrapped_native_currency(chain_id);
-    let eth_flow_addr = crate::config::eth_flow_for_env(chain_id, env);
+    let wrapped = cow_sdk_chains::wrapped_native_currency(chain_id);
+    let eth_flow_addr = cow_sdk_chains::eth_flow_for_env(chain_id, env);
 
     // Build the adjusted order for ID computation.
     let adjusted = UnsignedOrder {
@@ -2280,7 +2276,7 @@ pub fn calculate_unique_order_id(
     };
 
     // Compute the order UID using the ETH-flow contract as the owner.
-    crate::order_signing::compute_order_uid(chain_id.as_u64(), &adjusted, eth_flow_addr)
+    cow_sdk_signing::compute_order_uid(chain_id.as_u64(), &adjusted, eth_flow_addr)
 }
 
 /// Convert an [`UnsignedOrder`] into a form suitable for on-chain signing.
@@ -2397,10 +2393,10 @@ pub async fn post_cow_protocol_trade(
         .signing_scheme
         .as_ref()
         .map(|s| match s {
-            crate::types::SigningScheme::EthSign => EcdsaSigningScheme::EthSign,
-            crate::types::SigningScheme::Eip712 |
-            crate::types::SigningScheme::Eip1271 |
-            crate::types::SigningScheme::PreSign => EcdsaSigningScheme::Eip712,
+            cow_sdk_types::SigningScheme::EthSign => EcdsaSigningScheme::EthSign,
+            cow_sdk_types::SigningScheme::Eip712 |
+            cow_sdk_types::SigningScheme::Eip1271 |
+            cow_sdk_types::SigningScheme::PreSign => EcdsaSigningScheme::Eip712,
         })
         .map_or(EcdsaSigningScheme::Eip712, |v| v);
 
@@ -2512,7 +2508,7 @@ pub async fn post_sell_native_currency_order(
 
     // Build the EthFlow createOrder calldata.
     let app_data_bytes = parse_app_data_hex(&app_data.app_data_keccak256);
-    let eth_flow_data = crate::ethflow::EthFlowOrderData {
+    let eth_flow_data = cow_sdk_ethflow::EthFlowOrderData {
         buy_token: order_to_sign.buy_token,
         receiver: order_to_sign.receiver,
         sell_amount: order_to_sign.sell_amount,
@@ -2523,7 +2519,7 @@ pub async fn post_sell_native_currency_order(
         partially_fillable: order_to_sign.partially_fillable,
         quote_id: 0, // The quote ID would be provided by the caller in a full flow.
     };
-    let calldata = crate::ethflow::encode_eth_flow_create_order(&eth_flow_data);
+    let calldata = cow_sdk_ethflow::encode_eth_flow_create_order(&eth_flow_data);
 
     let gas_limit = calculate_gas_margin(GAS_LIMIT_DEFAULT);
 
@@ -2540,7 +2536,7 @@ pub async fn post_sell_native_currency_order(
 
     let result = OrderPostingResult {
         order_id,
-        signing_scheme: crate::types::SigningScheme::Eip1271,
+        signing_scheme: cow_sdk_types::SigningScheme::Eip1271,
         signature: String::new(),
         order_to_sign,
     };
@@ -2601,7 +2597,7 @@ async fn get_quote_impl(
         sell_token_balance: TokenBalance::Erc20,
         buy_token_balance: TokenBalance::Erc20,
         from: owner,
-        price_quality: crate::types::PriceQuality::Optimal,
+        price_quality: cow_sdk_types::PriceQuality::Optimal,
         signing_scheme: EcdsaSigningScheme::Eip712,
         side,
     };
@@ -2681,9 +2677,9 @@ fn compute_order_valid_to(valid_to_override: Option<u32>, valid_for: Option<u32>
 /// Construct an [`UnsignedOrder`] from a quote response and trade parameters.
 fn build_unsigned_order(
     app_data: alloy_primitives::B256,
-    quote: &crate::order_book::types::QuoteData,
+    quote: &cow_sdk_orderbook::types::QuoteData,
     receiver: Address,
-    costs: &crate::trading::types::QuoteAmountsAndCosts,
+    costs: &crate::types::QuoteAmountsAndCosts,
     deadline: OrderDeadline,
 ) -> Result<UnsignedOrder, CowError> {
     let sell_amount = costs.after_slippage.sell_amount;

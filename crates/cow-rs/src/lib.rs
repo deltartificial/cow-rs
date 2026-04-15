@@ -48,12 +48,8 @@
 #![deny(unsafe_code)]
 #![warn(missing_docs)]
 
-pub mod bridging;
 pub mod common;
-pub mod composable;
-pub mod flash_loans;
 pub mod settlement;
-pub mod trading;
 pub mod traits;
 
 // ── Re-export shims for crates extracted to the workspace ────────────────────
@@ -157,6 +153,34 @@ pub mod order_book {
 /// Re-export of the [`cow_sdk_subgraph`] crate.
 pub mod subgraph {
     pub use cow_sdk_subgraph::*;
+}
+
+/// Flash loan orchestration helpers.
+///
+/// Re-export of the [`cow_sdk_flash_loans`] crate.
+pub mod flash_loans {
+    pub use cow_sdk_flash_loans::*;
+}
+
+/// `CoW` Protocol composable (conditional) orders.
+///
+/// Re-export of the [`cow_sdk_composable`] crate.
+pub mod composable {
+    pub use cow_sdk_composable::*;
+}
+
+/// Cross-chain bridge aggregator and provider abstractions.
+///
+/// Re-export of the [`cow_sdk_bridging`] crate.
+pub mod bridging {
+    pub use cow_sdk_bridging::*;
+}
+
+/// High-level trading SDK.
+///
+/// Re-export of the [`cow_sdk_trading`] crate.
+pub mod trading {
+    pub use cow_sdk_trading::*;
 }
 
 #[cfg_attr(

@@ -36,10 +36,13 @@
 )]
 
 pub mod api;
+pub mod client_trait;
 pub(crate) mod generated;
 pub mod quote_amounts;
 pub mod rate_limit;
 pub mod types;
+
+pub use client_trait::OrderbookClient;
 
 #[cfg(test)]
 mod wire_compat;

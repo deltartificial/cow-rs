@@ -483,7 +483,7 @@ fn pad_to(buf: &mut Vec<u8>, written: usize) {
 
 #[cfg(test)]
 mod tests {
-    use crate::composable::types::ProofLocation;
+    use crate::types::ProofLocation;
 
     use super::*;
 

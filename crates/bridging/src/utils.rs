@@ -1,16 +1,14 @@
 //! Bridging utility functions — token adaptation, fee math, provider resolution.
 
+use alloy_primitives::{Address, U256};
+use cow_sdk_chains::SupportedChainId;
+use cow_sdk_types::CowHook;
 use foldhash::{HashMap, HashSet};
 
-use alloy_primitives::{Address, U256};
-
 use crate::{
-    app_data::CowHook,
-    bridging::types::{BridgeError, MultiQuoteResult},
-    config::SupportedChainId,
+    sdk::HOOK_DAPP_BRIDGE_PROVIDER_PREFIX,
+    types::{BridgeError, MultiQuoteResult},
 };
-
-use super::sdk::HOOK_DAPP_BRIDGE_PROVIDER_PREFIX;
 
 // ── Fee / basis-point math ────────────────────────────────────────────────────
 
@@ -367,7 +365,7 @@ pub fn determine_intermediate_token(
         return Ok(candidates[0]);
     }
 
-    let native = crate::config::NATIVE_CURRENCY_ADDRESS;
+    let native = cow_sdk_chains::NATIVE_CURRENCY_ADDRESS;
 
     let filtered: Vec<Address> = if allow_intermediate_eq_sell {
         candidates.to_vec()
@@ -522,8 +520,7 @@ pub const fn is_better_error(
 ) -> bool {
     match (candidate, current_best) {
         (Some(c), Some(b)) => {
-            crate::bridging::types::bridge_error_priority(c) >
-                crate::bridging::types::bridge_error_priority(b)
+            crate::types::bridge_error_priority(c) > crate::types::bridge_error_priority(b)
         }
         (Some(_), None) => true,
         _ => false,
@@ -739,9 +736,7 @@ pub fn adapt_tokens(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::bridging::types::{
-        BridgeAmounts, BridgeCosts, BridgeQuoteAmountsAndCosts, BridgingFee,
-    };
+    use crate::types::{BridgeAmounts, BridgeCosts, BridgeQuoteAmountsAndCosts, BridgingFee};
 
     // ── apply_bps ────────────────────────────────────────────────────────────
 
