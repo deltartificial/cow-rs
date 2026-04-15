@@ -91,12 +91,17 @@ hack: ## Check feature powerset with cargo-hack.
 zepter: ## Check feature propagation with zepter.
 	zepter run check
 
+.PHONY: lint-layers
+lint-layers: ## Validate the workspace layer DAG (no cycles, no sibling deps).
+	python3 scripts/check-workspace-layers.py
+
 .PHONY: lint
-lint: ## Run ALL linters (fmt + clippy + typos + toml).
+lint: ## Run ALL linters (fmt + clippy + typos + toml + workspace layers).
 	$(MAKE) fmt && \
 	$(MAKE) clippy && \
 	$(MAKE) lint-typos && \
-	$(MAKE) lint-toml
+	$(MAKE) lint-toml && \
+	$(MAKE) lint-layers
 
 ##@ Test
 

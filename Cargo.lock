@@ -1254,9 +1254,6 @@ dependencies = [
 [[package]]
 name = "cow-sdk-graph"
 version = "0.1.1"
-dependencies = [
- "cow-sdk-http",
-]
 
 [[package]]
 name = "cow-sdk-http"

@@ -289,6 +289,22 @@ jobs:
       - run: cargo install cargo-fuzz
       - run: cargo fuzz build --fuzz-dir fuzz || echo "No fuzz targets yet - setup complete"
 
+  workspace-layers:
+    name: workspace layers
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Validate workspace layer DAG
+        run: python3 scripts/check-workspace-layers.py
+
   lint-success:
     name: lint success
     runs-on: ubuntu-latest
@@ -310,6 +326,7 @@ jobs:
       - riscv
       - no-test-deps
       - fuzzing
+      - workspace-layers
     timeout-minutes: 5
     steps:
       - uses: re-actors/alls-green@release/v1

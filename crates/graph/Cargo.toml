@@ -19,7 +19,9 @@ layer = 3
 doctest = false
 
 [dependencies]
-cow-sdk-http.workspace = true
+# No deps yet — placeholder crate. Will depend on `cow-sdk-http` once the
+# `GraphTransport` trait and query-envelope handling migrate here from
+# `cow-sdk-subgraph`.
 
 [lints]
 workspace = true
