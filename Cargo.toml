@@ -194,8 +194,12 @@ alloy-signer = "1"
 alloy-signer-local = "1"
 async-trait = "0.1"
 chrono = { version = "0.4", features = ["serde"] }
-# Internal crate
+# Internal crates
 cow-rs = { path = "crates/cow-rs", version = "0.1.1" }
+cow-sdk-chains = { path = "crates/chains", version = "0.1.1" }
+cow-sdk-error = { path = "crates/error", version = "0.1.1" }
+cow-sdk-primitives = { path = "crates/primitives", version = "0.1.1" }
+cow-sdk-types = { path = "crates/types", version = "0.1.1" }
 foldhash = { version = "0.2", features = ["std"] }
 futures = "0.3"
 getrandom = { version = "0.2", default-features = false }

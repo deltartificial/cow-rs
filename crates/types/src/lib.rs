@@ -1,6 +1,6 @@
-//! Shared primitive enums and constants used across all sub-modules.
+//! `cow-sdk-types` — Layer 1 protocol enums and shared types for the `CoW` Protocol SDK.
 //!
-//! # Enums
+//! This crate defines the protocol-level enums used across the workspace:
 //!
 //! | Enum | Purpose |
 //! |---|---|
@@ -10,61 +10,16 @@
 //! | [`EcdsaSigningScheme`] | ECDSA-only subset (`Eip712` / `EthSign`) |
 //! | [`PriceQuality`] | `Fast` / `Optimal` / `Verified` quote hint |
 //!
-//! # Constants
-//!
-//! | Constant | Value |
-//! |---|---|
-//! | [`ZERO_ADDRESS`] | `0x0000…0000` |
-//! | [`ONE_HUNDRED_BPS`] | `10_000` (100% in basis points) |
-//! | [`MAX_UINT256`] | `U256::MAX` |
+//! Numeric constants (`ZERO`, `ONE`, `MAX_UINT256`, ...) live in
+//! [`cow-sdk-primitives`](https://docs.rs/cow-sdk-primitives).
+
+#![deny(unsafe_code)]
+#![warn(missing_docs)]
 
 use std::fmt;
 
-use alloy_primitives::{Address, U256};
+use cow_sdk_error::CowError;
 use serde::{Deserialize, Serialize};
-
-// ── Common constants ──────────────────────────────────────���─────────────────
-
-/// The zero address (`0x0000…0000`).
-pub const ZERO_ADDRESS: Address = Address::ZERO;
-
-/// The 32-byte zero hash.
-pub const ZERO_HASH: &str = "0x0000000000000000000000000000000000000000000000000000000000000000";
-
-/// `U256` zero.
-pub const ZERO: U256 = U256::ZERO;
-
-/// `U256` one.
-pub const ONE: U256 = U256::from_limbs([1, 0, 0, 0]);
-
-/// Maximum `u32` value as a `U256` (2^32 - 1 = 4 294 967 295).
-pub const MAX_UINT32: U256 = U256::from_limbs([u32::MAX as u64, 0, 0, 0]);
-
-/// Maximum `U256` value (2^256 - 1).
-pub const MAX_UINT256: U256 = U256::MAX;
-
-/// Scale factor: 100 000.
-pub const HUNDRED_THOUSANDS: u64 = 100_000;
-
-/// One hundred basis points expressed as a `U256` (100 * 100 = 10 000).
-pub const ONE_HUNDRED_BPS: u64 = 10_000;
-
-/// Maximum concurrent requests to the `CoW` Protocol API.
-pub const LIMIT_CONCURRENT_REQUESTS: u32 = 5;
-
-/// Near Intents attestation prefix constant.
-pub const ATTESTATION_PREFIX_CONST: &str = "0x0a773570";
-
-/// Near Intents attestation version byte.
-pub const ATTESTION_VERSION_BYTE: &str = "0x00";
-
-/// Near Intents attestator address.
-///
-/// `0x0073DD100b51C555E41B2a452E5933ef76F42790`
-pub const ATTESTATOR_ADDRESS: Address = Address::new([
-    0x00, 0x73, 0xdd, 0x10, 0x0b, 0x51, 0xc5, 0x55, 0xe4, 0x1b, 0x2a, 0x45, 0x2e, 0x59, 0x33, 0xef,
-    0x76, 0xf4, 0x27, 0x90,
-]);
 
 /// Whether to sell an exact input amount or buy an exact output amount.
 ///
@@ -74,7 +29,7 @@ pub const ATTESTATOR_ADDRESS: Address = Address::new([
 /// # Example
 ///
 /// ```
-/// use cow_rs::OrderKind;
+/// use cow_sdk_types::OrderKind;
 ///
 /// let kind = OrderKind::Sell;
 /// assert_eq!(kind.as_str(), "sell");
@@ -106,7 +61,7 @@ impl OrderKind {
     /// Returns `true` if this is a sell order.
     ///
     /// ```
-    /// use cow_rs::OrderKind;
+    /// use cow_sdk_types::OrderKind;
     ///
     /// assert!(OrderKind::Sell.is_sell());
     /// assert!(!OrderKind::Buy.is_sell());
@@ -119,7 +74,7 @@ impl OrderKind {
     /// Returns `true` if this is a buy order.
     ///
     /// ```
-    /// use cow_rs::OrderKind;
+    /// use cow_sdk_types::OrderKind;
     ///
     /// assert!(OrderKind::Buy.is_buy());
     /// assert!(!OrderKind::Sell.is_buy());
@@ -145,7 +100,7 @@ impl fmt::Display for OrderKind {
 /// # Example
 ///
 /// ```
-/// use cow_rs::TokenBalance;
+/// use cow_sdk_types::TokenBalance;
 ///
 /// let balance = TokenBalance::Erc20;
 /// assert_eq!(balance.as_str(), "erc20");
@@ -233,7 +188,7 @@ impl fmt::Display for TokenBalance {
 /// # Example
 ///
 /// ```
-/// use cow_rs::SigningScheme;
+/// use cow_sdk_types::SigningScheme;
 ///
 /// let scheme = SigningScheme::Eip712;
 /// assert_eq!(scheme.as_str(), "eip712");
@@ -319,7 +274,7 @@ impl fmt::Display for SigningScheme {
 /// # Example
 ///
 /// ```
-/// use cow_rs::{EcdsaSigningScheme, SigningScheme};
+/// use cow_sdk_types::{EcdsaSigningScheme, SigningScheme};
 ///
 /// let ecdsa = EcdsaSigningScheme::Eip712;
 /// let full: SigningScheme = ecdsa.into();
@@ -400,7 +355,7 @@ impl From<EcdsaSigningScheme> for SigningScheme {
 /// # Example
 ///
 /// ```
-/// use cow_rs::PriceQuality;
+/// use cow_sdk_types::PriceQuality;
 ///
 /// let quality = PriceQuality::Optimal;
 /// assert_eq!(quality.as_str(), "optimal");
@@ -462,7 +417,7 @@ impl fmt::Display for PriceQuality {
 }
 
 impl TryFrom<&str> for OrderKind {
-    type Error = crate::error::CowError;
+    type Error = CowError;
 
     /// Parse a `CoW` Protocol order kind from its API string.
     ///
@@ -471,7 +426,7 @@ impl TryFrom<&str> for OrderKind {
         match s {
             "sell" => Ok(Self::Sell),
             "buy" => Ok(Self::Buy),
-            other => Err(crate::error::CowError::Parse {
+            other => Err(CowError::Parse {
                 field: "OrderKind",
                 reason: format!("unknown value: {other}"),
             }),
@@ -480,7 +435,7 @@ impl TryFrom<&str> for OrderKind {
 }
 
 impl TryFrom<&str> for TokenBalance {
-    type Error = crate::error::CowError;
+    type Error = CowError;
 
     /// Parse a `CoW` Protocol token balance kind from its API string.
     ///
@@ -490,7 +445,7 @@ impl TryFrom<&str> for TokenBalance {
             "erc20" => Ok(Self::Erc20),
             "external" => Ok(Self::External),
             "internal" => Ok(Self::Internal),
-            other => Err(crate::error::CowError::Parse {
+            other => Err(CowError::Parse {
                 field: "TokenBalance",
                 reason: format!("unknown value: {other}"),
             }),
@@ -499,7 +454,7 @@ impl TryFrom<&str> for TokenBalance {
 }
 
 impl TryFrom<&str> for SigningScheme {
-    type Error = crate::error::CowError;
+    type Error = CowError;
 
     /// Parse a `CoW` Protocol signing scheme from its API string.
     ///
@@ -510,7 +465,7 @@ impl TryFrom<&str> for SigningScheme {
             "ethsign" => Ok(Self::EthSign),
             "eip1271" => Ok(Self::Eip1271),
             "presign" => Ok(Self::PreSign),
-            other => Err(crate::error::CowError::Parse {
+            other => Err(CowError::Parse {
                 field: "SigningScheme",
                 reason: format!("unknown value: {other}"),
             }),
@@ -519,7 +474,7 @@ impl TryFrom<&str> for SigningScheme {
 }
 
 impl TryFrom<&str> for EcdsaSigningScheme {
-    type Error = crate::error::CowError;
+    type Error = CowError;
 
     /// Parse a `CoW` Protocol ECDSA signing scheme from its API string.
     ///
@@ -528,7 +483,7 @@ impl TryFrom<&str> for EcdsaSigningScheme {
         match s {
             "eip712" => Ok(Self::Eip712),
             "ethsign" => Ok(Self::EthSign),
-            other => Err(crate::error::CowError::Parse {
+            other => Err(CowError::Parse {
                 field: "EcdsaSigningScheme",
                 reason: format!("unknown value: {other}"),
             }),
@@ -537,7 +492,7 @@ impl TryFrom<&str> for EcdsaSigningScheme {
 }
 
 impl TryFrom<&str> for PriceQuality {
-    type Error = crate::error::CowError;
+    type Error = CowError;
 
     /// Parse a `CoW` Protocol price quality hint from its API string.
     ///
@@ -547,7 +502,7 @@ impl TryFrom<&str> for PriceQuality {
             "fast" => Ok(Self::Fast),
             "optimal" => Ok(Self::Optimal),
             "verified" => Ok(Self::Verified),
-            other => Err(crate::error::CowError::Parse {
+            other => Err(CowError::Parse {
                 field: "PriceQuality",
                 reason: format!("unknown value: {other}"),
             }),
@@ -584,9 +539,8 @@ mod tests {
     #[test]
     fn order_kind_roundtrip() {
         for kind in [OrderKind::Sell, OrderKind::Buy] {
-            let parsed = OrderKind::try_from(kind.as_str());
-            assert!(parsed.is_ok());
-            assert_eq!(parsed.unwrap_or_else(|_| OrderKind::Sell), kind);
+            let parsed = OrderKind::try_from(kind.as_str()).unwrap();
+            assert_eq!(parsed, kind);
         }
     }
 
@@ -599,9 +553,9 @@ mod tests {
 
     #[test]
     fn order_kind_serde_roundtrip() {
-        let json = serde_json::to_string(&OrderKind::Sell).unwrap_or_default();
+        let json = serde_json::to_string(&OrderKind::Sell).unwrap();
         assert_eq!(json, "\"sell\"");
-        let back: OrderKind = serde_json::from_str(&json).unwrap_or_else(|_| OrderKind::Buy);
+        let back: OrderKind = serde_json::from_str(&json).unwrap();
         assert_eq!(back, OrderKind::Sell);
     }
 
@@ -631,9 +585,8 @@ mod tests {
     #[test]
     fn token_balance_roundtrip() {
         for bal in [TokenBalance::Erc20, TokenBalance::External, TokenBalance::Internal] {
-            let parsed = TokenBalance::try_from(bal.as_str());
-            assert!(parsed.is_ok());
-            assert_eq!(parsed.unwrap_or_else(|_| TokenBalance::Erc20), bal);
+            let parsed = TokenBalance::try_from(bal.as_str()).unwrap();
+            assert_eq!(parsed, bal);
         }
     }
 
@@ -685,10 +638,7 @@ mod tests {
             SigningScheme::Eip1271,
             SigningScheme::PreSign,
         ] {
-            assert_eq!(
-                SigningScheme::try_from(s.as_str()).unwrap_or_else(|_| SigningScheme::Eip712),
-                s
-            );
+            assert_eq!(SigningScheme::try_from(s.as_str()).unwrap(), s);
         }
     }
 
@@ -732,11 +682,7 @@ mod tests {
     #[test]
     fn ecdsa_scheme_roundtrip() {
         for s in [EcdsaSigningScheme::Eip712, EcdsaSigningScheme::EthSign] {
-            assert_eq!(
-                EcdsaSigningScheme::try_from(s.as_str())
-                    .unwrap_or_else(|_| EcdsaSigningScheme::Eip712),
-                s
-            );
+            assert_eq!(EcdsaSigningScheme::try_from(s.as_str()).unwrap(), s);
         }
     }
 
@@ -775,10 +721,7 @@ mod tests {
     #[test]
     fn price_quality_roundtrip() {
         for q in [PriceQuality::Fast, PriceQuality::Optimal, PriceQuality::Verified] {
-            assert_eq!(
-                PriceQuality::try_from(q.as_str()).unwrap_or_else(|_| PriceQuality::Fast),
-                q
-            );
+            assert_eq!(PriceQuality::try_from(q.as_str()).unwrap(), q);
         }
     }
 
@@ -790,30 +733,5 @@ mod tests {
     #[test]
     fn price_quality_display() {
         assert_eq!(format!("{}", PriceQuality::Verified), "verified");
-    }
-
-    // ── Constants ────────────────────────────────────────────────────────
-
-    #[test]
-    fn constants_are_correct() {
-        assert!(ZERO_ADDRESS.is_zero());
-        assert_eq!(ZERO, U256::ZERO);
-        assert_eq!(ONE, U256::from(1));
-        assert_eq!(MAX_UINT32, U256::from(u32::MAX));
-        assert_eq!(MAX_UINT256, U256::MAX);
-        assert_eq!(ONE_HUNDRED_BPS, 10_000);
-        assert_eq!(HUNDRED_THOUSANDS, 100_000);
-        assert_eq!(LIMIT_CONCURRENT_REQUESTS, 5);
-    }
-
-    #[test]
-    fn zero_hash_is_correct_length() {
-        assert_eq!(ZERO_HASH.len(), 66); // "0x" + 64 hex chars
-        assert!(ZERO_HASH.starts_with("0x"));
-    }
-
-    #[test]
-    fn attestator_address_is_nonzero() {
-        assert!(!ATTESTATOR_ADDRESS.is_zero());
     }
 }

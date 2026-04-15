@@ -1,0 +1,27 @@
+[package]
+name = "cow-sdk-chains"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Per-chain configuration, contract addresses and canonical endpoints for the CoW Protocol."
+readme = "../../README.md"
+keywords = ["cow", "cowprotocol", "defi", "ethereum", "sdk"]
+categories = ["api-bindings", "cryptography::cryptocurrencies"]
+
+[package.metadata.workspace.layer]
+layer = 0
+
+[dependencies]
+alloy-primitives.workspace = true
+# `cow-sdk-error` is treated as infrastructure (like `tracing` or `serde`)
+# rather than a regular L0 sibling: any layer may depend on it.
+cow-sdk-error.workspace = true
+foldhash.workspace = true
+serde.workspace = true
+
+[lints]
+workspace = true

@@ -1,9 +1,11 @@
-//! Chain configuration, contract addresses, token constants, and executor
-//! params for the `CoW` Protocol SDK.
+//! `cow-sdk-chains` — Layer 0 chain configuration for the `CoW` Protocol SDK.
 //!
-//! This module centralises all deployment-specific knowledge: which chains are
-//! supported, where the protocol contracts live, what the native/wrapped tokens
-//! are, and how to reach the orderbook API.
+//! Centralises all deployment-specific knowledge: which chains are supported,
+//! where the protocol contracts live, what the native/wrapped tokens are, and
+//! how to reach the orderbook API.
+//!
+//! This crate sits at Layer 0 of the workspace DAG and has no dependencies on
+//! any other internal crate.
 //!
 //! # Submodules
 //!
@@ -14,6 +16,9 @@
 //! | [`contracts`] | Protocol contract addresses (`SETTLEMENT_CONTRACT`, `VAULT_RELAYER`, …), `CREATE2` helpers, EIP-1967 proxy slots |
 //! | [`tokens`] | Native/wrapped currency constants and per-chain [`TokenInfo`] |
 //! | [`params`] | [`CowSwapConfig`] executor configuration and [`TokenRegistry`] |
+
+#![deny(unsafe_code)]
+#![warn(missing_docs)]
 
 pub mod chain;
 pub mod chains;

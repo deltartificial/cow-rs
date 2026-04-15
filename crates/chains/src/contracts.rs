@@ -357,7 +357,7 @@ pub const fn extensible_fallback_handler_contract_address(_chain: SupportedChain
 /// # Example
 ///
 /// ```
-/// use cow_rs::config::contracts::deterministic_deployment_address;
+/// use cow_sdk_chains::contracts::deterministic_deployment_address;
 ///
 /// let addr = deterministic_deployment_address(&[0xfe], &[]);
 /// assert!(!addr.is_zero());
@@ -413,7 +413,7 @@ pub const OWNER_STORAGE_SLOT: &str =
 ///
 /// ```
 /// use alloy_primitives::Address;
-/// use cow_rs::config::contracts::implementation_address_slot;
+/// use cow_sdk_chains::contracts::implementation_address_slot;
 ///
 /// let proxy = Address::ZERO;
 /// let (addr, slot) = implementation_address_slot(proxy);
@@ -436,7 +436,7 @@ pub const fn implementation_address_slot(proxy: Address) -> (Address, &'static s
 ///
 /// ```
 /// use alloy_primitives::Address;
-/// use cow_rs::config::contracts::owner_address_slot;
+/// use cow_sdk_chains::contracts::owner_address_slot;
 ///
 /// let proxy = Address::ZERO;
 /// let (addr, slot) = owner_address_slot(proxy);

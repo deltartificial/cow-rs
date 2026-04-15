@@ -1,0 +1,28 @@
+[package]
+name = "cow-sdk-error"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Shared error type for the CoW Protocol SDK workspace."
+readme = "../../README.md"
+keywords = ["cow", "cowprotocol", "defi", "ethereum", "sdk"]
+categories = ["api-bindings", "cryptography::cryptocurrencies"]
+
+[package.metadata.workspace.layer]
+layer = 0
+
+# NOTE (workspace-split migration debt):
+# Per the architecture doc, Layer 0 crates must not depend on reqwest. This
+# crate currently exposes `CowError::Http(reqwest::Error)` for pragmatic
+# compatibility — splitting errors per domain (Rule 8) is planned in a later
+# phase once the transport crates are in place.
+[dependencies]
+reqwest = { workspace = true }
+thiserror.workspace = true
+
+[lints]
+workspace = true

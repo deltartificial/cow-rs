@@ -24,7 +24,7 @@ type TokenEntry = (Address, u8);
 ///
 /// ```
 /// use alloy_primitives::Address;
-/// use cow_rs::config::TokenRegistry;
+/// use cow_sdk_chains::TokenRegistry;
 ///
 /// let mut reg = TokenRegistry::new_with_decimals([
 ///     ("USDC", Address::ZERO, 6u8),
@@ -175,7 +175,7 @@ impl TokenRegistry {
     ///
     /// ```
     /// use alloy_primitives::Address;
-    /// use cow_rs::config::TokenRegistry;
+    /// use cow_sdk_chains::TokenRegistry;
     ///
     /// let reg = TokenRegistry::new_with_decimals([("USDC", Address::ZERO, 6u8)]);
     /// assert_eq!(reg.get_entry("USDC"), Some((Address::ZERO, 6)));
@@ -219,9 +219,9 @@ impl fmt::Display for TokenRegistry {
 ///
 /// ```
 /// use alloy_primitives::Address;
-/// use cow_rs::{
+/// use cow_sdk_chains::{
 ///     SupportedChainId,
-///     config::{CowSwapConfig, TokenRegistry},
+///     {CowSwapConfig, TokenRegistry},
 /// };
 ///
 /// let empty: Vec<(&str, Address)> = vec![];
@@ -451,9 +451,9 @@ impl CowSwapConfig {
     ///
     /// ```
     /// use alloy_primitives::{Address, address};
-    /// use cow_rs::{
+    /// use cow_sdk_chains::{
     ///     SupportedChainId,
-    ///     config::{CowSwapConfig, TokenRegistry},
+    ///     {CowSwapConfig, TokenRegistry},
     /// };
     ///
     /// let wallet = address!("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045");

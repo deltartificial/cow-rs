@@ -25,7 +25,7 @@ use serde::{Deserialize, Serialize};
 /// # Example
 ///
 /// ```
-/// use cow_rs::SupportedChainId;
+/// use cow_sdk_chains::SupportedChainId;
 ///
 /// let chain = SupportedChainId::try_from_u64(1).unwrap();
 /// assert_eq!(chain, SupportedChainId::Mainnet);
@@ -86,7 +86,7 @@ impl SupportedChainId {
     /// # Example
     ///
     /// ```
-    /// use cow_rs::SupportedChainId;
+    /// use cow_sdk_chains::SupportedChainId;
     ///
     /// assert_eq!(SupportedChainId::try_from_u64(1), Some(SupportedChainId::Mainnet));
     /// assert_eq!(SupportedChainId::try_from_u64(11155111), Some(SupportedChainId::Sepolia));
@@ -175,7 +175,7 @@ impl SupportedChainId {
     /// This is the logical complement of [`Self::is_testnet`].
     ///
     /// ```
-    /// use cow_rs::SupportedChainId;
+    /// use cow_sdk_chains::SupportedChainId;
     /// assert!(SupportedChainId::Mainnet.is_mainnet());
     /// assert!(!SupportedChainId::Sepolia.is_mainnet());
     /// ```
@@ -189,7 +189,7 @@ impl SupportedChainId {
     /// Currently includes Arbitrum One, Base, Linea, Ink, and Polygon.
     ///
     /// ```
-    /// use cow_rs::SupportedChainId;
+    /// use cow_sdk_chains::SupportedChainId;
     ///
     /// assert!(SupportedChainId::ArbitrumOne.is_layer2());
     /// assert!(SupportedChainId::Base.is_layer2());
@@ -245,7 +245,7 @@ impl SupportedChainId {
 /// # Example
 ///
 /// ```
-/// use cow_rs::{SupportedChainId, order_explorer_link};
+/// use cow_sdk_chains::{SupportedChainId, order_explorer_link};
 ///
 /// let url = order_explorer_link(SupportedChainId::Mainnet, "0xabc123...");
 /// assert!(url.starts_with("https://explorer.cow.fi/orders/"));
@@ -298,7 +298,7 @@ impl TryFrom<u64> for SupportedChainId {
 }
 
 impl TryFrom<&str> for SupportedChainId {
-    type Error = crate::CowError;
+    type Error = cow_sdk_error::CowError;
 
     /// Parse a [`SupportedChainId`] from the `CoW` Protocol API path segment.
     ///
@@ -319,7 +319,7 @@ impl TryFrom<&str> for SupportedChainId {
             "lens" => Ok(Self::Lens),
             "plasma" => Ok(Self::Plasma),
             "ink" => Ok(Self::Ink),
-            other => Err(crate::CowError::Parse {
+            other => Err(cow_sdk_error::CowError::Parse {
                 field: "SupportedChainId",
                 reason: format!("unknown chain: {other}"),
             }),
@@ -338,7 +338,7 @@ impl TryFrom<&str> for SupportedChainId {
 /// # Example
 ///
 /// ```
-/// use cow_rs::Env;
+/// use cow_sdk_chains::Env;
 ///
 /// let env = Env::Prod;
 /// assert!(env.is_prod());
@@ -370,7 +370,7 @@ impl Env {
     /// Returns all supported environments.
     ///
     /// ```
-    /// use cow_rs::Env;
+    /// use cow_sdk_chains::Env;
     /// assert_eq!(Env::all().len(), 2);
     /// ```
     #[must_use]
@@ -406,7 +406,7 @@ impl std::fmt::Display for Env {
 }
 
 impl TryFrom<&str> for Env {
-    type Error = crate::CowError;
+    type Error = cow_sdk_error::CowError;
 
     /// Parse an [`Env`] from its string label.
     ///
@@ -415,7 +415,7 @@ impl TryFrom<&str> for Env {
         match s {
             "prod" => Ok(Self::Prod),
             "staging" => Ok(Self::Staging),
-            other => Err(crate::CowError::Parse {
+            other => Err(cow_sdk_error::CowError::Parse {
                 field: "Env",
                 reason: format!("unknown env: {other}"),
             }),
@@ -461,7 +461,7 @@ pub const fn api_url(chain: SupportedChainId, env: Env) -> &'static str {
 /// # Example
 ///
 /// ```
-/// use cow_rs::{Env, SupportedChainId, api_base_url};
+/// use cow_sdk_chains::{Env, SupportedChainId, api_base_url};
 ///
 /// let url = api_base_url(SupportedChainId::Mainnet, Env::Prod);
 /// assert_eq!(url, "https://api.cow.fi/mainnet");

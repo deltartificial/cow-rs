@@ -48,6 +48,10 @@ alloy-signer.workspace = true
 alloy-signer-local.workspace = true
 async-trait.workspace = true
 chrono.workspace = true
+cow-sdk-chains.workspace = true
+cow-sdk-error.workspace = true
+cow-sdk-primitives.workspace = true
+cow-sdk-types.workspace = true
 foldhash.workspace = true
 futures.workspace = true
 getrandom = { workspace = true, optional = true }

@@ -1,13 +1,18 @@
-//! Error type for the `CoW` Protocol SDK.
+//! `cow-sdk-error` — shared error type for the `CoW` Protocol SDK.
 //!
-//! [`CowError`] is the unified error type used across all modules.
-//! Every fallible function in the SDK returns `Result<T, CowError>`.
+//! [`CowError`] is the unified error type used across the workspace.
+//! Every fallible function in the SDK currently returns `Result<T, CowError>`.
+//!
+//! Per architecture rule 8 (errors per-domain + aggregation), this crate is
+//! a migration stopgap: future phases will split `CowError` into per-crate
+//! error types (`SigningError`, `OrderbookError`, ...) and aggregate them
+//! via a façade-level `SdkError`.
 //!
 //! # Variants
 //!
 //! | Variant | When |
 //! |---|---|
-//! | [`UnknownAsset`](CowError::UnknownAsset) | Asset symbol not in [`TokenRegistry`](crate::config::TokenRegistry) |
+//! | [`UnknownAsset`](CowError::UnknownAsset) | Asset symbol not in the token registry |
 //! | [`Api`](CowError::Api) | Orderbook/subgraph returned non-2xx |
 //! | [`Http`](CowError::Http) | Network transport failure |
 //! | [`Signing`](CowError::Signing) | ECDSA / EIP-712 signing failure |
@@ -18,15 +23,17 @@
 //! | [`Config`](CowError::Config) | SDK configuration error |
 //! | [`ZeroQuantity`](CowError::ZeroQuantity) | Trade amount is zero |
 
+#![deny(unsafe_code)]
+#![warn(missing_docs)]
+
 /// Errors that can occur when interacting with the `CoW` Protocol SDK.
 ///
 /// This is the unified error type returned by every fallible function in
-/// the crate. Each variant carries enough context to produce a useful
-/// diagnostic message via its [`Display`](std::fmt::Display)
-/// implementation.
+/// the workspace. Each variant carries enough context to produce a useful
+/// diagnostic message via its [`Display`](std::fmt::Display) implementation.
 #[derive(Debug, thiserror::Error)]
 pub enum CowError {
-    /// The asset symbol is not in the [`TokenRegistry`](crate::config::TokenRegistry).
+    /// The asset symbol is not in the token registry.
     #[error("unknown asset: {0}")]
     UnknownAsset(String),
 

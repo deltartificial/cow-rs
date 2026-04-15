@@ -1,0 +1,22 @@
+[package]
+name = "cow-sdk-primitives"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Layer 0 foundational constants and primitive re-exports for the CoW Protocol SDK."
+readme = "../../README.md"
+keywords = ["cow", "cowprotocol", "defi", "ethereum", "sdk"]
+categories = ["api-bindings", "cryptography::cryptocurrencies"]
+
+[package.metadata.workspace.layer]
+layer = 0
+
+[dependencies]
+alloy-primitives.workspace = true
+
+[lints]
+workspace = true

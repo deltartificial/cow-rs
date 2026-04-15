@@ -52,10 +52,8 @@ pub mod app_data;
 pub mod bridging;
 pub mod common;
 pub mod composable;
-pub mod config;
 pub mod cow_shed;
 pub mod erc20;
-pub mod error;
 pub mod ethflow;
 pub mod flash_loans;
 pub mod onchain;
@@ -66,8 +64,40 @@ pub mod settlement;
 pub mod subgraph;
 pub mod trading;
 pub mod traits;
-pub mod types;
 pub mod weiroll;
+
+// ── Re-export shims for crates extracted to the workspace ────────────────────
+//
+// The layered crates live at `crates/primitives`, `crates/chains`, `crates/error`
+// and `crates/types`. We expose them as sub-modules of `cow_rs::` so downstream
+// users continue to use the familiar `cow_rs::config::...`, `cow_rs::error::...`
+// and `cow_rs::types::...` paths while the façade (`cow-sdk`) is being built.
+
+/// Chain configuration, contract addresses and endpoints.
+///
+/// Re-export of the [`cow_sdk_chains`] crate. The legacy `config` module
+/// name is kept for backwards compatibility until the `cow-sdk` façade
+/// replaces `cow-rs`.
+pub mod config {
+    pub use cow_sdk_chains::*;
+}
+
+/// Unified error type for the SDK.
+///
+/// Re-export of the [`cow_sdk_error`] crate.
+pub mod error {
+    pub use cow_sdk_error::*;
+}
+
+/// Protocol enums and primitive constants.
+///
+/// Re-export of [`cow_sdk_primitives`] (numeric constants, address helpers)
+/// and [`cow_sdk_types`] (protocol enums like [`OrderKind`], [`SigningScheme`],
+/// ...).
+pub mod types {
+    pub use cow_sdk_primitives::*;
+    pub use cow_sdk_types::*;
+}
 
 #[cfg_attr(
     feature = "wasm",
