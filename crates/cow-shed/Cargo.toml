@@ -1,0 +1,27 @@
+[package]
+name = "cow-sdk-cow-shed"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "CoW Shed hook framework helpers for the CoW Protocol SDK."
+readme = "../../README.md"
+keywords = ["cow", "cowprotocol", "defi", "ethereum", "sdk"]
+categories = ["api-bindings", "cryptography::cryptocurrencies"]
+
+[package.metadata.workspace.layer]
+layer = 2
+
+[lib]
+doctest = false
+
+[dependencies]
+alloy-primitives.workspace = true
+cow-sdk-error.workspace = true
+cow-sdk-types.workspace = true
+
+[lints]
+workspace = true

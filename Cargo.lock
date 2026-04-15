@@ -1042,10 +1042,18 @@ dependencies = [
  "alloy-signer-local",
  "async-trait",
  "chrono",
+ "cow-sdk-app-data",
  "cow-sdk-chains",
+ "cow-sdk-cow-shed",
+ "cow-sdk-erc20",
  "cow-sdk-error",
+ "cow-sdk-ethflow",
+ "cow-sdk-permit",
  "cow-sdk-primitives",
+ "cow-sdk-settlement",
+ "cow-sdk-signing",
  "cow-sdk-types",
+ "cow-sdk-weiroll",
  "foldhash 0.2.0",
  "futures",
  "getrandom 0.2.17",
@@ -1084,6 +1092,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "cow-sdk-app-data"
+version = "0.1.1"
+dependencies = [
+ "alloy-primitives",
+ "cow-sdk-error",
+ "cow-sdk-types",
+ "foldhash 0.2.0",
+ "jsonschema",
+ "reqwest",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "cow-sdk-chains"
 version = "0.1.1"
 dependencies = [
@@ -1091,6 +1113,22 @@ dependencies = [
  "cow-sdk-error",
  "foldhash 0.2.0",
  "serde",
+]
+
+[[package]]
+name = "cow-sdk-cow-shed"
+version = "0.1.1"
+dependencies = [
+ "alloy-primitives",
+ "cow-sdk-error",
+ "cow-sdk-types",
+]
+
+[[package]]
+name = "cow-sdk-erc20"
+version = "0.1.1"
+dependencies = [
+ "alloy-primitives",
 ]
 
 [[package]]
@@ -1102,10 +1140,61 @@ dependencies = [
 ]
 
 [[package]]
+name = "cow-sdk-ethflow"
+version = "0.1.1"
+dependencies = [
+ "alloy-primitives",
+ "cow-sdk-chains",
+ "cow-sdk-types",
+]
+
+[[package]]
+name = "cow-sdk-permit"
+version = "0.1.1"
+dependencies = [
+ "alloy-primitives",
+ "alloy-signer",
+ "alloy-signer-local",
+ "cow-sdk-error",
+ "cow-sdk-types",
+ "serde",
+ "tokio",
+]
+
+[[package]]
 name = "cow-sdk-primitives"
 version = "0.1.1"
 dependencies = [
  "alloy-primitives",
+]
+
+[[package]]
+name = "cow-sdk-settlement"
+version = "0.1.1"
+dependencies = [
+ "alloy-primitives",
+ "cow-sdk-chains",
+ "cow-sdk-error",
+ "cow-sdk-signing",
+ "cow-sdk-types",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "cow-sdk-signing"
+version = "0.1.1"
+dependencies = [
+ "alloy-primitives",
+ "alloy-signer",
+ "alloy-signer-local",
+ "cow-sdk-chains",
+ "cow-sdk-error",
+ "cow-sdk-types",
+ "foldhash 0.2.0",
+ "tokio",
 ]
 
 [[package]]
@@ -1116,6 +1205,14 @@ dependencies = [
  "cow-sdk-error",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "cow-sdk-weiroll"
+version = "0.1.1"
+dependencies = [
+ "alloy-primitives",
+ "cow-sdk-chains",
 ]
 
 [[package]]

@@ -1,0 +1,26 @@
+[package]
+name = "cow-sdk-weiroll"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Weiroll script builder and encoding for the CoW Protocol SDK."
+readme = "../../README.md"
+keywords = ["cow", "cowprotocol", "defi", "ethereum", "sdk"]
+categories = ["api-bindings", "cryptography::cryptocurrencies"]
+
+[package.metadata.workspace.layer]
+layer = 2
+
+[lib]
+doctest = false
+
+[dependencies]
+alloy-primitives.workspace = true
+cow-sdk-chains.workspace = true
+
+[lints]
+workspace = true

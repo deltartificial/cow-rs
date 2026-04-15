@@ -21,6 +21,117 @@ use std::fmt;
 use cow_sdk_error::CowError;
 use serde::{Deserialize, Serialize};
 
+// ── Shared protocol types pushed down from domain crates ────────────────────
+//
+// Types in this section used to live in higher-layer crates (app-data, order-
+// book) but were referenced from multiple L2 siblings and so had to be pushed
+// down to L1 to avoid cross-sibling dependencies.
+
+/// A single `CoW` Protocol pre- or post-settlement interaction hook.
+///
+/// Hooks are arbitrary contract calls that the `CoW` settlement contract
+/// executes before (`pre`) or after (`post`) the trade. Common use cases
+/// include token approvals, NFT transfers, and flash-loan repayments.
+///
+/// # Fields
+///
+/// * `target` — the contract address to call (`0x`-prefixed, 20 bytes).
+/// * `call_data` — ABI-encoded function selector + arguments (`0x`-prefixed).
+/// * `gas_limit` — maximum gas the hook may consume (decimal string).
+/// * `dapp_id` — optional identifier for the dApp that registered the hook.
+///
+/// # Example
+///
+/// ```
+/// use cow_sdk_types::CowHook;
+///
+/// let hook = CowHook::new("0x1234567890abcdef1234567890abcdef12345678", "0xabcdef00", "100000")
+///     .with_dapp_id("my-dapp");
+///
+/// assert!(hook.has_dapp_id());
+/// ```
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CowHook {
+    /// Target contract address (checksummed hex with `0x` prefix).
+    pub target: String,
+    /// ABI-encoded call data (hex with `0x` prefix).
+    pub call_data: String,
+    /// Maximum gas this hook may consume (decimal string, e.g. `"100000"`).
+    pub gas_limit: String,
+    /// Optional dApp identifier for the hook's origin.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dapp_id: Option<String>,
+}
+
+impl CowHook {
+    /// Construct a new [`CowHook`] without a dApp identifier.
+    #[must_use]
+    pub fn new(
+        target: impl Into<String>,
+        call_data: impl Into<String>,
+        gas_limit: impl Into<String>,
+    ) -> Self {
+        Self {
+            target: target.into(),
+            call_data: call_data.into(),
+            gas_limit: gas_limit.into(),
+            dapp_id: None,
+        }
+    }
+
+    /// Attach a dApp identifier to this hook.
+    #[must_use]
+    pub fn with_dapp_id(mut self, dapp_id: impl Into<String>) -> Self {
+        self.dapp_id = Some(dapp_id.into());
+        self
+    }
+
+    /// Returns `true` if a dApp identifier is set on this hook.
+    #[must_use]
+    pub const fn has_dapp_id(&self) -> bool {
+        self.dapp_id.is_some()
+    }
+}
+
+impl fmt::Display for CowHook {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "hook(target={}, gas={})", self.target, self.gas_limit)
+    }
+}
+
+/// On-chain placement metadata for orders submitted directly on-chain
+/// (as opposed to the off-chain API).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OnchainOrderData {
+    /// The address that created the on-chain order (may differ from `owner` for
+    /// `EthFlow` orders where the contract is the technical owner).
+    pub sender: alloy_primitives::Address,
+    /// Non-`None` when the orderbook rejected the order due to a placement error.
+    pub placement_error: Option<String>,
+}
+
+impl OnchainOrderData {
+    /// Construct an [`OnchainOrderData`] record.
+    #[must_use]
+    pub const fn new(sender: alloy_primitives::Address) -> Self {
+        Self { sender, placement_error: None }
+    }
+
+    /// Returns `true` if a placement error was reported for this on-chain order.
+    #[must_use]
+    pub const fn has_placement_error(&self) -> bool {
+        self.placement_error.is_some()
+    }
+}
+
+impl fmt::Display for OnchainOrderData {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "onchain(sender={:#x})", self.sender)
+    }
+}
+
 /// Whether to sell an exact input amount or buy an exact output amount.
 ///
 /// Used in every order and quote request to specify the trade direction.

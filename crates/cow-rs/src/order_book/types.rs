@@ -18,6 +18,11 @@ use crate::{
     types::{EcdsaSigningScheme, OrderKind, PriceQuality, SigningScheme, TokenBalance},
 };
 
+// `OnchainOrderData` has been pushed down to `cow-sdk-types` (L1) so that
+// `cow-sdk-ethflow` (L2) can reference it without depending on `order_book`
+// (L4). This module re-exports it for backwards compatibility.
+pub use cow_sdk_types::OnchainOrderData;
+
 // ── Quote ────────────────────────────────────────────────────────────────────
 
 /// Request body for `POST /api/v1/quote`.
@@ -450,44 +455,8 @@ impl fmt::Display for EthflowData {
     }
 }
 
-/// On-chain placement metadata for orders submitted directly on-chain
-/// (as opposed to the off-chain API).
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct OnchainOrderData {
-    /// The address that created the on-chain order (may differ from `owner` for
-    /// `EthFlow` orders where the contract is the technical owner).
-    pub sender: alloy_primitives::Address,
-    /// Non-`None` when the orderbook rejected the order due to a placement error.
-    pub placement_error: Option<String>,
-}
-impl OnchainOrderData {
-    /// Construct an [`OnchainOrderData`] record.
-    #[must_use]
-    pub const fn new(sender: alloy_primitives::Address) -> Self {
-        Self { sender, placement_error: None }
-    }
-
-    /// Returns `true` if a placement error was reported for this on-chain order.
-    ///
-    /// ```
-    /// use alloy_primitives::Address;
-    /// use cow_rs::order_book::OnchainOrderData;
-    ///
-    /// let data = OnchainOrderData::new(Address::ZERO);
-    /// assert!(!data.has_placement_error());
-    /// ```
-    #[must_use]
-    pub const fn has_placement_error(&self) -> bool {
-        self.placement_error.is_some()
-    }
-}
-
-impl fmt::Display for OnchainOrderData {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "onchain(sender={:#x})", self.sender)
-    }
-}
+// `OnchainOrderData` now lives in `cow-sdk-types`; see the `pub use` at
+// the top of this module for the re-export.
 
 // ── Order creation ────────────────────────────────────────────────────────────
 

@@ -219,10 +219,7 @@ impl fmt::Display for TokenRegistry {
 ///
 /// ```
 /// use alloy_primitives::Address;
-/// use cow_sdk_chains::{
-///     SupportedChainId,
-///     {CowSwapConfig, TokenRegistry},
-/// };
+/// use cow_sdk_chains::{CowSwapConfig, SupportedChainId, TokenRegistry};
 ///
 /// let empty: Vec<(&str, Address)> = vec![];
 /// let config = CowSwapConfig::prod(
@@ -451,10 +448,7 @@ impl CowSwapConfig {
     ///
     /// ```
     /// use alloy_primitives::{Address, address};
-    /// use cow_sdk_chains::{
-    ///     SupportedChainId,
-    ///     {CowSwapConfig, TokenRegistry},
-    /// };
+    /// use cow_sdk_chains::{CowSwapConfig, SupportedChainId, TokenRegistry};
     ///
     /// let wallet = address!("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045");
     /// let empty: Vec<(&str, Address)> = vec![];

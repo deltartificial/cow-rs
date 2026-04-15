@@ -1,0 +1,40 @@
+[package]
+name = "cow-sdk-app-data"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "App-data schema, validation, CID encoding and hook metadata for the CoW Protocol SDK."
+readme = "../../README.md"
+keywords = ["cow", "cowprotocol", "defi", "ethereum", "sdk"]
+categories = ["api-bindings", "cryptography::cryptocurrencies"]
+
+[package.metadata.workspace.layer]
+layer = 2
+
+[lib]
+doctest = false
+
+[features]
+default = ["schema-validation"]
+# Enable runtime JSON schema validation via `jsonschema`.
+schema-validation = ["dep:jsonschema"]
+
+[dependencies]
+alloy-primitives.workspace = true
+cow-sdk-error.workspace = true
+cow-sdk-types.workspace = true
+foldhash.workspace = true
+jsonschema = { workspace = true, optional = true }
+# NOTE (workspace-split migration debt): `ipfs.rs` uses `reqwest` directly.
+# This transport concern will be moved to a dedicated `cow-sdk-ipfs` (L4)
+# crate in a later phase.
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

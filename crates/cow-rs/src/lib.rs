@@ -48,23 +48,16 @@
 #![deny(unsafe_code)]
 #![warn(missing_docs)]
 
-pub mod app_data;
 pub mod bridging;
 pub mod common;
 pub mod composable;
-pub mod cow_shed;
-pub mod erc20;
-pub mod ethflow;
 pub mod flash_loans;
 pub mod onchain;
 pub mod order_book;
-pub mod order_signing;
-pub mod permit;
 pub mod settlement;
 pub mod subgraph;
 pub mod trading;
 pub mod traits;
-pub mod weiroll;
 
 // ── Re-export shims for crates extracted to the workspace ────────────────────
 //
@@ -97,6 +90,55 @@ pub mod error {
 pub mod types {
     pub use cow_sdk_primitives::*;
     pub use cow_sdk_types::*;
+}
+
+/// ERC-20 and EIP-2612 calldata builders.
+///
+/// Re-export of the [`cow_sdk_erc20`] crate.
+pub mod erc20 {
+    pub use cow_sdk_erc20::*;
+}
+
+/// `EthFlow` native-currency order encoding.
+///
+/// Re-export of the [`cow_sdk_ethflow`] crate.
+pub mod ethflow {
+    pub use cow_sdk_ethflow::*;
+}
+
+/// Weiroll script builder and encoding.
+///
+/// Re-export of the [`cow_sdk_weiroll`] crate.
+pub mod weiroll {
+    pub use cow_sdk_weiroll::*;
+}
+
+/// `CoW` Shed proxy contract helpers.
+///
+/// Re-export of the [`cow_sdk_cow_shed`] crate.
+pub mod cow_shed {
+    pub use cow_sdk_cow_shed::*;
+}
+
+/// EIP-712 order signing, EIP-1271, and `OrderUid` computation.
+///
+/// Re-export of the [`cow_sdk_signing`] crate.
+pub mod order_signing {
+    pub use cow_sdk_signing::*;
+}
+
+/// EIP-2612 permit utilities.
+///
+/// Re-export of the [`cow_sdk_permit`] crate.
+pub mod permit {
+    pub use cow_sdk_permit::*;
+}
+
+/// `CoW` Protocol order app-data — metadata schema and hash generation.
+///
+/// Re-export of the [`cow_sdk_app_data`] crate.
+pub mod app_data {
+    pub use cow_sdk_app_data::*;
 }
 
 #[cfg_attr(
