@@ -6,8 +6,6 @@
 [![test](https://img.shields.io/github/actions/workflow/status/deltartificial/cow-rs/test.yml?branch=main&label=test&logo=github)](https://github.com/deltartificial/cow-rs/actions/workflows/test.yml)
 [![bench](https://img.shields.io/github/actions/workflow/status/deltartificial/cow-rs/bench.yml?branch=main&label=bench&logo=github)](https://github.com/deltartificial/cow-rs/actions/workflows/bench.yml)
 [![codecov](https://codecov.io/gh/deltartificial/cow-rs/graph/badge.svg)](https://codecov.io/gh/deltartificial/cow-rs)
-[![msrv](https://img.shields.io/badge/msrv-1.93-blue?logo=rust)](#minimum-supported-rust-version)
-[![license](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue)](#license)
 
 A standalone Rust SDK for the [CoW Protocol](https://cow.fi), the intent-based
 DEX aggregator that settles trades through batch auctions with MEV protection.
@@ -20,6 +18,11 @@ conditional orders (TWAP, stop-loss), on-chain reads via `eth_call`, subgraph
 queries, EIP-2612 permits, ethflow, bridging, CowShed hooks, flash loans and
 Weiroll scripts.
 
+The SDK is split into a layered workspace of 25 `cow-*` crates with strict
+layer boundaries (L0 primitives → L6 façade). Depend on `cow-rs` for the
+batteries-included façade, or pick individual `cow-*` crates for tighter
+tree-shaking and smaller build graphs. See [Architecture](#architecture).
+
 It runs natively and compiles to WebAssembly for use in the browser.
 
 ## Table of Contents
@@ -28,15 +31,13 @@ It runs natively and compiles to WebAssembly for use in the browser.
 - [Supported Chains](#supported-chains)
 - [Installation](#installation)
 - [Quick Start](#quick-start)
-- [Modules](#modules)
+- [Workspace Crates](#workspace-crates)
 - [Examples](#examples)
 - [Feature Flags](#feature-flags)
 - [WebAssembly](#webassembly)
 - [Architecture](#architecture)
 - [Development](#development)
-- [Minimum Supported Rust Version](#minimum-supported-rust-version)
 - [Contributing](#contributing)
-- [License](#license)
 
 ## Overview
 
@@ -67,10 +68,13 @@ from Rust:
 | BNB Chain    | `56`       | Mainnet |
 | Sepolia      | `11155111` | Testnet |
 
-See [`SupportedChainId`](https://docs.rs/cow-rs/latest/cow_rs/config/enum.SupportedChainId.html)
+See [`SupportedChainId`](https://docs.rs/cow-chains/latest/cow_chains/enum.SupportedChainId.html)
 for the authoritative list.
 
 ## Installation
+
+The easiest way is to depend on the `cow-rs` façade — it re-exports every
+layered crate under one entry point:
 
 ```toml
 [dependencies]
@@ -78,6 +82,21 @@ cow-rs = "0.1"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 alloy-primitives = "1"
 ```
+
+If you only need part of the SDK you can pick the individual crates
+directly. For example, a frontend that just needs to sign orders and talk
+to the orderbook:
+
+```toml
+[dependencies]
+cow-chains = "0.1"
+cow-orderbook = "0.1"
+cow-signing = "0.1"
+cow-trading = "0.1"
+cow-types = "0.1"
+```
+
+See [Workspace Crates](#workspace-crates) for the full list.
 
 ## Quick Start
 
@@ -150,26 +169,37 @@ println!("expected out: {}", quote.amounts_and_costs.after_slippage.buy_amount);
 # }
 ```
 
-## Modules
+## Workspace Crates
 
-| Module           | Purpose                                                          |
-| ---------------- | ---------------------------------------------------------------- |
-| `config`         | Chain IDs, contract addresses, token constants                   |
-| `order_book`     | Orderbook HTTP client and API types                              |
-| `order_signing`  | EIP-712 digest and ECDSA signing                                 |
-| `trading`        | High-level `TradingSdk` and fee-breakdown types                  |
-| `app_data`       | Order metadata schema and keccak256 hashing                      |
-| `subgraph`       | Historical trading data via GraphQL                              |
-| `composable`     | Conditional orders (TWAP, GAT, stop-loss) and Merkle multiplexer |
-| `onchain`        | On-chain reading via JSON-RPC `eth_call`                         |
-| `permit`         | EIP-2612 permit signing and hook building                        |
-| `ethflow`        | Native ETH order flow                                            |
-| `bridging`       | Cross-chain bridging                                             |
-| `erc20`          | ERC-20 calldata encoding                                         |
-| `weiroll`        | Weiroll scripting for batch operations                           |
-| `cow_shed`       | CowShed hook framework                                           |
-| `flash_loans`    | Flash loan integration                                           |
-| `browser_wallet` | Wallet bridge for WASM targets                                   |
+The workspace is a layered DAG: a crate on layer `N` may only depend on
+crates on strictly lower layers (enforced in CI via
+`scripts/check-workspace-layers.py`). The façade `cow-rs` sits at the top
+and re-exports everything.
+
+| Layer | Crate                | Purpose                                                           |
+| ----- | -------------------- | ----------------------------------------------------------------- |
+| L0    | `cow-errors`         | Unified `CowError` — workspace infrastructure                     |
+| L0    | `cow-primitives`     | Numeric constants, zero addresses                                 |
+| L0    | `cow-chains`         | Chain IDs, contract addresses, canonical endpoints                |
+| L1    | `cow-types`          | Protocol types (`OrderKind`, `SigningScheme`, `UnsignedOrder`, …) |
+| L2    | `cow-signing`        | EIP-712 signing, `OrderUid` computation                           |
+| L2    | `cow-app-data`       | Order metadata schema and `keccak256` hashing                     |
+| L2    | `cow-permit`         | EIP-2612 permit signing and hook building                         |
+| L2    | `cow-erc20`          | ERC-20 and EIP-2612 calldata builders                             |
+| L2    | `cow-ethflow`        | Native ETH order flow                                             |
+| L2    | `cow-weiroll`        | Weiroll scripting for batch operations                            |
+| L2    | `cow-shed`           | CowShed hook framework                                            |
+| L2    | `cow-settlement`     | Settlement encoder, simulator, vault helpers                      |
+| L3    | `cow-http`           | HTTP transport: rate limiter, retry policy                        |
+| L4    | `cow-orderbook`      | Orderbook REST API client (OpenAPI-generated)                     |
+| L4    | `cow-subgraph`       | Historical trading data via GraphQL                               |
+| L4    | `cow-onchain`        | JSON-RPC `eth_call` reader                                        |
+| L5    | `cow-trading`        | High-level `TradingSdk` and fee-breakdown types                   |
+| L5    | `cow-composable`     | Conditional orders (TWAP, GAT, stop-loss) and Merkle multiplexer  |
+| L5    | `cow-bridging`       | Cross-chain bridging                                              |
+| L5    | `cow-flash-loans`    | Flash loan integration                                            |
+| L6    | `cow-browser-wallet` | EIP-1193 browser wallet adapter and WASM bindings                 |
+| L6    | `cow-rs`             | Façade re-exporting every layered crate                           |
 
 Generated API docs live on [docs.rs](https://docs.rs/cow-rs).
 
@@ -226,22 +256,48 @@ bridge so the signing step can be delegated to an injected provider
 
 ## Architecture
 
-Single-crate workspace. All public API lives in `crates/cow-rs`; the repo
-ships additional members for examples and fuzz targets:
+Multi-crate layered workspace. The SDK is split into 25 `cow-*` crates
+organised as a strict DAG (Layer 0 → Layer 6), plus the `cow-rs` façade
+that re-exports every layer:
 
 ```
 cow-rs/
 ├── crates/
-│   └── cow-rs/        # the SDK itself
+│   ├── errors/          # L0 — unified CowError
+│   ├── primitives/      # L0 — numeric constants, zero addresses
+│   ├── chains/          # L0 — chain IDs, contracts, endpoints
+│   ├── types/           # L1 — OrderKind, SigningScheme, UnsignedOrder, …
+│   ├── signing/         # L2 — EIP-712 signing, OrderUid
+│   ├── app-data/        # L2 — metadata schema + keccak256 hashing
+│   ├── permit/          # L2 — EIP-2612 permit signing
+│   ├── erc20/           # L2 — ERC-20 calldata
+│   ├── ethflow/         # L2 — native ETH order flow
+│   ├── weiroll/         # L2 — weiroll script builder
+│   ├── cow-shed/        # L2 — CowShed hook framework
+│   ├── settlement/      # L2 — encoder, simulator, vault helpers
+│   ├── http/            # L3 — rate limiter, retry policy
+│   ├── orderbook/       # L4 — OpenAPI-generated REST client
+│   ├── subgraph/        # L4 — GraphQL client
+│   ├── onchain/         # L4 — eth_call reader
+│   ├── trading/         # L5 — high-level TradingSdk
+│   ├── composable/      # L5 — TWAP, stop-loss, Merkle multiplexer
+│   ├── bridging/        # L5 — cross-chain bridging
+│   ├── flash-loans/     # L5 — flash loan integration
+│   ├── browser-wallet/  # L6 — EIP-1193 adapter + WASM bindings
+│   ├── cow-rs/          # L6 — façade re-exporting every layer
+│   └── …                # infra crates: graph, ipfs, testing, contracts-abi
 ├── examples/
-│   ├── native/        # cargo examples (tokio)
-│   └── wasm/          # browser example
-├── fuzz/              # cargo-fuzz targets
-├── scripts/           # spec fetchers and conformance maintainer
-└── docs/adr/          # architecture decision records
+│   ├── native/          # cargo examples (tokio)
+│   └── wasm/            # browser example
+├── fuzz/                # cargo-fuzz targets
+├── scripts/             # spec fetchers, layer DAG checker, conformance tools
+└── docs/adr/            # architecture decision records
 ```
 
-Design notes and trade-offs are recorded as ADRs in [`docs/adr`](./docs/adr).
+Layer rules are enforced in CI via `scripts/check-workspace-layers.py`:
+a crate at layer `N` may only depend on crates at strictly lower layers,
+and two crates on the same layer may not depend on each other. Design
+notes and trade-offs are recorded as ADRs in [`docs/adr`](./docs/adr).
 
 ## Development
 
@@ -261,11 +317,6 @@ Conformance tests replay fixtures produced by the TypeScript SDK to guarantee
 byte-for-byte parity on signing and encoding. See
 [`crates/cow-rs/specs/`](./crates/cow-rs/specs).
 
-## Minimum Supported Rust Version
-
-The MSRV is **1.93**. It is enforced in CI and will only be bumped in a
-minor release, never in a patch.
-
 ## Contributing
 
 Contributions are welcome. Before opening a PR:
@@ -284,11 +335,3 @@ Bug reports and feature requests go to
 [GitHub issues](https://github.com/deltartificial/cow-rs/issues). For protocol
 questions, the [CoW Protocol docs](https://docs.cow.fi) and
 [Discord](https://discord.gg/cowprotocol) are the right places to look.
-
-## License
-
-Licensed under either of [Apache License, Version 2.0](LICENSE-APACHE) or
-[MIT License](LICENSE-MIT), at your option. Unless you explicitly state
-otherwise, any contribution intentionally submitted for inclusion in this
-crate, as defined in the Apache-2.0 license, shall be dual-licensed as above,
-without any additional terms or conditions.
