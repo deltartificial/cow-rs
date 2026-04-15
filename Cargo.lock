@@ -1256,6 +1256,7 @@ dependencies = [
  "cow-errors",
  "cow-ethflow",
  "cow-flash-loans",
+ "cow-http",
  "cow-onchain",
  "cow-orderbook",
  "cow-permit",
@@ -1295,32 +1296,6 @@ dependencies = [
  "alloy-signer-local",
  "cow-rs",
  "tokio",
-]
-
-[[package]]
-name = "cow-sdk"
-version = "0.1.1"
-dependencies = [
- "cow-app-data",
- "cow-bridging",
- "cow-chains",
- "cow-composable",
- "cow-erc20",
- "cow-errors",
- "cow-ethflow",
- "cow-flash-loans",
- "cow-http",
- "cow-onchain",
- "cow-orderbook",
- "cow-permit",
- "cow-primitives",
- "cow-settlement",
- "cow-shed",
- "cow-signing",
- "cow-subgraph",
- "cow-trading",
- "cow-types",
- "cow-weiroll",
 ]
 
 [[package]]

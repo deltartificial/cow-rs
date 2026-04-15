@@ -1,17 +1,32 @@
-//! `cow-rs` — Rust SDK for the `CoW` Protocol.
+//! `cow-rs` — Rust SDK for the `CoW` Protocol (façade crate).
 //!
-//! Organised into sub-modules mirroring the `TypeScript` SDK packages:
+//! This is the Layer 6 façade of the workspace — it re-exports every
+//! layered `cow-*` crate under one ergonomic entry point and contains no
+//! logic of its own. Users who want tighter tree-shaking can depend on
+//! the individual `cow-*` crates directly.
 //!
-//! | Module | Purpose |
-//! |--------|---------|
-//! | [`config`] | Chain IDs, contract addresses, token constants |
-//! | [`order_book`] | Orderbook HTTP client and API types |
-//! | [`order_signing`] | `EIP-712` digest and ECDSA signing |
-//! | [`trading`] | High-level [`TradingSdk`] and fee-breakdown types |
-//! | [`app_data`] | Order metadata schema and `keccak256` hashing |
-//! | [`subgraph`] | Historical trading data via `GraphQL` |
-//! | [`composable`] | Conditional orders (`TWAP`) and Merkle multiplexer |
-//! | [`onchain`] | On-chain reading via JSON-RPC `eth_call` |
+//! Two naming conventions are exposed in parallel:
+//!
+//! - **Clean layered names** aligned with the architecture doc ([`chains`], [`signing`],
+//!   [`orderbook`], [`primitives`], [`http`], ...)
+//! - **Legacy module names** kept for backwards compatibility with pre-split call sites
+//!   ([`config`], [`order_signing`], [`order_book`], ...)
+//!
+//! Both forms reach the same underlying crates.
+//!
+//! | Layer | Clean name | Legacy alias | Crate |
+//! |---|---|---|---|
+//! | L0 | [`primitives`] | — | [`cow_primitives`] |
+//! | L0 | [`chains`] | [`config`] | [`cow_chains`] |
+//! | L0 | [`error`] | — | [`cow_errors`] |
+//! | L1 | [`types`] | — | [`cow_types`] |
+//! | L2 | [`signing`] | [`order_signing`] | [`cow_signing`] |
+//! | L2 | [`app_data`] | — | [`cow_app_data`] |
+//! | L2 | [`permit`], [`erc20`], [`ethflow`], [`weiroll`], [`cow_shed`], [`settlement`] | — | respective `cow-*` crates |
+//! | L3 | [`http`] | — | [`cow_http`] |
+//! | L4 | [`orderbook`] | [`order_book`] | [`cow_orderbook`] |
+//! | L4 | [`subgraph`], [`onchain`] | — | respective `cow-*` crates |
+//! | L5 | [`trading`], [`composable`], [`bridging`], [`flash_loans`] | — | respective `cow-*` crates |
 //!
 //! # Quick start — `TradingSdk`
 //!
@@ -52,12 +67,33 @@ pub mod common;
 pub mod settlement;
 pub mod traits;
 
-// ── Re-export shims for crates extracted to the workspace ────────────────────
+// ── Clean layered re-exports (primary API) ───────────────────────────────────
 //
-// The layered crates live at `crates/primitives`, `crates/chains`, `crates/error`
-// and `crates/types`. We expose them as sub-modules of `cow_rs::` so downstream
-// users continue to use the familiar `cow_rs::config::...`, `cow_rs::error::...`
-// and `cow_rs::types::...` paths while the façade (`cow-sdk`) is being built.
+// These aliases match the workspace architecture doc and are the recommended
+// way to reference the layered crates from downstream code:
+//
+//     use cow_rs::{chains::SupportedChainId, signing::sign_order, orderbook::OrderBookApi};
+
+/// Numeric constants and zero addresses (L0).
+pub use cow_primitives as primitives;
+
+/// HTTP transport primitives: rate limiter, retry policy (L3).
+pub use cow_http as http;
+
+/// Per-chain configuration, contract addresses and canonical endpoints (L0).
+pub use cow_chains as chains;
+
+/// EIP-712 signing, `OrderUid` computation (L2).
+pub use cow_signing as signing;
+
+/// Orderbook REST API client (L4).
+pub use cow_orderbook as orderbook;
+
+// ── Legacy module shims (kept for backwards compatibility) ───────────────────
+//
+// These modules preserve the pre-split naming so downstream code and the
+// legacy integration tests continue to compile unchanged. Prefer the clean
+// layered names above for new code.
 
 /// Chain configuration, contract addresses and endpoints.
 ///
@@ -358,3 +394,18 @@ pub use weiroll::{
     WeirollScript, create_weiroll_contract, create_weiroll_delegate_call, create_weiroll_library,
     define_read_only, get_static,
 };
+
+// ── Prelude ────────────────────────────────────────────────────────────────
+
+/// Curated prelude of the most commonly used items.
+///
+/// `use cow_rs::prelude::*;` pulls in the handful of types needed for
+/// 90 % of trading flows without having to remember which crate owns
+/// which symbol.
+pub mod prelude {
+    pub use cow_chains::{Env, SupportedChainId};
+    pub use cow_errors::CowError;
+    pub use cow_orderbook::OrderBookApi;
+    pub use cow_trading::{TradeParameters, TradingSdk, TradingSdkConfig};
+    pub use cow_types::{OrderKind, SigningScheme, TokenBalance};
+}

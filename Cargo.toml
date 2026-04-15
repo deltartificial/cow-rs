@@ -213,7 +213,6 @@ cow-ipfs = { path = "crates/ipfs", version = "0.1.1" }
 cow-onchain = { path = "crates/onchain", version = "0.1.1" }
 cow-orderbook = { path = "crates/orderbook", version = "0.1.1" }
 cow-permit = { path = "crates/permit", version = "0.1.1" }
-cow-sdk = { path = "crates/sdk", version = "0.1.1" }
 cow-primitives = { path = "crates/primitives", version = "0.1.1" }
 cow-settlement = { path = "crates/settlement", version = "0.1.1" }
 cow-signing = { path = "crates/signing", version = "0.1.1" }

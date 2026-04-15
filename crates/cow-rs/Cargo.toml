@@ -58,6 +58,7 @@ cow-erc20.workspace = true
 cow-errors.workspace = true
 cow-ethflow.workspace = true
 cow-flash-loans.workspace = true
+cow-http.workspace = true
 cow-onchain.workspace = true
 cow-orderbook.workspace = true
 cow-permit.workspace = true
