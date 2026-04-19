@@ -803,8 +803,8 @@ impl HookBridgeProvider for BungeeProvider {
 
     /// Sign the bridge post-hook.
     ///
-    /// **Not yet implemented** — requires [`CowShedSdk::sign_hook`] from
-    /// cow-rs PR #5.
+    /// **Not yet implemented** — requires the `cow-shed` `sign_hook`
+    /// helper from cow-rs PR #5.
     fn get_signed_hook<'a>(
         &'a self,
         _chain_id: SupportedChainId,
@@ -1012,5 +1012,43 @@ mod bungee_provider_trait_tests {
         assert_eq!(provider.info().name, default.name);
         assert_eq!(provider.info().dapp_id, default.dapp_id);
         assert_eq!(provider.info().provider_type, default.provider_type);
+    }
+
+    // ── HookBridgeProvider stubs ────────────────────────────────────────
+
+    #[tokio::test]
+    async fn get_unsigned_bridge_call_returns_pr4_stub_error() {
+        let provider = test_provider();
+        let req = sample_request();
+        let quote = QuoteBridgeResponse {
+            provider: "bungee".into(),
+            sell_amount: U256::from(100u64),
+            buy_amount: U256::from(99u64),
+            fee_amount: U256::ZERO,
+            estimated_secs: 0,
+            bridge_hook: None,
+        };
+        let err = provider.get_unsigned_bridge_call(&req, &quote).await.unwrap_err();
+        assert!(matches!(err, CowError::Api { status: 0, ref body } if body.contains("PR #4")));
+    }
+
+    #[tokio::test]
+    async fn get_signed_hook_returns_pr4_stub_error() {
+        let provider = test_provider();
+        let signer: PrivateKeySigner =
+            "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80".parse().unwrap();
+        let call = cow_chains::EvmCall { to: Address::ZERO, data: vec![], value: U256::ZERO };
+        let err = provider
+            .get_signed_hook(SupportedChainId::Mainnet, &call, "0", 0, 0, &signer)
+            .await
+            .unwrap_err();
+        assert!(matches!(err, CowError::Api { status: 0, ref body } if body.contains("PR #4")));
+    }
+
+    #[tokio::test]
+    async fn default_gas_limit_estimation_matches_helper() {
+        let provider = test_provider();
+        let gas = provider.get_gas_limit_estimation_for_hook(true, Some(1000), None).await.unwrap();
+        assert_eq!(gas, crate::utils::get_gas_limit_estimation_for_hook(true, Some(1000), None));
     }
 }

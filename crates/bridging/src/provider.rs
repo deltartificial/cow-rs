@@ -268,7 +268,7 @@ pub trait HookBridgeProvider: BridgeProvider {
     ///
     /// Mirrors `getSignedHook(chainId, unsignedCall, bridgeHookNonce, deadline,
     /// hookGasLimit, signer)` from the `TypeScript` SDK. Typically delegates
-    /// to `CowShedSdk::sign_hook` once PR #5 lands.
+    /// to the `cow-shed` `sign_hook` helper once PR #5 lands.
     #[allow(clippy::too_many_arguments, reason = "1:1 mirror of the TS signature")]
     fn get_signed_hook<'a>(
         &'a self,
@@ -703,6 +703,28 @@ mod tests {
         assert!(hook.recipient.is_empty());
     }
 
+    #[tokio::test]
+    async fn fake_hook_provider_bridge_provider_surface_is_callable() {
+        let provider = FakeHookProvider { info: fake_info() };
+        assert!(provider.supports_route(1, 10));
+        assert_eq!(provider.info().dapp_id, "cow-sdk://bridging/providers/fake");
+        assert!(provider.get_networks().await.unwrap().is_empty());
+        let tokens = provider
+            .get_buy_tokens(BuyTokensParams {
+                sell_chain_id: 1,
+                buy_chain_id: 10,
+                sell_token_address: None,
+            })
+            .await
+            .unwrap();
+        assert!(tokens.tokens.is_empty());
+        assert!(provider.get_intermediate_tokens(&sample_request()).await.unwrap().is_empty());
+        let order = cow_orderbook::api::mock_get_order(&format!("0x{}", "aa".repeat(56)));
+        assert!(provider.get_bridging_params(1, &order, B256::ZERO, None).await.unwrap().is_none());
+        assert!(provider.get_explorer_url("x").is_empty());
+        assert_eq!(provider.get_status("x", 1).await.unwrap().status, BridgeStatus::Unknown);
+    }
+
     // ── ReceiverAccountBridgeProvider ───────────────────────────────────
 
     struct FakeReceiverProvider {
@@ -777,19 +799,44 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn receiver_provider_returns_deposit_address() {
-        let info = BridgeProviderInfo {
+    fn fake_receiver_info() -> BridgeProviderInfo {
+        BridgeProviderInfo {
             name: "rcv".into(),
             logo_url: String::new(),
             dapp_id: "cow-sdk://bridging/providers/rcv".into(),
             website: String::new(),
             provider_type: BridgeProviderType::ReceiverAccountBridgeProvider,
-        };
-        let provider = FakeReceiverProvider { info };
+        }
+    }
+
+    #[tokio::test]
+    async fn receiver_provider_returns_deposit_address() {
+        let provider = FakeReceiverProvider { info: fake_receiver_info() };
         let req = sample_request();
         let quote = provider.get_quote(&req).await.unwrap();
         let addr = provider.get_bridge_receiver_override(&req, &quote).await.unwrap();
         assert_eq!(addr, "near-deposit-address");
+    }
+
+    #[tokio::test]
+    async fn fake_receiver_provider_bridge_provider_surface_is_callable() {
+        let provider = FakeReceiverProvider { info: fake_receiver_info() };
+        assert!(provider.supports_route(1, 1_000_000_000));
+        assert!(provider.info().is_receiver_account_bridge_provider());
+        assert!(provider.get_networks().await.unwrap().is_empty());
+        let tokens = provider
+            .get_buy_tokens(BuyTokensParams {
+                sell_chain_id: 1,
+                buy_chain_id: 1_000_000_000,
+                sell_token_address: None,
+            })
+            .await
+            .unwrap();
+        assert!(tokens.tokens.is_empty());
+        assert!(provider.get_intermediate_tokens(&sample_request()).await.unwrap().is_empty());
+        let order = cow_orderbook::api::mock_get_order(&format!("0x{}", "bb".repeat(56)));
+        assert!(provider.get_bridging_params(1, &order, B256::ZERO, None).await.unwrap().is_none());
+        assert!(provider.get_explorer_url("dep").is_empty());
+        assert_eq!(provider.get_status("dep", 1).await.unwrap().status, BridgeStatus::Unknown);
     }
 }
