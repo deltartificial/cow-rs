@@ -14,14 +14,58 @@
 )]
 //! Unit tests for the bridging module.
 
-use alloy_primitives::{U256, address};
+use alloy_primitives::{Address, B256, U256, address};
+use cow_orderbook::types::Order;
 use cow_rs::{
     CowError,
     bridging::{
-        BridgeProvider, BridgingSdk, QuoteBridgeRequest, QuoteBridgeResponse,
-        provider::QuoteFuture, types::BridgeError,
+        BridgeProvider, BridgeProviderInfo, BridgeProviderType, BridgeStatus, BridgeStatusResult,
+        BridgingSdk, BuyTokensParams, GetProviderBuyTokens, QuoteBridgeRequest,
+        QuoteBridgeResponse,
+        provider::{
+            BridgeStatusFuture, BridgingParamsFuture, BuyTokensFuture, IntermediateTokensFuture,
+            NetworksFuture, QuoteFuture,
+        },
+        types::BridgeError,
     },
 };
+
+fn dummy_provider_info(name: &str) -> BridgeProviderInfo {
+    BridgeProviderInfo {
+        name: name.to_owned(),
+        logo_url: String::new(),
+        dapp_id: format!("cow-sdk://bridging/providers/{name}"),
+        website: String::new(),
+        provider_type: BridgeProviderType::HookBridgeProvider,
+    }
+}
+
+fn unimpl_networks<'a>() -> NetworksFuture<'a> {
+    Box::pin(async { Ok(Vec::new()) })
+}
+
+fn unimpl_buy_tokens<'a>(info: BridgeProviderInfo) -> BuyTokensFuture<'a> {
+    Box::pin(async move { Ok(GetProviderBuyTokens { provider_info: info, tokens: vec![] }) })
+}
+
+fn unimpl_intermediate_tokens<'a>() -> IntermediateTokensFuture<'a> {
+    Box::pin(async { Ok(Vec::new()) })
+}
+
+fn unimpl_bridging_params<'a>() -> BridgingParamsFuture<'a> {
+    Box::pin(async { Ok(None) })
+}
+
+fn unimpl_status<'a>() -> BridgeStatusFuture<'a> {
+    Box::pin(async {
+        Ok(BridgeStatusResult {
+            status: BridgeStatus::Unknown,
+            fill_time_in_seconds: None,
+            deposit_tx_hash: None,
+            fill_tx_hash: None,
+        })
+    })
+}
 
 fn sample_request() -> QuoteBridgeRequest {
     QuoteBridgeRequest {
@@ -59,9 +103,9 @@ fn bridging_sdk_with_bungee_has_one_provider() {
 #[test]
 fn bridging_sdk_add_provider_increments_count() {
     let mut sdk = BridgingSdk::new();
-    sdk.add_provider(DummyProvider);
+    sdk.add_provider(DummyProvider::default());
     assert_eq!(sdk.provider_count(), 1);
-    sdk.add_provider(DummyProvider);
+    sdk.add_provider(DummyProvider::default());
     assert_eq!(sdk.provider_count(), 2);
 }
 
@@ -122,7 +166,7 @@ async fn bridging_sdk_get_best_quote_no_providers_returns_error() {
 #[tokio::test]
 async fn bridging_sdk_get_best_quote_all_fail_returns_no_quote() {
     let mut sdk = BridgingSdk::new();
-    sdk.add_provider(FailingProvider);
+    sdk.add_provider(FailingProvider::default());
     let result = sdk.get_best_quote(&sample_request()).await;
     assert!(matches!(result, Err(BridgeError::NoQuote)));
 }
@@ -133,7 +177,7 @@ async fn bridging_sdk_get_best_quote_all_fail_returns_no_quote() {
 #[tokio::test]
 async fn bridging_sdk_get_all_quotes_returns_one_per_provider() {
     let mut sdk = BridgingSdk::new();
-    sdk.add_provider(DummyProvider);
+    sdk.add_provider(DummyProvider::default());
     let results = sdk.get_all_quotes(&sample_request()).await;
     assert_eq!(results.len(), 1);
 }
@@ -141,15 +185,38 @@ async fn bridging_sdk_get_all_quotes_returns_one_per_provider() {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 /// A test provider that always succeeds.
-struct DummyProvider;
+struct DummyProvider {
+    info: BridgeProviderInfo,
+}
+
+impl Default for DummyProvider {
+    fn default() -> Self {
+        Self { info: dummy_provider_info("dummy") }
+    }
+}
 
 impl BridgeProvider for DummyProvider {
-    fn name(&self) -> &str {
-        "dummy"
+    fn info(&self) -> &BridgeProviderInfo {
+        &self.info
     }
 
     fn supports_route(&self, _sell_chain: u64, _buy_chain: u64) -> bool {
         true
+    }
+
+    fn get_networks<'a>(&'a self) -> NetworksFuture<'a> {
+        unimpl_networks()
+    }
+
+    fn get_buy_tokens<'a>(&'a self, _params: BuyTokensParams) -> BuyTokensFuture<'a> {
+        unimpl_buy_tokens(self.info.clone())
+    }
+
+    fn get_intermediate_tokens<'a>(
+        &'a self,
+        _request: &'a QuoteBridgeRequest,
+    ) -> IntermediateTokensFuture<'a> {
+        unimpl_intermediate_tokens()
     }
 
     fn get_quote<'a>(&'a self, req: &'a QuoteBridgeRequest) -> QuoteFuture<'a> {
@@ -165,22 +232,89 @@ impl BridgeProvider for DummyProvider {
             })
         })
     }
+
+    fn get_bridging_params<'a>(
+        &'a self,
+        _chain_id: u64,
+        _order: &'a Order,
+        _tx_hash: B256,
+        _settlement_override: Option<Address>,
+    ) -> BridgingParamsFuture<'a> {
+        unimpl_bridging_params()
+    }
+
+    fn get_explorer_url(&self, bridging_id: &str) -> String {
+        format!("https://example.com/dummy/{bridging_id}")
+    }
+
+    fn get_status<'a>(
+        &'a self,
+        _bridging_id: &'a str,
+        _origin_chain_id: u64,
+    ) -> BridgeStatusFuture<'a> {
+        unimpl_status()
+    }
 }
 
 /// A test provider that always fails.
-struct FailingProvider;
+struct FailingProvider {
+    info: BridgeProviderInfo,
+}
+
+impl Default for FailingProvider {
+    fn default() -> Self {
+        Self { info: dummy_provider_info("failing") }
+    }
+}
 
 impl BridgeProvider for FailingProvider {
-    fn name(&self) -> &str {
-        "failing"
+    fn info(&self) -> &BridgeProviderInfo {
+        &self.info
     }
 
     fn supports_route(&self, _sell_chain: u64, _buy_chain: u64) -> bool {
         true
     }
 
+    fn get_networks<'a>(&'a self) -> NetworksFuture<'a> {
+        unimpl_networks()
+    }
+
+    fn get_buy_tokens<'a>(&'a self, _params: BuyTokensParams) -> BuyTokensFuture<'a> {
+        unimpl_buy_tokens(self.info.clone())
+    }
+
+    fn get_intermediate_tokens<'a>(
+        &'a self,
+        _request: &'a QuoteBridgeRequest,
+    ) -> IntermediateTokensFuture<'a> {
+        unimpl_intermediate_tokens()
+    }
+
     fn get_quote<'a>(&'a self, _req: &'a QuoteBridgeRequest) -> QuoteFuture<'a> {
         Box::pin(async { Err(CowError::Api { status: 500, body: "error".to_owned() }) })
+    }
+
+    fn get_bridging_params<'a>(
+        &'a self,
+        _chain_id: u64,
+        _order: &'a Order,
+        _tx_hash: B256,
+        _settlement_override: Option<Address>,
+    ) -> BridgingParamsFuture<'a> {
+        unimpl_bridging_params()
+    }
+
+    fn get_explorer_url(&self, bridging_id: &str) -> String {
+        format!("https://example.com/failing/{bridging_id}")
+    }
+
+    fn get_status<'a>(
+        &'a self,
+        _bridging_id: &'a str,
+        _origin_chain_id: u64,
+    ) -> BridgeStatusFuture<'a> {
+        unimpl_status()
     }
 }
 

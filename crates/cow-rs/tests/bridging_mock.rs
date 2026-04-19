@@ -1107,6 +1107,13 @@ fn decode_bungee_bridge_tx_data_only_route_id_no_selector() {
 struct MockProvider {
     buy_amount: U256,
     should_fail: bool,
+    info: cow_rs::bridging::BridgeProviderInfo,
+}
+
+impl MockProvider {
+    fn new(buy_amount: U256, should_fail: bool) -> Self {
+        Self { buy_amount, should_fail, info: mock_info("mock") }
+    }
 }
 
 impl std::fmt::Debug for MockProvider {
@@ -1115,13 +1122,55 @@ impl std::fmt::Debug for MockProvider {
     }
 }
 
+fn mock_info(name: &str) -> cow_rs::bridging::BridgeProviderInfo {
+    cow_rs::bridging::BridgeProviderInfo {
+        name: name.to_owned(),
+        logo_url: String::new(),
+        dapp_id: format!("cow-sdk://bridging/providers/{name}"),
+        website: String::new(),
+        provider_type: cow_rs::bridging::BridgeProviderType::HookBridgeProvider,
+    }
+}
+
+fn mock_unimpl_status<'a>() -> cow_rs::bridging::provider::BridgeStatusFuture<'a> {
+    Box::pin(async {
+        Ok(cow_rs::bridging::BridgeStatusResult {
+            status: cow_rs::bridging::BridgeStatus::Unknown,
+            fill_time_in_seconds: None,
+            deposit_tx_hash: None,
+            fill_tx_hash: None,
+        })
+    })
+}
+
 impl BridgeProvider for MockProvider {
-    fn name(&self) -> &str {
-        "mock"
+    fn info(&self) -> &cow_rs::bridging::BridgeProviderInfo {
+        &self.info
     }
 
     fn supports_route(&self, _sell_chain: u64, _buy_chain: u64) -> bool {
         true
+    }
+
+    fn get_networks<'a>(&'a self) -> cow_rs::bridging::provider::NetworksFuture<'a> {
+        Box::pin(async { Ok(Vec::new()) })
+    }
+
+    fn get_buy_tokens<'a>(
+        &'a self,
+        _params: cow_rs::bridging::BuyTokensParams,
+    ) -> cow_rs::bridging::provider::BuyTokensFuture<'a> {
+        let info = self.info.clone();
+        Box::pin(async move {
+            Ok(cow_rs::bridging::GetProviderBuyTokens { provider_info: info, tokens: vec![] })
+        })
+    }
+
+    fn get_intermediate_tokens<'a>(
+        &'a self,
+        _request: &'a QuoteBridgeRequest,
+    ) -> cow_rs::bridging::provider::IntermediateTokensFuture<'a> {
+        Box::pin(async { Ok(Vec::new()) })
     }
 
     fn get_quote<'a>(&'a self, req: &'a QuoteBridgeRequest) -> QuoteFuture<'a> {
@@ -1141,9 +1190,39 @@ impl BridgeProvider for MockProvider {
             })
         })
     }
+
+    fn get_bridging_params<'a>(
+        &'a self,
+        _chain_id: u64,
+        _order: &'a cow_orderbook::types::Order,
+        _tx_hash: alloy_primitives::B256,
+        _settlement_override: Option<alloy_primitives::Address>,
+    ) -> cow_rs::bridging::provider::BridgingParamsFuture<'a> {
+        Box::pin(async { Ok(None) })
+    }
+
+    fn get_explorer_url(&self, bridging_id: &str) -> String {
+        format!("https://example.com/mock/{bridging_id}")
+    }
+
+    fn get_status<'a>(
+        &'a self,
+        _bridging_id: &'a str,
+        _origin_chain_id: u64,
+    ) -> cow_rs::bridging::provider::BridgeStatusFuture<'a> {
+        mock_unimpl_status()
+    }
 }
 
-struct UnsupportedProvider;
+struct UnsupportedProvider {
+    info: cow_rs::bridging::BridgeProviderInfo,
+}
+
+impl Default for UnsupportedProvider {
+    fn default() -> Self {
+        Self { info: mock_info("unsupported") }
+    }
+}
 
 impl std::fmt::Debug for UnsupportedProvider {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -1152,24 +1231,67 @@ impl std::fmt::Debug for UnsupportedProvider {
 }
 
 impl BridgeProvider for UnsupportedProvider {
-    fn name(&self) -> &str {
-        "unsupported"
+    fn info(&self) -> &cow_rs::bridging::BridgeProviderInfo {
+        &self.info
     }
 
     fn supports_route(&self, _sell_chain: u64, _buy_chain: u64) -> bool {
         false
     }
 
+    fn get_networks<'a>(&'a self) -> cow_rs::bridging::provider::NetworksFuture<'a> {
+        Box::pin(async { Ok(Vec::new()) })
+    }
+
+    fn get_buy_tokens<'a>(
+        &'a self,
+        _params: cow_rs::bridging::BuyTokensParams,
+    ) -> cow_rs::bridging::provider::BuyTokensFuture<'a> {
+        let info = self.info.clone();
+        Box::pin(async move {
+            Ok(cow_rs::bridging::GetProviderBuyTokens { provider_info: info, tokens: vec![] })
+        })
+    }
+
+    fn get_intermediate_tokens<'a>(
+        &'a self,
+        _request: &'a QuoteBridgeRequest,
+    ) -> cow_rs::bridging::provider::IntermediateTokensFuture<'a> {
+        Box::pin(async { Ok(Vec::new()) })
+    }
+
     fn get_quote<'a>(&'a self, _req: &'a QuoteBridgeRequest) -> QuoteFuture<'a> {
         Box::pin(async { unreachable!() })
+    }
+
+    fn get_bridging_params<'a>(
+        &'a self,
+        _chain_id: u64,
+        _order: &'a cow_orderbook::types::Order,
+        _tx_hash: alloy_primitives::B256,
+        _settlement_override: Option<alloy_primitives::Address>,
+    ) -> cow_rs::bridging::provider::BridgingParamsFuture<'a> {
+        Box::pin(async { Ok(None) })
+    }
+
+    fn get_explorer_url(&self, bridging_id: &str) -> String {
+        format!("https://example.com/unsupported/{bridging_id}")
+    }
+
+    fn get_status<'a>(
+        &'a self,
+        _bridging_id: &'a str,
+        _origin_chain_id: u64,
+    ) -> cow_rs::bridging::provider::BridgeStatusFuture<'a> {
+        mock_unimpl_status()
     }
 }
 
 #[tokio::test]
 async fn sdk_get_best_quote_returns_highest_buy_amount() {
     let mut sdk = BridgingSdk::new();
-    sdk.add_provider(MockProvider { buy_amount: U256::from(100u64), should_fail: false });
-    sdk.add_provider(MockProvider { buy_amount: U256::from(200u64), should_fail: false });
+    sdk.add_provider(MockProvider::new(U256::from(100u64), false));
+    sdk.add_provider(MockProvider::new(U256::from(200u64), false));
 
     let req = sample_request();
     let best = sdk.get_best_quote(&req).await.unwrap();
@@ -1179,8 +1301,8 @@ async fn sdk_get_best_quote_returns_highest_buy_amount() {
 #[tokio::test]
 async fn sdk_get_best_quote_skips_failed_providers() {
     let mut sdk = BridgingSdk::new();
-    sdk.add_provider(MockProvider { buy_amount: U256::from(100u64), should_fail: false });
-    sdk.add_provider(MockProvider { buy_amount: U256::ZERO, should_fail: true });
+    sdk.add_provider(MockProvider::new(U256::from(100u64), false));
+    sdk.add_provider(MockProvider::new(U256::ZERO, true));
 
     let req = sample_request();
     let best = sdk.get_best_quote(&req).await.unwrap();
@@ -1198,7 +1320,7 @@ async fn sdk_get_best_quote_returns_no_providers_error() {
 #[tokio::test]
 async fn sdk_get_best_quote_returns_no_quote_when_all_fail() {
     let mut sdk = BridgingSdk::new();
-    sdk.add_provider(MockProvider { buy_amount: U256::ZERO, should_fail: true });
+    sdk.add_provider(MockProvider::new(U256::ZERO, true));
 
     let req = sample_request();
     let result = sdk.get_best_quote(&req).await;
@@ -1208,7 +1330,7 @@ async fn sdk_get_best_quote_returns_no_quote_when_all_fail() {
 #[tokio::test]
 async fn sdk_get_best_quote_returns_no_providers_when_none_support_route() {
     let mut sdk = BridgingSdk::new();
-    sdk.add_provider(UnsupportedProvider);
+    sdk.add_provider(UnsupportedProvider::default());
 
     let req = sample_request();
     let result = sdk.get_best_quote(&req).await;
@@ -1218,8 +1340,8 @@ async fn sdk_get_best_quote_returns_no_providers_when_none_support_route() {
 #[tokio::test]
 async fn sdk_get_all_quotes_returns_both_successes_and_errors() {
     let mut sdk = BridgingSdk::new();
-    sdk.add_provider(MockProvider { buy_amount: U256::from(100u64), should_fail: false });
-    sdk.add_provider(MockProvider { buy_amount: U256::ZERO, should_fail: true });
+    sdk.add_provider(MockProvider::new(U256::from(100u64), false));
+    sdk.add_provider(MockProvider::new(U256::ZERO, true));
 
     let req = sample_request();
     let results = sdk.get_all_quotes(&req).await;
@@ -2379,7 +2501,7 @@ fn get_cross_chain_order_returns_error_for_empty_logs() {
 #[tokio::test]
 async fn sdk_get_all_quotes_empty_for_unsupported_providers() {
     let mut sdk = BridgingSdk::new();
-    sdk.add_provider(UnsupportedProvider);
+    sdk.add_provider(UnsupportedProvider::default());
 
     let req = sample_request();
     let results = sdk.get_all_quotes(&req).await;
