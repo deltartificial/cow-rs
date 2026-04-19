@@ -578,7 +578,49 @@ impl TradingSdk {
     /// Returns [`CowError`] if the orderbook API request fails or the response
     /// cannot be parsed.
     pub async fn get_quote(&self, params: TradeParameters) -> Result<QuoteResults, CowError> {
-        get_quote_impl(&self.config, &self.api, &self.signer, params, None).await
+        get_quote_impl(&self.config, &self.api, self.signer.address(), params, None).await
+    }
+
+    /// Fetch a quote for an arbitrary `owner` address without using the SDK signer.
+    ///
+    /// Mirrors `TradingSdk.getQuoteOnly` from the `TypeScript` SDK. Useful for
+    /// building UIs that preview swap quotes before the user connects a wallet
+    /// — the returned [`QuoteResults`] describe the trade but are not signed.
+    ///
+    /// # Arguments
+    ///
+    /// * `owner` — the account address the quote is computed for.
+    /// * `params` — the trade parameters (tokens, amount, direction, etc.).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`CowError`] if the orderbook API request fails or the response
+    /// cannot be parsed.
+    pub async fn get_quote_only(
+        &self,
+        owner: Address,
+        params: TradeParameters,
+    ) -> Result<QuoteResults, CowError> {
+        get_quote_impl(&self.config, &self.api, owner, params, None).await
+    }
+
+    /// Fetch a quote with advanced settings for an arbitrary `owner` address,
+    /// without using the SDK signer.
+    ///
+    /// See [`get_quote_only`](Self::get_quote_only) for the signer-less flow;
+    /// this variant additionally accepts [`SwapAdvancedSettings`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`CowError`] if the orderbook API request fails or the response
+    /// cannot be parsed.
+    pub async fn get_quote_only_with_settings(
+        &self,
+        owner: Address,
+        params: TradeParameters,
+        settings: &SwapAdvancedSettings,
+    ) -> Result<QuoteResults, CowError> {
+        get_quote_impl(&self.config, &self.api, owner, params, Some(settings)).await
     }
 
     /// Sign and submit an order from a previously obtained [`QuoteResults`].
@@ -660,7 +702,7 @@ impl TradingSdk {
         params: TradeParameters,
         settings: &SwapAdvancedSettings,
     ) -> Result<QuoteResults, CowError> {
-        get_quote_impl(&self.config, &self.api, &self.signer, params, Some(settings)).await
+        get_quote_impl(&self.config, &self.api, self.signer.address(), params, Some(settings)).await
     }
 
     /// Fetch a quote and immediately sign + submit the order, with advanced overrides.
@@ -690,7 +732,8 @@ impl TradingSdk {
         settings: &SwapAdvancedSettings,
     ) -> Result<OrderPostingResult, CowError> {
         let quote =
-            get_quote_impl(&self.config, &self.api, &self.signer, params, Some(settings)).await?;
+            get_quote_impl(&self.config, &self.api, self.signer.address(), params, Some(settings))
+                .await?;
         post_order_impl(&self.config, &self.api, &self.signer, &quote, None).await
     }
 
@@ -931,7 +974,8 @@ impl TradingSdk {
         &self,
         params: TradeParameters,
     ) -> Result<LimitTradeParameters, CowError> {
-        let quote = get_quote_impl(&self.config, &self.api, &self.signer, params, None).await?;
+        let quote =
+            get_quote_impl(&self.config, &self.api, self.signer.address(), params, None).await?;
         let costs = &quote.amounts_and_costs;
         let order = &quote.order_to_sign;
         Ok(LimitTradeParameters {
@@ -2552,14 +2596,19 @@ pub async fn post_sell_native_currency_order(
 // ── Implementation helpers ────────────────────────────────────────────────────
 
 /// Shared implementation for quote fetching used by all `get_quote*` methods.
+///
+/// The quote only needs the trader's address, so this helper takes an explicit
+/// `owner` rather than a signer. Callers that already have a signer simply pass
+/// `signer.address()`; callers that do not (e.g. pre-connect wallet previews)
+/// pass the target account directly — mirroring `getQuoteOnly` / `getQuote`
+/// from the `TypeScript` SDK.
 async fn get_quote_impl(
     config: &TradingSdkConfig,
     api: &OrderBookApi,
-    signer: &PrivateKeySigner,
+    owner: Address,
     params: TradeParameters,
     settings: Option<&SwapAdvancedSettings>,
 ) -> Result<QuoteResults, CowError> {
-    let owner = signer.address();
     // Override priority: settings → params → config
     let slippage_bps = settings
         .and_then(|s| s.slippage_bps)
@@ -2877,6 +2926,35 @@ pub async fn get_quote_raw(
     api.get_quote(req).await
 }
 
+/// Fetch a full [`QuoteResults`] for an arbitrary `owner` address — no signer required.
+///
+/// Free-function equivalent of [`TradingSdk::get_quote_only`], mirroring the
+/// `getQuoteWithoutSigner` export introduced in the `TypeScript` SDK.
+/// Useful for UIs that preview quotes before the user connects a wallet, or
+/// for read-only integrations that never sign orders.
+///
+/// # Arguments
+///
+/// * `config` — SDK configuration (chain, app code, environment, etc.).
+/// * `api` — the orderbook client to use.
+/// * `owner` — the account address the quote is computed for.
+/// * `params` — the trade parameters.
+/// * `settings` — optional advanced swap settings.
+///
+/// # Errors
+///
+/// Returns [`CowError`] if the orderbook API request fails or the response
+/// cannot be parsed.
+pub async fn get_quote_without_signer(
+    config: &TradingSdkConfig,
+    api: &OrderBookApi,
+    owner: Address,
+    params: TradeParameters,
+    settings: Option<&SwapAdvancedSettings>,
+) -> Result<QuoteResults, CowError> {
+    get_quote_impl(&Arc::new(config.clone()), &Arc::new(api.clone()), owner, params, settings).await
+}
+
 // ── Signer / trader resolution ──────────────────────────────────────────────
 
 /// Resolve a signer from an optional hex private key.
@@ -3016,7 +3094,7 @@ pub async fn get_quote_with_signer(
     let result = get_quote_impl(
         &Arc::new(config.clone()),
         &Arc::new(api.clone()),
-        &Arc::new(signer.clone()),
+        signer.address(),
         params,
         settings,
     )
