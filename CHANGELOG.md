@@ -2,16 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased] - 2026-04-15
+## [0.2.0] - 2026-04-19
 
 ### Bug Fixes
 
 - _(ci)_ Green all post-split workflows (#49) ([`74dedb4`](https://github.com/deltartificial/cow-rs/commit/74dedb4cfb5298c65114eb7c04566c12f2d295ec))
+- _(ci)_ Reorder orderbook build/dev-dependencies to satisfy cargo-sort (#52) ([`895f9f7`](https://github.com/deltartificial/cow-rs/commit/895f9f77e2da91f056f0839904875afa0db0c9c7))
 
 ### Documentation
 
 - _(changelog)_ Regenerate for v0.1.1 via git-cliff ([`ba26e32`](https://github.com/deltartificial/cow-rs/commit/ba26e3213e0efc5c06949b43e2c13e5d26cc9dd8))
 - _(changelog)_ Use underscore italics to match dprint markdown style ([`2d8f6ba`](https://github.com/deltartificial/cow-rs/commit/2d8f6ba9fa03e9167894c3c98ca3f4ebff7842d6))
+- Refresh README and changelog for multi-crate workspace (#51) ([`81845b1`](https://github.com/deltartificial/cow-rs/commit/81845b121d4d642d4d3f3429b2be4077174f8003))
+
+### Features
+
+- [**breaking**] Sync TS SDK parity through cow-sdk@a5207e0d (#54) ([`c5c0c5c`](https://github.com/deltartificial/cow-rs/commit/c5c0c5cd7cc0487529bec7103ec0b6a457f11302))
+
+### Miscellaneous
+
+- _(release)_ Publish workspace 0.1.2 to crates.io (#53) ([`4e79ff4`](https://github.com/deltartificial/cow-rs/commit/4e79ff405efe38775cf46c7494aad7b8a4d49b8c))
 
 ### Refactor
 
