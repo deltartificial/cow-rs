@@ -26,19 +26,22 @@ pub mod contracts;
 pub mod params;
 pub mod tokens;
 
-pub use chain::{Env, SupportedChainId, api_base_url, api_url, order_explorer_link};
+pub use chain::{
+    Env, PARTNER_PROD_BASE_URL, PARTNER_STAGING_BASE_URL, SupportedChainId, api_base_url, api_url,
+    order_explorer_link, partner_api_base_url,
+};
 pub use chains::{
     AdditionalTargetChainId, AddressPerChain, ApiBaseUrls, ApiContext, ChainContract,
     ChainContracts, ChainInfo, ChainRpcUrls, ChainTokenInfo, EvmCall, EvmChainInfo, EvmChains,
     IpfsConfig, NonEvmChainInfo, NonEvmChains, ProtocolOptions, RAW_CHAINS_FILES_PATH,
     RAW_FILES_PATH, TOKEN_LIST_IMAGES_PATH, TargetChainId, ThemedImage, WebUrl,
     additional_target_chain_info, all_additional_target_chain_ids, all_additional_target_chains,
-    all_chain_ids, all_chains, all_supported_chain_ids, all_supported_chains, get_chain_info,
-    is_additional_target_chain, is_btc_chain, is_chain_deprecated, is_chain_under_development,
-    is_evm_chain, is_evm_chain_info, is_non_evm_chain, is_non_evm_chain_info, is_supported_chain,
-    is_target_chain_id, is_zk_sync_chain, map_address_to_supported_networks, map_all_networks,
-    map_supported_networks, supported_chain_info, tradable_supported_chain_ids,
-    tradable_supported_chains,
+    all_chain_ids, all_chains, all_chains_map, all_supported_chain_ids, all_supported_chains,
+    get_chain_info, is_additional_target_chain, is_btc_chain, is_chain_deprecated,
+    is_chain_under_development, is_evm_chain, is_evm_chain_info, is_non_evm_chain,
+    is_non_evm_chain_info, is_solana_chain, is_supported_chain, is_target_chain_id,
+    is_zk_sync_chain, map_address_to_supported_networks, map_all_networks, map_supported_networks,
+    supported_chain_info, tradable_supported_chain_ids, tradable_supported_chains,
 };
 pub use contracts::{
     BARN_ETH_FLOW, BUY_ETH_ADDRESS, COMPOSABLE_COW, DEPLOYER_CONTRACT, ETH_FLOW_PROD,

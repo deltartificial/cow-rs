@@ -124,6 +124,72 @@ async fn get_quote_returns_quote_results() {
     assert!(quote.app_data_info.keccak256_ref().starts_with("0x"));
 }
 
+// ── TradingSdk::get_quote_only (no signer needed) ───────────────────────────
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn get_quote_only_uses_given_owner() {
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("POST"))
+        .and(matchers::path("/api/v1/quote"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(make_quote_response_json()))
+        .mount(&server)
+        .await;
+
+    let sdk = make_sdk(&server);
+    let owner: Address = "0x2222222222222222222222222222222222222222".parse().unwrap();
+    let quote = sdk.get_quote_only(owner, default_trade_params()).await.unwrap();
+
+    assert!(!quote.order_to_sign.sell_amount.is_zero());
+    assert!(!quote.order_to_sign.buy_amount.is_zero());
+    // Receiver defaults to the quote owner when none is given.
+    assert_eq!(quote.order_to_sign.receiver, owner);
+}
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn get_quote_only_with_settings_applies_slippage_override() {
+    use cow_rs::SwapAdvancedSettings;
+
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("POST"))
+        .and(matchers::path("/api/v1/quote"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(make_quote_response_json()))
+        .mount(&server)
+        .await;
+
+    let sdk = make_sdk(&server);
+    let owner: Address = "0x3333333333333333333333333333333333333333".parse().unwrap();
+    let settings = SwapAdvancedSettings { slippage_bps: Some(123), ..Default::default() };
+    let quote =
+        sdk.get_quote_only_with_settings(owner, default_trade_params(), &settings).await.unwrap();
+
+    // Settings-level slippage wins over the 50 bps baked into the params.
+    assert_eq!(quote.suggested_slippage_bps, 123);
+}
+
+// ── get_quote_without_signer free function ──────────────────────────────────
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn get_quote_without_signer_does_not_need_a_signer() {
+    use cow_rs::{OrderBookApi, get_quote_without_signer};
+
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("POST"))
+        .and(matchers::path("/api/v1/quote"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(make_quote_response_json()))
+        .mount(&server)
+        .await;
+
+    let config = TradingSdkConfig::prod(SupportedChainId::Mainnet, "TestApp");
+    let api = OrderBookApi::new_with_url(SupportedChainId::Mainnet, Env::Prod, server.uri());
+    let owner: Address = "0x4444444444444444444444444444444444444444".parse().unwrap();
+    let quote =
+        get_quote_without_signer(&config, &api, owner, default_trade_params(), None).await.unwrap();
+    assert_eq!(quote.order_to_sign.receiver, owner);
+}
+
 // ── TradingSdk::post_swap_order_from_quote ───────────────────────────────────
 
 #[cfg_attr(miri, ignore)]

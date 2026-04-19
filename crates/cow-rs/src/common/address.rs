@@ -17,6 +17,18 @@
 //! | [`is_wrapped_native_token`] | Check if address is the wrapped native (e.g. WETH) |
 //! | [`is_cow_settlement_contract`] | Match against `CoW` settlement addresses |
 //! | [`is_cow_vault_relayer_contract`] | Match against `CoW` vault relayer addresses |
+//!
+//! # Regex patterns
+//!
+//! The canonical regex patterns used by the validators are exposed as
+//! public string constants so downstream consumers can compile them with
+//! their regex engine of choice:
+//!
+//! | Constant | Matches |
+//! |---|---|
+//! | [`EVM_ADDRESS_PATTERN`] | EVM addresses (`0x` + 40 hex) |
+//! | [`BTC_ADDRESS_PATTERN`] | Bitcoin P2PKH/P2SH or Bech32 mainnet addresses |
+//! | [`SOL_ADDRESS_PATTERN`] | Solana Base58 addresses |
 
 use crate::config::{
     SupportedChainId,
@@ -112,6 +124,31 @@ impl std::fmt::Display for TokenId {
         f.write_str(&self.0)
     }
 }
+
+// ── Regex patterns ───────────────────────────────────────────────────────────
+
+/// Regex pattern for validating EVM addresses.
+///
+/// Matches addresses that start with `0x` followed by exactly 40
+/// hexadecimal characters. Ported from the `TypeScript` SDK's
+/// `EVM_ADDRESS_PATTERN` for parity across downstream consumers.
+pub const EVM_ADDRESS_PATTERN: &str = r"^0x[a-fA-F0-9]{40}$";
+
+/// Regex pattern for validating Bitcoin addresses.
+///
+/// Matches legacy P2PKH/P2SH (`1…`/`3…`, 25-34 Base58 chars) and Bech32
+/// mainnet P2WPKH/P2WSH (`bc1…`/`BC1…`, 42-62 chars — must be entirely
+/// lowercase or entirely uppercase per BIP-173). Ported from the
+/// `TypeScript` SDK's `BTC_ADDRESS_PATTERN`.
+pub const BTC_ADDRESS_PATTERN: &str = r"^([13][a-km-zA-HJ-NP-Z1-9]{24,33}|bc1[023456789ac-hj-np-z]{39,59}|BC1[023456789AC-HJ-NP-Z]{39,59})$";
+
+/// Regex pattern for validating Solana addresses.
+///
+/// Solana addresses are Base58-encoded Ed25519 public keys, 32-44
+/// characters long. Base58 alphabet excludes `0`, `O`, `I`, `l` to avoid
+/// visual ambiguity. Ported from the `TypeScript` SDK's
+/// `SOL_ADDRESS_PATTERN`.
+pub const SOL_ADDRESS_PATTERN: &str = r"^[1-9A-HJ-NP-Za-km-z]{32,44}$";
 
 // ── Validation ───────────────────────────────────────────────────────────────
 

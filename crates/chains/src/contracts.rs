@@ -38,7 +38,7 @@ pub const VAULT_RELAYER: Address = Address::new([
 
 /// The production `EthFlow` contract address.
 ///
-/// Identical on all supported chains except Lens (not included here).
+/// Identical on all supported chains.
 /// `0xba3cb449bd2b4adddbc894d8697f5170800eadec`
 pub const ETH_FLOW_PROD: Address = Address::new([
     0xba, 0x3c, 0xb4, 0x49, 0xbd, 0x2b, 0x4a, 0xdd, 0xdb, 0xc8, 0x94, 0xd8, 0x69, 0x7f, 0x51, 0x70,

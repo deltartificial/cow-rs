@@ -16,7 +16,7 @@
       "kind": "contract-shape",
       "description": "All chains supported by the CoW Protocol orderbook",
       "expected": {
-        "chain_ids": [1, 100, 42161, 8453, 11155111, 137, 43114, 56, 59144, 232, 9745, 57073]
+        "chain_ids": [1, 100, 42161, 8453, 11155111, 137, 43114, 56, 59144, 9745, 57073]
       }
     },
     {

@@ -9,7 +9,7 @@
 
 use std::sync::Arc;
 
-use cow_chains::{Env, SupportedChainId, api_base_url, order_explorer_link};
+use cow_chains::{Env, SupportedChainId, api_base_url, order_explorer_link, partner_api_base_url};
 use cow_errors::CowError;
 
 use cow_http::{RateLimiter, RetryPolicy};
@@ -197,6 +197,33 @@ impl OrderBookApi {
         for (k, v) in headers {
             self.extra_headers.push((k.into(), v.into()));
         }
+        self
+    }
+
+    /// Route the client through the `CoW` Protocol Partner API gateway
+    /// and attach the required `X-API-Key` header.
+    ///
+    /// Switches the base URL to the partner gateway
+    /// ([`partner_api_base_url`]) for this client's chain and env, and
+    /// appends `X-API-Key: <api_key>` to every request. Equivalent to
+    /// calling [`Self::with_header`] with the same key while also
+    /// overriding the base URL.
+    ///
+    /// Explicit base URLs set via [`Self::new_with_url`] are overwritten.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use cow_chains::{Env, SupportedChainId};
+    /// use cow_orderbook::OrderBookApi;
+    ///
+    /// let api =
+    ///     OrderBookApi::new(SupportedChainId::Mainnet, Env::Prod).with_api_key("secret-partner-key");
+    /// ```
+    #[must_use]
+    pub fn with_api_key(mut self, api_key: impl Into<String>) -> Self {
+        self.base_url = partner_api_base_url(self.chain, self.env).into();
+        self.extra_headers.push(("X-API-Key".to_owned(), api_key.into()));
         self
     }
 
@@ -959,4 +986,42 @@ async fn api_error(resp: reqwest::Response) -> CowError {
         }
     };
     CowError::Api { status, body }
+}
+
+#[cfg(test)]
+mod tests {
+    use cow_chains::{Env, SupportedChainId, partner_api_base_url};
+
+    use super::OrderBookApi;
+
+    #[test]
+    fn with_api_key_switches_to_partner_url_and_sets_header() {
+        let chain = SupportedChainId::Mainnet;
+        let env = Env::Prod;
+        let api = OrderBookApi::new(chain, env).with_api_key("secret");
+
+        assert_eq!(api.base_url, partner_api_base_url(chain, env));
+        assert!(api.extra_headers.iter().any(|(k, v)| k == "X-API-Key" && v == "secret"));
+    }
+
+    #[test]
+    fn with_api_key_respects_staging_env() {
+        let chain = SupportedChainId::Sepolia;
+        let env = Env::Staging;
+        let api = OrderBookApi::new(chain, env).with_api_key("another");
+
+        assert!(api.base_url.contains("partners.barn.cow.fi"));
+        assert_eq!(api.base_url, partner_api_base_url(chain, env));
+    }
+
+    #[test]
+    fn with_api_key_overrides_base_url_from_new_with_url() {
+        let chain = SupportedChainId::Mainnet;
+        let env = Env::Prod;
+        let api = OrderBookApi::new_with_url(chain, env, "http://localhost:9999")
+            .with_api_key("third-key");
+
+        // The partner switch takes precedence over a previously-set explicit URL.
+        assert_eq!(api.base_url, partner_api_base_url(chain, env));
+    }
 }

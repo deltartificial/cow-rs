@@ -54,8 +54,6 @@ pub enum SupportedChainId {
     BnbChain = 56,
     /// Linea (chain ID 59144).
     Linea = 59_144,
-    /// Lens Network (chain ID 232).
-    Lens = 232,
     /// Plasma (chain ID 9745).
     Plasma = 9_745,
     /// Ink (chain ID 57073).
@@ -104,7 +102,6 @@ impl SupportedChainId {
             43_114 => Some(Self::Avalanche),
             56 => Some(Self::BnbChain),
             59_144 => Some(Self::Linea),
-            232 => Some(Self::Lens),
             9_745 => Some(Self::Plasma),
             57_073 => Some(Self::Ink),
             _ => None,
@@ -128,7 +125,6 @@ impl SupportedChainId {
             Self::Avalanche,
             Self::BnbChain,
             Self::Linea,
-            Self::Lens,
             Self::Plasma,
             Self::Ink,
         ]
@@ -154,7 +150,6 @@ impl SupportedChainId {
             Self::Avalanche => "avalanche",
             Self::BnbChain => "bnb",
             Self::Linea => "linea",
-            Self::Lens => "lens",
             Self::Plasma => "plasma",
             Self::Ink => "ink",
         }
@@ -221,7 +216,6 @@ impl SupportedChainId {
             Self::Avalanche => "avalanche",
             Self::BnbChain => "bnb",
             Self::Linea => "linea",
-            Self::Lens => "lens",
             Self::Plasma => "plasma",
             Self::Ink => "ink",
         }
@@ -275,7 +269,6 @@ impl std::fmt::Display for SupportedChainId {
             Self::Avalanche => "Avalanche",
             Self::BnbChain => "BNB Smart Chain",
             Self::Linea => "Linea",
-            Self::Lens => "Lens",
             Self::Plasma => "Plasma",
             Self::Ink => "Ink",
         };
@@ -304,7 +297,7 @@ impl TryFrom<&str> for SupportedChainId {
     ///
     /// Accepts the same strings returned by [`SupportedChainId::as_str`]:
     /// `"mainnet"`, `"xdai"`, `"arbitrum_one"`, `"base"`, `"sepolia"`,
-    /// `"polygon"`, `"avalanche"`, `"bnb"`, `"linea"`, `"lens"`, `"plasma"`, `"ink"`.
+    /// `"polygon"`, `"avalanche"`, `"bnb"`, `"linea"`, `"plasma"`, `"ink"`.
     fn try_from(s: &str) -> Result<Self, Self::Error> {
         match s {
             "mainnet" => Ok(Self::Mainnet),
@@ -316,7 +309,6 @@ impl TryFrom<&str> for SupportedChainId {
             "avalanche" => Ok(Self::Avalanche),
             "bnb" => Ok(Self::BnbChain),
             "linea" => Ok(Self::Linea),
-            "lens" => Ok(Self::Lens),
             "plasma" => Ok(Self::Plasma),
             "ink" => Ok(Self::Ink),
             other => Err(cow_errors::CowError::Parse {
@@ -481,7 +473,6 @@ pub const fn api_base_url(chain: SupportedChainId, env: Env) -> &'static str {
         (SupportedChainId::Avalanche, Env::Prod) => "https://api.cow.fi/avalanche",
         (SupportedChainId::BnbChain, Env::Prod) => "https://api.cow.fi/bnb",
         (SupportedChainId::Linea, Env::Prod) => "https://api.cow.fi/linea",
-        (SupportedChainId::Lens, Env::Prod) => "https://api.cow.fi/lens",
         (SupportedChainId::Plasma, Env::Prod) => "https://api.cow.fi/plasma",
         (SupportedChainId::Ink, Env::Prod) => "https://api.cow.fi/ink",
         (SupportedChainId::Mainnet, Env::Staging) => "https://barn.api.cow.fi/mainnet",
@@ -493,9 +484,78 @@ pub const fn api_base_url(chain: SupportedChainId, env: Env) -> &'static str {
         (SupportedChainId::Avalanche, Env::Staging) => "https://barn.api.cow.fi/avalanche",
         (SupportedChainId::BnbChain, Env::Staging) => "https://barn.api.cow.fi/bnb",
         (SupportedChainId::Linea, Env::Staging) => "https://barn.api.cow.fi/linea",
-        (SupportedChainId::Lens, Env::Staging) => "https://barn.api.cow.fi/lens",
         (SupportedChainId::Plasma, Env::Staging) => "https://barn.api.cow.fi/plasma",
         (SupportedChainId::Ink, Env::Staging) => "https://barn.api.cow.fi/ink",
+    }
+}
+
+/// Base URL of the `CoW` Protocol production partner API gateway.
+///
+/// Requests to this host require an `X-API-Key` header. See [`partner_api_base_url`].
+pub const PARTNER_PROD_BASE_URL: &str = "https://partners.cow.fi";
+
+/// Base URL of the `CoW` Protocol staging (barn) partner API gateway.
+///
+/// Requests to this host require an `X-API-Key` header. See [`partner_api_base_url`].
+pub const PARTNER_STAGING_BASE_URL: &str = "https://partners.barn.cow.fi";
+
+/// Return the partner API base URL (no trailing slash) for `chain` in `env`.
+///
+/// Partners route traffic through `partners.cow.fi` / `partners.barn.cow.fi`
+/// and must attach an `X-API-Key` header. The chain path segment matches
+/// the one used by [`api_base_url`], so
+/// `partner_api_base_url(Mainnet, Prod)` returns
+/// `"https://partners.cow.fi/mainnet"`.
+///
+/// # Parameters
+///
+/// * `chain` — the target [`SupportedChainId`].
+/// * `env` — the [`Env`] (production or staging).
+///
+/// # Returns
+///
+/// A `&'static str` base URL.
+///
+/// # Example
+///
+/// ```
+/// use cow_chains::{Env, SupportedChainId, partner_api_base_url};
+///
+/// assert_eq!(
+///     partner_api_base_url(SupportedChainId::Mainnet, Env::Prod),
+///     "https://partners.cow.fi/mainnet"
+/// );
+/// assert!(
+///     partner_api_base_url(SupportedChainId::Sepolia, Env::Staging).contains("partners.barn")
+/// );
+/// ```
+#[must_use]
+pub const fn partner_api_base_url(chain: SupportedChainId, env: Env) -> &'static str {
+    match (chain, env) {
+        (SupportedChainId::Mainnet, Env::Prod) => "https://partners.cow.fi/mainnet",
+        (SupportedChainId::GnosisChain, Env::Prod) => "https://partners.cow.fi/xdai",
+        (SupportedChainId::ArbitrumOne, Env::Prod) => "https://partners.cow.fi/arbitrum_one",
+        (SupportedChainId::Base, Env::Prod) => "https://partners.cow.fi/base",
+        (SupportedChainId::Sepolia, Env::Prod) => "https://partners.cow.fi/sepolia",
+        (SupportedChainId::Polygon, Env::Prod) => "https://partners.cow.fi/polygon",
+        (SupportedChainId::Avalanche, Env::Prod) => "https://partners.cow.fi/avalanche",
+        (SupportedChainId::BnbChain, Env::Prod) => "https://partners.cow.fi/bnb",
+        (SupportedChainId::Linea, Env::Prod) => "https://partners.cow.fi/linea",
+        (SupportedChainId::Plasma, Env::Prod) => "https://partners.cow.fi/plasma",
+        (SupportedChainId::Ink, Env::Prod) => "https://partners.cow.fi/ink",
+        (SupportedChainId::Mainnet, Env::Staging) => "https://partners.barn.cow.fi/mainnet",
+        (SupportedChainId::GnosisChain, Env::Staging) => "https://partners.barn.cow.fi/xdai",
+        (SupportedChainId::ArbitrumOne, Env::Staging) => {
+            "https://partners.barn.cow.fi/arbitrum_one"
+        }
+        (SupportedChainId::Base, Env::Staging) => "https://partners.barn.cow.fi/base",
+        (SupportedChainId::Sepolia, Env::Staging) => "https://partners.barn.cow.fi/sepolia",
+        (SupportedChainId::Polygon, Env::Staging) => "https://partners.barn.cow.fi/polygon",
+        (SupportedChainId::Avalanche, Env::Staging) => "https://partners.barn.cow.fi/avalanche",
+        (SupportedChainId::BnbChain, Env::Staging) => "https://partners.barn.cow.fi/bnb",
+        (SupportedChainId::Linea, Env::Staging) => "https://partners.barn.cow.fi/linea",
+        (SupportedChainId::Plasma, Env::Staging) => "https://partners.barn.cow.fi/plasma",
+        (SupportedChainId::Ink, Env::Staging) => "https://partners.barn.cow.fi/ink",
     }
 }
 
@@ -587,7 +647,7 @@ mod tests {
 
     #[test]
     fn all_contains_every_variant() {
-        assert_eq!(SupportedChainId::all().len(), 12);
+        assert_eq!(SupportedChainId::all().len(), 11);
     }
 
     // ── Env ─────────────────────────────────────────────────────────────
@@ -648,6 +708,37 @@ mod tests {
     fn api_url_is_alias_for_api_base_url() {
         let chain = SupportedChainId::Mainnet;
         assert_eq!(api_url(chain, Env::Prod), api_base_url(chain, Env::Prod));
+    }
+
+    #[test]
+    fn partner_api_base_url_all_chains_all_envs() {
+        for &chain in SupportedChainId::all() {
+            for &env in Env::all() {
+                let url = partner_api_base_url(chain, env);
+                assert!(url.starts_with("https://"));
+                assert!(url.contains("partners."));
+                assert!(url.contains("cow.fi"));
+                if env.is_staging() {
+                    assert!(url.contains("partners.barn"), "{url} should include partners.barn");
+                } else {
+                    assert!(!url.contains("partners.barn"));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn partner_url_path_segment_matches_api_base_url() {
+        // The chain path segment must be identical for both hosts.
+        for &chain in SupportedChainId::all() {
+            for &env in Env::all() {
+                let default = api_base_url(chain, env);
+                let partner = partner_api_base_url(chain, env);
+                let default_seg = default.rsplit('/').next().unwrap();
+                let partner_seg = partner.rsplit('/').next().unwrap();
+                assert_eq!(default_seg, partner_seg, "chain path segment mismatch for {chain:?}");
+            }
+        }
     }
 
     // ── Explorer links ──────────────────────────────────────────────────

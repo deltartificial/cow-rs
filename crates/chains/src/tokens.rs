@@ -354,14 +354,6 @@ pub const fn wrapped_native_currency(chain: SupportedChainId) -> TokenInfo {
             name: Some("Wrapped Ether"),
             logo_url: None,
         },
-        // GHO is the native gas token on Lens; WGHO is its ERC-20 wrapper.
-        SupportedChainId::Lens => TokenInfo {
-            address: address("6bdc36e20d267ff0dd6097799f82e78907105e2f"),
-            decimals: 18,
-            symbol: "WGHO",
-            name: Some("Wrapped GHO"),
-            logo_url: None,
-        },
         SupportedChainId::Plasma => TokenInfo {
             address: address("6100e367285b01f48d07953803a2d8dca5d19873"),
             decimals: 18,
@@ -670,13 +662,6 @@ mod tests {
     }
 
     #[test]
-    fn wrapped_native_currency_lens() {
-        let wgho = wrapped_native_currency(SupportedChainId::Lens);
-        assert_eq!(wgho.symbol, "WGHO");
-        assert_eq!(wgho.name, Some("Wrapped GHO"));
-    }
-
-    #[test]
     fn wrapped_native_currency_plasma() {
         let wxpl = wrapped_native_currency(SupportedChainId::Plasma);
         assert_eq!(wxpl.symbol, "WXPL");
@@ -695,7 +680,6 @@ mod tests {
             SupportedChainId::Avalanche,
             SupportedChainId::BnbChain,
             SupportedChainId::Linea,
-            SupportedChainId::Lens,
             SupportedChainId::Plasma,
             SupportedChainId::Ink,
         ];
@@ -717,7 +701,6 @@ mod tests {
             SupportedChainId::Avalanche,
             SupportedChainId::BnbChain,
             SupportedChainId::Linea,
-            SupportedChainId::Lens,
             SupportedChainId::Plasma,
             SupportedChainId::Ink,
         ];
@@ -739,7 +722,6 @@ mod tests {
             SupportedChainId::Avalanche,
             SupportedChainId::BnbChain,
             SupportedChainId::Linea,
-            SupportedChainId::Lens,
             SupportedChainId::Plasma,
             SupportedChainId::Ink,
         ];
@@ -764,7 +746,6 @@ mod tests {
             SupportedChainId::Avalanche,
             SupportedChainId::BnbChain,
             SupportedChainId::Linea,
-            SupportedChainId::Lens,
             SupportedChainId::Plasma,
             SupportedChainId::Ink,
         ];
