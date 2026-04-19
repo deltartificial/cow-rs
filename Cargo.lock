@@ -1052,10 +1052,12 @@ name = "cow-bridging"
 version = "0.2.0"
 dependencies = [
  "alloy-primitives",
+ "alloy-signer",
  "alloy-signer-local",
  "cow-chains",
  "cow-errors",
  "cow-orderbook",
+ "cow-shed",
  "cow-types",
  "foldhash 0.2.0",
  "futures",

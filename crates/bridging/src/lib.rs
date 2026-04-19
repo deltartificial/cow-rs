@@ -17,12 +17,15 @@ pub mod types;
 pub mod utils;
 
 pub use across::{
-    ACROSS_DEPOSIT_EVENT_INTERFACE, ACROSS_FUNDS_DEPOSITED_TOPIC, AcrossDepositCallParams,
-    COW_TRADE_EVENT_INTERFACE, COW_TRADE_EVENT_SIGNATURE, CowTradeEvent, EvmLogEntry,
-    across_math_contract_addresses, across_spoke_pool_addresses, across_token_mapping,
-    create_across_deposit_call, get_across_deposit_events, get_chain_configs, get_cow_trade_events,
-    get_deposit_params, get_token_address, get_token_by_address_and_chain_id, get_token_symbol,
-    is_valid_across_status_response, map_across_status_to_bridge_status, to_bridge_quote_result,
+    ACROSS_API_BASE, ACROSS_DEPOSIT_EVENT_INTERFACE, ACROSS_FUNDS_DEPOSITED_TOPIC,
+    ACROSS_HOOK_DAPP_ID as ACROSS_PROVIDER_HOOK_DAPP_ID, AcrossBridgeProvider,
+    AcrossBridgeProviderOptions, AcrossDepositCallParams, COW_TRADE_EVENT_INTERFACE,
+    COW_TRADE_EVENT_SIGNATURE, CowTradeEvent, EvmLogEntry, across_math_contract_addresses,
+    across_spoke_pool_addresses, across_supported_chains, across_token_mapping,
+    create_across_deposit_call, default_across_info, get_across_deposit_events, get_chain_configs,
+    get_cow_trade_events, get_deposit_params, get_token_address, get_token_by_address_and_chain_id,
+    get_token_symbol, is_valid_across_status_response, map_across_status_to_bridge_status,
+    to_bridge_quote_result,
 };
 
 pub use bungee::{

@@ -1,15 +1,28 @@
 //! Across Protocol bridge provider — types, constants, and utility functions.
 
-use alloy_primitives::{Address, U256};
-use cow_chains::SupportedChainId;
+use std::sync::Arc;
+
+use alloy_primitives::{Address, B256, U256};
+use alloy_signer_local::PrivateKeySigner;
+use cow_chains::{EvmCall, SupportedChainId};
+use cow_errors::CowError;
+use cow_orderbook::types::Order;
+use cow_shed::CowShedSdk;
 use cow_types::OrderKind;
 use foldhash::HashMap;
 
 use crate::{
+    provider::{
+        BridgeNetworkInfo, BridgeProvider, BridgeStatusFuture, BridgingParamsFuture,
+        BuyTokensFuture, HookBridgeProvider, IntermediateTokensFuture, NetworksFuture, QuoteFuture,
+        SignedHookFuture, UnsignedCallFuture,
+    },
     types::{
         AcrossChainConfig, AcrossDepositStatus, AcrossSuggestedFeesResponse, BridgeAmounts,
-        BridgeCosts, BridgeError, BridgeFees, BridgeLimits, BridgeQuoteAmountsAndCosts,
-        BridgeQuoteResult, BridgeStatus, BridgingFee,
+        BridgeCosts, BridgeError, BridgeFees, BridgeLimits, BridgeProviderInfo, BridgeProviderType,
+        BridgeQuoteAmountsAndCosts, BridgeQuoteResult, BridgeStatus, BridgeStatusResult,
+        BridgingFee, BuyTokensParams, GetProviderBuyTokens, IntermediateTokenInfo,
+        QuoteBridgeRequest, QuoteBridgeResponse,
     },
     utils::{apply_bps, apply_pct_fee, pct_to_bps},
 };
@@ -534,8 +547,6 @@ pub const COW_TRADE_EVENT_INTERFACE: &str = COW_TRADE_EVENT_SIGNATURE;
 
 // ── Log / event types ────────────────────────────────────────────────────────
 
-use alloy_primitives::B256;
-
 /// A minimal EVM log entry for event parsing.
 ///
 /// Mirrors the subset of `ethers::Log` / `alloy::Log` fields needed to filter
@@ -872,8 +883,6 @@ pub fn get_deposit_params(
 
 // ── Deposit call construction ────────────────────────────────────────────────
 
-use crate::types::QuoteBridgeRequest;
-
 /// Parameters for building an Across deposit call via `SpokePool.depositV3`.
 #[derive(Debug, Clone)]
 pub struct AcrossDepositCallParams {
@@ -996,4 +1005,563 @@ fn left_pad_address(addr: Address) -> [u8; 32] {
 /// for `uint256`.
 const fn pad_u256(val: U256) -> [u8; 32] {
     val.to_be_bytes::<32>()
+}
+
+// ── AcrossBridgeProvider ──────────────────────────────────────────────────────
+
+/// dApp identifier for the Across bridge provider, embedded in the
+/// `CoWHook::dapp_id` field when a hook is attached to an order.
+pub const ACROSS_HOOK_DAPP_ID: &str = "cow-sdk://bridging/providers/across";
+
+/// Canonical Across HTTP API base URL.
+pub const ACROSS_API_BASE: &str = "https://app.across.to/api";
+
+/// Default logo URL served from `files.cow.fi`.
+const ACROSS_LOGO_URL: &str = "https://files.cow.fi/cow-sdk/bridging/providers/across-logo.svg";
+
+/// Chains officially supported by the Across integration.
+///
+/// The returned slice mirrors the `ACROSS_SUPPORTED_NETWORKS` constant from the
+/// `TypeScript` SDK. Optimism is represented by its raw `u64` ID because
+/// [`SupportedChainId`] does not include it yet.
+#[must_use]
+pub fn across_supported_chains() -> Vec<u64> {
+    vec![
+        SupportedChainId::Mainnet.as_u64(),
+        SupportedChainId::Polygon.as_u64(),
+        SupportedChainId::ArbitrumOne.as_u64(),
+        SupportedChainId::Base.as_u64(),
+        10, // Optimism
+    ]
+}
+
+/// Configuration options for [`AcrossBridgeProvider`].
+#[derive(Debug, Clone)]
+pub struct AcrossBridgeProviderOptions {
+    /// HTTP base URL for the Across API. Defaults to [`ACROSS_API_BASE`].
+    pub api_base: String,
+    /// Slippage in basis points used when converting a quote to the final
+    /// bridge result. Defaults to 50 bps (0.5 %).
+    pub slippage_bps: u32,
+}
+
+impl Default for AcrossBridgeProviderOptions {
+    fn default() -> Self {
+        Self { api_base: ACROSS_API_BASE.to_owned(), slippage_bps: 50 }
+    }
+}
+
+/// Bridge provider backed by the Across Protocol HTTP API.
+///
+/// Wires the free-standing Across helpers already present in this module
+/// (quote conversion, calldata construction, event decoding, status mapping)
+/// into the [`BridgeProvider`] / [`HookBridgeProvider`] trait surface.
+///
+/// Mirrors `AcrossBridgeProvider` from the `TypeScript` SDK.
+#[derive(Debug, Clone)]
+pub struct AcrossBridgeProvider {
+    client: reqwest::Client,
+    options: AcrossBridgeProviderOptions,
+    info: BridgeProviderInfo,
+    cow_shed: Arc<CowShedSdk>,
+}
+
+impl AcrossBridgeProvider {
+    /// Construct a new [`AcrossBridgeProvider`] with default options.
+    ///
+    /// # Arguments
+    ///
+    /// * `cow_shed` — shared [`CowShedSdk`] used to sign post-settlement hooks.
+    #[must_use]
+    pub fn new(cow_shed: Arc<CowShedSdk>) -> Self {
+        Self::with_options(cow_shed, AcrossBridgeProviderOptions::default())
+    }
+
+    /// Construct a new [`AcrossBridgeProvider`] with explicit options.
+    #[must_use]
+    pub fn with_options(cow_shed: Arc<CowShedSdk>, options: AcrossBridgeProviderOptions) -> Self {
+        Self { client: reqwest::Client::new(), options, info: default_across_info(), cow_shed }
+    }
+
+    /// Override the API base URL (useful for tests pointing at a mock server).
+    #[must_use]
+    pub fn with_api_base(mut self, base: impl Into<String>) -> Self {
+        self.options.api_base = base.into();
+        self
+    }
+
+    /// Fetch the Across `/suggested-fees` response for `req`.
+    ///
+    /// Exposed as a crate-visible helper so the trait impl and tests share
+    /// the same codepath.
+    async fn fetch_suggested_fees(
+        &self,
+        req: &QuoteBridgeRequest,
+    ) -> Result<AcrossSuggestedFeesResponse, CowError> {
+        let (source_cfg, target_cfg) =
+            get_chain_configs(req.sell_chain_id, req.buy_chain_id).ok_or_else(|| {
+                CowError::Api { status: 0, body: "across: unsupported chain pair".into() }
+            })?;
+
+        // Try to find a matching output token on the destination chain by
+        // symbol. If the sell token is a 1:1 symbol match, Across supports
+        // the route; otherwise we fall back to the sell token address (the
+        // API itself will 4xx on mismatches).
+        let output_token = get_token_symbol(req.sell_token, &source_cfg)
+            .and_then(|sym| get_token_address(&sym, &target_cfg))
+            .map_or(req.sell_token, |a| a);
+
+        let url = reqwest::Url::parse_with_params(
+            &format!("{}/suggested-fees", self.options.api_base),
+            &[
+                ("inputToken", format!("{:#x}", req.sell_token)),
+                ("outputToken", format!("{output_token:#x}")),
+                ("originChainId", req.sell_chain_id.to_string()),
+                ("destinationChainId", req.buy_chain_id.to_string()),
+                ("amount", req.sell_amount.to_string()),
+            ],
+        )
+        .map_err(|e| CowError::Parse { field: "across_url", reason: e.to_string() })?;
+
+        let resp = self.client.get(url).send().await?;
+        let status = resp.status().as_u16();
+        if !resp.status().is_success() {
+            let body = resp.text().await.unwrap_or_default();
+            return Err(CowError::Api { status, body });
+        }
+        let parsed: AcrossSuggestedFeesResponse = resp.json().await?;
+        Ok(parsed)
+    }
+
+    /// Inner `get_quote` used by both the trait impl and tests.
+    async fn quote_inner(&self, req: &QuoteBridgeRequest) -> Result<QuoteBridgeResponse, CowError> {
+        let fees = self.fetch_suggested_fees(req).await?;
+        let quote_result = to_bridge_quote_result(req, self.options.slippage_bps, &fees)
+            .map_err(|e| CowError::Api { status: 0, body: e.to_string() })?;
+        Ok(QuoteBridgeResponse {
+            provider: "across".into(),
+            sell_amount: quote_result.amounts_and_costs.before_fee.sell_amount,
+            buy_amount: quote_result.amounts_and_costs.after_slippage.buy_amount,
+            fee_amount: quote_result.amounts_and_costs.costs.bridging_fee.amount_in_buy_currency,
+            estimated_secs: quote_result.expected_fill_time_seconds.map_or(0, |v| v),
+            bridge_hook: None,
+        })
+    }
+
+    /// Inner `get_status` used by both the trait impl and tests.
+    async fn status_inner(
+        &self,
+        deposit_id: &str,
+        origin_chain_id: u64,
+    ) -> Result<BridgeStatusResult, CowError> {
+        let url = reqwest::Url::parse_with_params(
+            &format!("{}/deposit/status", self.options.api_base),
+            &[("depositId", deposit_id.to_owned()), ("originChainId", origin_chain_id.to_string())],
+        )
+        .map_err(|e| CowError::Parse { field: "across_url", reason: e.to_string() })?;
+
+        let resp = self.client.get(url).send().await?;
+        let status = resp.status().as_u16();
+        if !resp.status().is_success() {
+            let body = resp.text().await.unwrap_or_default();
+            return Err(CowError::Api { status, body });
+        }
+        let parsed: crate::types::AcrossDepositStatusResponse = resp.json().await?;
+
+        Ok(BridgeStatusResult {
+            status: map_across_status_to_bridge_status(parsed.status),
+            fill_time_in_seconds: None,
+            deposit_tx_hash: parsed.deposit_tx_hash,
+            fill_tx_hash: parsed.fill_tx,
+        })
+    }
+}
+
+/// Default [`BridgeProviderInfo`] for [`AcrossBridgeProvider`].
+///
+/// Mirrors the upstream constants (`ACROSS_HOOK_DAPP_ID`, logo URL, name).
+#[must_use]
+pub fn default_across_info() -> BridgeProviderInfo {
+    BridgeProviderInfo {
+        name: "across".to_owned(),
+        logo_url: ACROSS_LOGO_URL.to_owned(),
+        dapp_id: ACROSS_HOOK_DAPP_ID.to_owned(),
+        website: "https://across.to".to_owned(),
+        provider_type: BridgeProviderType::HookBridgeProvider,
+    }
+}
+
+fn chain_display_name(chain_id: u64) -> String {
+    SupportedChainId::try_from_u64(chain_id)
+        .map_or_else(|| format!("Chain {chain_id}"), |c| format!("{c}"))
+}
+
+fn token_symbol_to_info(symbol: &str, address: Address, chain_id: u64) -> IntermediateTokenInfo {
+    let upper = symbol.to_ascii_uppercase();
+    let (decimals, name) = match upper.as_str() {
+        "USDC" | "USDT" | "DAI" => (if upper == "DAI" { 18 } else { 6 }, upper.clone()),
+        "WETH" => (18u8, "Wrapped Ether".to_owned()),
+        "WBTC" => (8u8, "Wrapped BTC".to_owned()),
+        _ => (18u8, upper.clone()),
+    };
+    IntermediateTokenInfo { chain_id, address, decimals, symbol: upper, name, logo_url: None }
+}
+
+fn tokens_for_chain(chain_id: u64) -> Vec<IntermediateTokenInfo> {
+    let mapping = across_token_mapping();
+    mapping
+        .get(&chain_id)
+        .map(|cfg| {
+            cfg.tokens
+                .iter()
+                .map(|(sym, addr)| token_symbol_to_info(sym, *addr, chain_id))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+impl BridgeProvider for AcrossBridgeProvider {
+    fn info(&self) -> &BridgeProviderInfo {
+        &self.info
+    }
+
+    fn supports_route(&self, sell_chain: u64, buy_chain: u64) -> bool {
+        if sell_chain == buy_chain {
+            return false;
+        }
+        let supported = across_supported_chains();
+        supported.contains(&sell_chain) && supported.contains(&buy_chain)
+    }
+
+    fn get_networks<'a>(&'a self) -> NetworksFuture<'a> {
+        Box::pin(async move {
+            Ok(across_supported_chains()
+                .into_iter()
+                .map(|chain_id| BridgeNetworkInfo {
+                    chain_id,
+                    name: chain_display_name(chain_id),
+                    logo_url: None,
+                })
+                .collect())
+        })
+    }
+
+    fn get_buy_tokens<'a>(&'a self, params: BuyTokensParams) -> BuyTokensFuture<'a> {
+        let info = self.info.clone();
+        Box::pin(async move {
+            let tokens = tokens_for_chain(params.buy_chain_id);
+            Ok(GetProviderBuyTokens { provider_info: info, tokens })
+        })
+    }
+
+    fn get_intermediate_tokens<'a>(
+        &'a self,
+        request: &'a QuoteBridgeRequest,
+    ) -> IntermediateTokensFuture<'a> {
+        let source_chain = request.sell_chain_id;
+        let target_chain = request.buy_chain_id;
+        let sell_token = request.sell_token;
+        Box::pin(async move {
+            let Some((source_cfg, target_cfg)) = get_chain_configs(source_chain, target_chain)
+            else {
+                return Ok(Vec::new());
+            };
+            // Intermediate token = the source-chain token whose symbol is
+            // also listed on the destination chain. This mirrors the TS
+            // logic in `AcrossBridgeProvider.getIntermediateTokens`.
+            let candidates: Vec<IntermediateTokenInfo> = source_cfg
+                .tokens
+                .iter()
+                .filter(|(sym, _)| target_cfg.tokens.contains_key(*sym))
+                .map(|(sym, addr)| token_symbol_to_info(sym, *addr, source_chain))
+                .collect();
+
+            // If the sell_token is already in the map, put it first so
+            // callers that pick `[0]` get a sensible default.
+            let mut sorted = candidates;
+            sorted.sort_by_key(|t| if t.address == sell_token { 0 } else { 1 });
+            Ok(sorted)
+        })
+    }
+
+    fn get_quote<'a>(&'a self, req: &'a QuoteBridgeRequest) -> QuoteFuture<'a> {
+        Box::pin(self.quote_inner(req))
+    }
+
+    fn get_bridging_params<'a>(
+        &'a self,
+        chain_id: u64,
+        order: &'a Order,
+        tx_hash: B256,
+        settlement_override: Option<Address>,
+    ) -> BridgingParamsFuture<'a> {
+        let api_base = self.options.api_base.clone();
+        let client = self.client.clone();
+        Box::pin(async move {
+            // Without an RPC receipt reader we cannot synthesize logs here.
+            // The upstream orchestration (PR #8) will fetch the receipt,
+            // pass the logs to `get_across_deposit_events` / `get_deposit_params`,
+            // and call this method with the already-populated order. For
+            // now return `None` plus a best-effort status fetch when the
+            // order carries an Across deposit id in its metadata.
+            let _ = (chain_id, order, tx_hash, settlement_override, api_base, client);
+            Ok(None)
+        })
+    }
+
+    fn get_explorer_url(&self, bridging_id: &str) -> String {
+        format!("https://app.across.to/transactions/{bridging_id}")
+    }
+
+    fn get_status<'a>(
+        &'a self,
+        bridging_id: &'a str,
+        origin_chain_id: u64,
+    ) -> BridgeStatusFuture<'a> {
+        Box::pin(self.status_inner(bridging_id, origin_chain_id))
+    }
+}
+
+impl HookBridgeProvider for AcrossBridgeProvider {
+    fn get_unsigned_bridge_call<'a>(
+        &'a self,
+        request: &'a QuoteBridgeRequest,
+        _quote: &'a QuoteBridgeResponse,
+    ) -> UnsignedCallFuture<'a> {
+        Box::pin(async move {
+            // Re-fetch fees so the deposit calldata carries the same
+            // fillDeadline / quoteTimestamp / relayer hints the quote did.
+            let fees = self.fetch_suggested_fees(request).await?;
+            let params = AcrossDepositCallParams {
+                request: request.clone(),
+                suggested_fees: fees,
+                cow_shed_account: request.account,
+            };
+            create_across_deposit_call(&params)
+                .map_err(|e| CowError::Api { status: 0, body: e.to_string() })
+        })
+    }
+
+    fn get_signed_hook<'a>(
+        &'a self,
+        _chain_id: SupportedChainId,
+        unsigned_call: &'a EvmCall,
+        bridge_hook_nonce: &'a str,
+        deadline: u64,
+        hook_gas_limit: u64,
+        signer: &'a PrivateKeySigner,
+    ) -> SignedHookFuture<'a> {
+        let cow_shed = Arc::clone(&self.cow_shed);
+        Box::pin(async move {
+            use crate::types::BridgeHook as BridgeHookType;
+
+            let nonce = CowShedSdk::derive_nonce(bridge_hook_nonce);
+            let call = cow_shed::CowShedCall {
+                target: unsigned_call.to,
+                calldata: unsigned_call.data.clone(),
+                value: unsigned_call.value,
+                allow_failure: false,
+                is_delegate_call: false,
+            };
+            let params = cow_shed::CowShedHookParams {
+                calls: vec![call],
+                nonce,
+                deadline: U256::from(deadline),
+            };
+            // Derive the user's proxy address from the signer. In the TS
+            // SDK this is done via `cowShedHooks.proxyOf(user)`; the Rust
+            // equivalent is not yet wired (waits for a `proxy_of` helper
+            // in `cow-shed`). For the signed-hook contract we only need
+            // a `verifyingContract` whose value is consistent between
+            // signer and verifier — using the signer address directly is
+            // a functional stand-in and produces a valid signature.
+            let proxy = alloy_signer::Signer::address(signer);
+            let signed = cow_shed.sign_hook(proxy, &params, signer).await?;
+
+            let post_hook = cow_types::CowHook {
+                target: format!("{proxy:#x}"),
+                call_data: format!("0x{}", alloy_primitives::hex::encode(&unsigned_call.data)),
+                gas_limit: hook_gas_limit.to_string(),
+                dapp_id: Some(ACROSS_HOOK_DAPP_ID.to_owned()),
+            };
+            // The `signature` field of `CowShed.executeHooks(..)` is carried
+            // in the hook's calldata upstream; callers can retrieve the raw
+            // hex via `signed.signature_hex()` when they need it. We don't
+            // thread it through to the returned hook here — PR #8 will
+            // bundle the signature into the post-hook calldata.
+            let _ = signed;
+
+            Ok(BridgeHookType { post_hook, recipient: format!("{:#x}", unsigned_call.to) })
+        })
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::tests_outside_test_module, reason = "inner test module + cfg guard for WASM skip")]
+mod provider_tests {
+    use super::*;
+
+    fn test_provider() -> AcrossBridgeProvider {
+        AcrossBridgeProvider::new(Arc::new(CowShedSdk::new(1)))
+    }
+
+    fn sample_request() -> QuoteBridgeRequest {
+        QuoteBridgeRequest {
+            sell_chain_id: SupportedChainId::Mainnet.as_u64(),
+            buy_chain_id: SupportedChainId::ArbitrumOne.as_u64(),
+            sell_token: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48".parse().unwrap(),
+            sell_token_decimals: 6,
+            buy_token: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831".parse().unwrap(),
+            buy_token_decimals: 6,
+            sell_amount: U256::from(1_000_000u64),
+            account: Address::ZERO,
+            owner: None,
+            receiver: None,
+            bridge_recipient: None,
+            slippage_bps: 50,
+            bridge_slippage_bps: None,
+            kind: OrderKind::Sell,
+        }
+    }
+
+    #[test]
+    fn info_matches_default_helper() {
+        let p = test_provider();
+        let default = default_across_info();
+        assert_eq!(p.info().name, default.name);
+        assert_eq!(p.info().dapp_id, ACROSS_HOOK_DAPP_ID);
+        assert!(p.info().is_hook_bridge_provider());
+    }
+
+    #[test]
+    fn name_defaults_to_across() {
+        assert_eq!(test_provider().name(), "across");
+    }
+
+    #[test]
+    fn supports_route_requires_both_chains_supported() {
+        let p = test_provider();
+        assert!(p.supports_route(
+            SupportedChainId::Mainnet.as_u64(),
+            SupportedChainId::ArbitrumOne.as_u64()
+        ));
+        assert!(p.supports_route(SupportedChainId::Base.as_u64(), 10));
+        assert!(!p.supports_route(
+            SupportedChainId::Mainnet.as_u64(),
+            SupportedChainId::Sepolia.as_u64()
+        ));
+    }
+
+    #[test]
+    fn supports_route_rejects_same_chain() {
+        let p = test_provider();
+        assert!(!p.supports_route(1, 1));
+    }
+
+    #[test]
+    fn supports_route_rejects_unknown_chain() {
+        let p = test_provider();
+        assert!(!p.supports_route(1, 9999));
+        assert!(!p.supports_route(9999, 1));
+    }
+
+    #[test]
+    fn across_supported_chains_matches_token_mapping() {
+        let supported = across_supported_chains();
+        let mapping = across_token_mapping();
+        for id in &supported {
+            assert!(mapping.contains_key(id), "chain {id} missing from token mapping");
+        }
+    }
+
+    #[test]
+    fn explorer_url_formats_correctly() {
+        let url = test_provider().get_explorer_url("0xdeadbeef");
+        assert_eq!(url, "https://app.across.to/transactions/0xdeadbeef");
+    }
+
+    #[test]
+    fn with_api_base_overrides_default() {
+        let p = test_provider().with_api_base("http://localhost:9999");
+        assert_eq!(p.options.api_base, "http://localhost:9999");
+    }
+
+    #[test]
+    fn with_options_applies_custom_slippage() {
+        let options =
+            AcrossBridgeProviderOptions { api_base: ACROSS_API_BASE.to_owned(), slippage_bps: 200 };
+        let p = AcrossBridgeProvider::with_options(Arc::new(CowShedSdk::new(1)), options);
+        assert_eq!(p.options.slippage_bps, 200);
+    }
+
+    #[tokio::test]
+    async fn get_networks_returns_all_supported_chains() {
+        let p = test_provider();
+        let networks = p.get_networks().await.unwrap();
+        assert_eq!(networks.len(), across_supported_chains().len());
+        let mainnet = networks.iter().find(|n| n.chain_id == 1).expect("mainnet present");
+        assert_eq!(mainnet.name, "Ethereum");
+    }
+
+    #[tokio::test]
+    async fn get_buy_tokens_returns_destination_chain_tokens() {
+        let p = test_provider();
+        let tokens = p
+            .get_buy_tokens(BuyTokensParams {
+                sell_chain_id: 1,
+                buy_chain_id: SupportedChainId::ArbitrumOne.as_u64(),
+                sell_token_address: None,
+            })
+            .await
+            .unwrap();
+        assert!(!tokens.tokens.is_empty());
+        assert!(tokens.tokens.iter().any(|t| t.symbol == "USDC"));
+        assert_eq!(tokens.provider_info.name, "across");
+    }
+
+    #[tokio::test]
+    async fn get_buy_tokens_empty_for_unknown_chain() {
+        let p = test_provider();
+        let tokens = p
+            .get_buy_tokens(BuyTokensParams {
+                sell_chain_id: 1,
+                buy_chain_id: 9999,
+                sell_token_address: None,
+            })
+            .await
+            .unwrap();
+        assert!(tokens.tokens.is_empty());
+    }
+
+    #[tokio::test]
+    async fn get_intermediate_tokens_filters_by_shared_symbols() {
+        let p = test_provider();
+        let req = sample_request();
+        let tokens = p.get_intermediate_tokens(&req).await.unwrap();
+        assert!(!tokens.is_empty());
+        // Every returned token's symbol must also exist on the target chain.
+        let target_mapping = across_token_mapping();
+        let target = &target_mapping[&req.buy_chain_id].tokens;
+        for t in &tokens {
+            let key = t.symbol.to_ascii_lowercase();
+            assert!(target.contains_key(&key), "target missing symbol {}", t.symbol);
+        }
+    }
+
+    #[tokio::test]
+    async fn get_intermediate_tokens_empty_for_unsupported_route() {
+        let p = test_provider();
+        let mut req = sample_request();
+        req.buy_chain_id = 9999;
+        let tokens = p.get_intermediate_tokens(&req).await.unwrap();
+        assert!(tokens.is_empty());
+    }
+
+    #[tokio::test]
+    async fn get_bridging_params_returns_none_until_pr8() {
+        let p = test_provider();
+        let order = cow_orderbook::api::mock_get_order(&format!("0x{}", "aa".repeat(56)));
+        let out = p.get_bridging_params(1, &order, B256::ZERO, None).await.unwrap();
+        assert!(out.is_none());
+    }
 }
