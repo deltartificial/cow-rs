@@ -9,14 +9,21 @@ use alloy_primitives::{Address, U256};
 
 use cow_errors::CowError;
 
+use alloy_primitives::B256;
+
+use cow_orderbook::types::Order;
+
 use super::{
-    provider::{BridgeProvider, QuoteFuture},
+    provider::{
+        BridgeProvider, BridgeStatusFuture, BridgingParamsFuture, BuyTokensFuture,
+        IntermediateTokensFuture, NetworksFuture, QuoteFuture,
+    },
     types::{
-        BridgeAmounts, BridgeCosts, BridgeError, BridgeFees, BridgeLimits,
-        BridgeQuoteAmountsAndCosts, BridgeQuoteResult, BridgeStatus, BridgeStatusResult,
-        BridgingFee, BungeeBridge, BungeeBridgeName, BungeeEvent, BungeeEventStatus,
-        BungeeTxDataBytesIndex, DecodedBungeeAmounts, DecodedBungeeTxData, QuoteBridgeRequest,
-        QuoteBridgeResponse,
+        BridgeAmounts, BridgeCosts, BridgeError, BridgeFees, BridgeLimits, BridgeProviderInfo,
+        BridgeProviderType, BridgeQuoteAmountsAndCosts, BridgeQuoteResult, BridgeStatus,
+        BridgeStatusResult, BridgingFee, BungeeBridge, BungeeBridgeName, BungeeEvent,
+        BungeeEventStatus, BungeeTxDataBytesIndex, BuyTokensParams, DecodedBungeeAmounts,
+        DecodedBungeeTxData, QuoteBridgeRequest, QuoteBridgeResponse,
     },
     utils::{apply_bps, calculate_fee_bps},
 };
@@ -628,6 +635,7 @@ pub fn create_bungee_deposit_call(
 pub struct BungeeProvider {
     client: reqwest::Client,
     api_key: String,
+    info: BridgeProviderInfo,
 }
 
 impl BungeeProvider {
@@ -642,17 +650,33 @@ impl BungeeProvider {
     /// A ready-to-use [`BungeeProvider`] backed by a default `reqwest::Client`.
     #[must_use]
     pub fn new(api_key: impl Into<String>) -> Self {
-        Self { client: reqwest::Client::new(), api_key: api_key.into() }
+        Self {
+            client: reqwest::Client::new(),
+            api_key: api_key.into(),
+            info: default_bungee_info(),
+        }
+    }
+}
+
+/// Default [`BridgeProviderInfo`] for [`BungeeProvider`].
+///
+/// Mirrors the constants exposed by the `TypeScript` SDK
+/// (`BUNGEE_HOOK_DAPP_ID`, the Bungee logo, etc.).
+#[must_use]
+pub fn default_bungee_info() -> BridgeProviderInfo {
+    BridgeProviderInfo {
+        name: "bungee".to_owned(),
+        logo_url: "https://files.cow.fi/cow-sdk/bridging/providers/bungee-logo.svg".to_owned(),
+        dapp_id: crate::sdk::BUNGEE_HOOK_DAPP_ID.to_owned(),
+        website: "https://bungee.exchange".to_owned(),
+        provider_type: BridgeProviderType::HookBridgeProvider,
     }
 }
 
 impl BridgeProvider for BungeeProvider {
-    /// Returns the provider identifier string.
-    ///
-    /// Always returns `"bungee"`, used to tag quotes and logs originating
-    /// from this provider.
-    fn name(&self) -> &str {
-        "bungee"
+    /// Metadata about the Bungee provider.
+    fn info(&self) -> &BridgeProviderInfo {
+        &self.info
     }
 
     /// Check whether a cross-chain route is supported.
@@ -664,12 +688,97 @@ impl BridgeProvider for BungeeProvider {
         true
     }
 
+    /// List the networks supported by Bungee.
+    ///
+    /// **Not yet implemented** — will be filled in by PR #4 alongside the
+    /// upgraded provider impl against the enriched trait.
+    fn get_networks<'a>(&'a self) -> NetworksFuture<'a> {
+        Box::pin(async {
+            Err(CowError::Api {
+                status: 0,
+                body: "BungeeProvider::get_networks is not yet ported (cow-rs PR #4)".into(),
+            })
+        })
+    }
+
+    /// List buyable tokens on a destination chain.
+    ///
+    /// **Not yet implemented** — will be filled in by PR #4.
+    fn get_buy_tokens<'a>(&'a self, _params: BuyTokensParams) -> BuyTokensFuture<'a> {
+        Box::pin(async {
+            Err(CowError::Api {
+                status: 0,
+                body: "BungeeProvider::get_buy_tokens is not yet ported (cow-rs PR #4)".into(),
+            })
+        })
+    }
+
+    /// List candidate intermediate tokens for a bridging request.
+    ///
+    /// **Not yet implemented** — will be filled in by PR #4.
+    fn get_intermediate_tokens<'a>(
+        &'a self,
+        _request: &'a QuoteBridgeRequest,
+    ) -> IntermediateTokensFuture<'a> {
+        Box::pin(async {
+            Err(CowError::Api {
+                status: 0,
+                body: "BungeeProvider::get_intermediate_tokens is not yet ported (cow-rs PR #4)"
+                    .into(),
+            })
+        })
+    }
+
     /// Fetch a bridge quote from the Bungee / Socket aggregator API.
     ///
     /// Delegates to `BungeeProvider::get_quote_inner` and returns the result
     /// as a pinned, boxed future suitable for the [`BridgeProvider`] trait.
     fn get_quote<'a>(&'a self, req: &'a QuoteBridgeRequest) -> QuoteFuture<'a> {
         Box::pin(self.get_quote_inner(req))
+    }
+
+    /// Reconstruct bridging deposit parameters from a settlement transaction.
+    ///
+    /// **Not yet implemented** — will be filled in by PR #4. The free
+    /// function [`get_bridging_status_from_events`] already covers part of
+    /// this logic; PR #4 will wire it behind the trait.
+    fn get_bridging_params<'a>(
+        &'a self,
+        _chain_id: u64,
+        _order: &'a Order,
+        _tx_hash: B256,
+        _settlement_override: Option<Address>,
+    ) -> BridgingParamsFuture<'a> {
+        Box::pin(async {
+            Err(CowError::Api {
+                status: 0,
+                body: "BungeeProvider::get_bridging_params is not yet ported (cow-rs PR #4)".into(),
+            })
+        })
+    }
+
+    /// Return the provider's explorer URL for a bridging ID.
+    ///
+    /// **Not yet implemented** — will be filled in by PR #4. Currently
+    /// returns a placeholder pointing at the Bungee explorer root.
+    fn get_explorer_url(&self, bridging_id: &str) -> String {
+        format!("https://bungee.exchange/tx/{bridging_id}")
+    }
+
+    /// Fetch the current bridge status for a bridging ID.
+    ///
+    /// **Not yet implemented** — will be filled in by PR #4.
+    fn get_status<'a>(
+        &'a self,
+        _bridging_id: &'a str,
+        _origin_chain_id: u64,
+    ) -> BridgeStatusFuture<'a> {
+        Box::pin(async {
+            Err(CowError::Api {
+                status: 0,
+                body: "BungeeProvider::get_status is not yet ported (cow-rs PR #4)".into(),
+            })
+        })
     }
 }
 

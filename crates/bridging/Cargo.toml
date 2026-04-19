@@ -27,6 +27,7 @@ wasm = []
 alloy-primitives.workspace = true
 cow-chains.workspace = true
 cow-errors.workspace = true
+cow-orderbook.workspace = true
 cow-types.workspace = true
 foldhash.workspace = true
 futures.workspace = true

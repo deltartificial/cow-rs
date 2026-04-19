@@ -385,6 +385,91 @@ pub struct MultiQuoteResult {
     pub error: Option<String>,
 }
 
+// ── Intermediate token info ───────────────────────────────────────────────────
+
+/// Information about a token that can serve as an intermediate hop during
+/// cross-chain bridging.
+///
+/// Mirrors `IntermediateTokenInfo` from the `TypeScript` SDK, which is
+/// structurally identical to `TokenInfo` from `@cowprotocol/sdk-config`.
+/// The Rust side is a dedicated struct so the role is explicit at the
+/// trait boundary.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct IntermediateTokenInfo {
+    /// EIP-155 chain ID this token lives on.
+    pub chain_id: u64,
+    /// ERC-20 token address on `chain_id`.
+    pub address: Address,
+    /// Token decimals.
+    pub decimals: u8,
+    /// Token symbol (e.g. `"USDC"`).
+    pub symbol: String,
+    /// Token name (e.g. `"USD Coin"`).
+    pub name: String,
+    /// Logo URL, if available.
+    pub logo_url: Option<String>,
+}
+
+// ── Provider queries ──────────────────────────────────────────────────────────
+
+/// Parameters passed to
+/// [`BridgeProvider::get_buy_tokens`](crate::provider::BridgeProvider::get_buy_tokens)
+/// to enumerate the tokens a provider can deliver on a destination chain.
+///
+/// Mirrors `BuyTokensParams` from the `TypeScript` SDK.
+#[derive(Debug, Clone)]
+pub struct BuyTokensParams {
+    /// Source chain the user is bridging from.
+    pub sell_chain_id: u64,
+    /// Destination chain to list buyable tokens for.
+    pub buy_chain_id: u64,
+    /// Optional sell-token filter — when set, providers may restrict the
+    /// result to tokens reachable from this specific sell token.
+    pub sell_token_address: Option<Address>,
+}
+
+/// Tokens a provider can deliver on a given destination chain.
+///
+/// Mirrors `GetProviderBuyTokens` from the `TypeScript` SDK.
+#[derive(Debug, Clone)]
+pub struct GetProviderBuyTokens {
+    /// Provider metadata — mirrors the `providerInfo` field returned by the
+    /// `TypeScript` helper.
+    pub provider_info: BridgeProviderInfo,
+    /// The buyable tokens on the destination chain.
+    pub tokens: Vec<IntermediateTokenInfo>,
+}
+
+// ── Bridge deposit (decoded from hook metadata) ───────────────────────────────
+
+/// Decoded representation of a bridge deposit, typically reconstructed from
+/// `appData.metadata.bridging` and the settlement log events.
+///
+/// Mirrors `BridgeDeposit` from the `TypeScript` SDK (`types.ts`). Captures
+/// the provider's opaque `bridging_id` alongside the source/destination
+/// chain identifiers so a caller can re-query status or explorer URLs
+/// without re-parsing the original hook.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BridgeDeposit {
+    /// dApp identifier of the provider that produced the deposit.
+    pub provider_id: String,
+    /// Source chain where the deposit transaction was settled.
+    pub source_chain_id: u64,
+    /// Destination chain the bridge is delivering to.
+    pub destination_chain_id: u64,
+    /// Provider-specific bridging identifier (deposit address, quote ID, …).
+    pub bridging_id: String,
+    /// Settlement transaction hash on the source chain.
+    pub deposit_tx_hash: String,
+    /// Fill transaction hash on the destination chain, once known.
+    pub fill_tx_hash: Option<String>,
+    /// Amount of input tokens (in sell-token atoms).
+    pub amount_in: U256,
+    /// Amount of output tokens (in buy-token atoms), if the bridge
+    /// announced it ahead of time (otherwise populated post-fill).
+    pub amount_out: Option<U256>,
+}
+
 // ── Errors ────────────────────────────────────────────────────────────────────
 
 /// Errors specific to bridging operations.
@@ -815,6 +900,97 @@ mod tests {
         };
         assert!(info.is_receiver_account_bridge_provider());
         assert!(!info.is_hook_bridge_provider());
+    }
+
+    // ── IntermediateTokenInfo / BuyTokensParams / GetProviderBuyTokens ──
+
+    #[test]
+    fn intermediate_token_info_roundtrips_through_serde() {
+        let token = IntermediateTokenInfo {
+            chain_id: 1,
+            address: Address::repeat_byte(0x11),
+            decimals: 6,
+            symbol: "USDC".into(),
+            name: "USD Coin".into(),
+            logo_url: Some("https://example.com/usdc.png".into()),
+        };
+        let json = serde_json::to_string(&token).unwrap();
+        let decoded: IntermediateTokenInfo = serde_json::from_str(&json).unwrap();
+        assert_eq!(token, decoded);
+    }
+
+    #[test]
+    fn buy_tokens_params_optional_sell_token() {
+        let with_filter = BuyTokensParams {
+            sell_chain_id: 1,
+            buy_chain_id: 100,
+            sell_token_address: Some(Address::repeat_byte(0x22)),
+        };
+        assert_eq!(with_filter.sell_chain_id, 1);
+        assert_eq!(with_filter.buy_chain_id, 100);
+        assert!(with_filter.sell_token_address.is_some());
+
+        let without_filter =
+            BuyTokensParams { sell_chain_id: 1, buy_chain_id: 100, sell_token_address: None };
+        assert!(without_filter.sell_token_address.is_none());
+    }
+
+    #[test]
+    fn get_provider_buy_tokens_carries_info_and_tokens() {
+        let info = BridgeProviderInfo {
+            name: "p".into(),
+            logo_url: String::new(),
+            dapp_id: "cow-sdk://bridging/providers/p".into(),
+            website: String::new(),
+            provider_type: BridgeProviderType::HookBridgeProvider,
+        };
+        let token = IntermediateTokenInfo {
+            chain_id: 1,
+            address: Address::ZERO,
+            decimals: 18,
+            symbol: "WETH".into(),
+            name: "Wrapped Ether".into(),
+            logo_url: None,
+        };
+        let result = GetProviderBuyTokens { provider_info: info, tokens: vec![token] };
+        assert_eq!(result.tokens.len(), 1);
+        assert_eq!(result.tokens[0].symbol, "WETH");
+        assert!(result.provider_info.is_hook_bridge_provider());
+    }
+
+    // ── BridgeDeposit ───────────────────────────────────────────────────
+
+    #[test]
+    fn bridge_deposit_roundtrips_through_serde() {
+        let deposit = BridgeDeposit {
+            provider_id: "cow-sdk://bridging/providers/across".into(),
+            source_chain_id: 1,
+            destination_chain_id: 10,
+            bridging_id: "42".into(),
+            deposit_tx_hash: "0xdead".into(),
+            fill_tx_hash: Some("0xbeef".into()),
+            amount_in: U256::from(1_000_000u64),
+            amount_out: Some(U256::from(999_500u64)),
+        };
+        let json = serde_json::to_string(&deposit).unwrap();
+        let decoded: BridgeDeposit = serde_json::from_str(&json).unwrap();
+        assert_eq!(deposit, decoded);
+    }
+
+    #[test]
+    fn bridge_deposit_fill_tx_hash_optional() {
+        let deposit = BridgeDeposit {
+            provider_id: "p".into(),
+            source_chain_id: 1,
+            destination_chain_id: 10,
+            bridging_id: "42".into(),
+            deposit_tx_hash: "0xabc".into(),
+            fill_tx_hash: None,
+            amount_in: U256::from(500u64),
+            amount_out: None,
+        };
+        assert!(deposit.fill_tx_hash.is_none());
+        assert!(deposit.amount_out.is_none());
     }
 
     // ── BridgeStatus ────────────────────────────────────────────────────

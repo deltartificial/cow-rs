@@ -28,12 +28,15 @@ pub use across::{
 pub use bungee::{
     BungeeDepositCallParams, BungeeProvider, bungee_to_bridge_quote_result,
     create_bungee_deposit_call, decode_amounts_bungee_tx_data, decode_bungee_bridge_tx_data,
-    get_bridging_status_from_events, get_bungee_bridge_from_display_name,
+    default_bungee_info, get_bridging_status_from_events, get_bungee_bridge_from_display_name,
     get_display_name_from_bungee_bridge, is_valid_bungee_events_response, is_valid_quote_response,
     resolve_api_endpoint_from_options,
 };
 
-pub use provider::{BridgeProvider, QuoteFuture};
+pub use provider::{
+    BridgeNetworkInfo, BridgeProvider, BridgeStatusFuture, BridgingParamsFuture,
+    BridgingParamsResult, BuyTokensFuture, IntermediateTokensFuture, NetworksFuture, QuoteFuture,
+};
 
 pub use sdk::{
     ACROSS_API_URL, ACROSS_HOOK_DAPP_ID, BUNGEE_API_FALLBACK_TIMEOUT, BUNGEE_API_PATH,
@@ -61,11 +64,12 @@ pub use sdk::{
 pub use types::{
     AcrossChainConfig, AcrossDepositEvent, AcrossDepositStatus, AcrossDepositStatusResponse,
     AcrossPctFee, AcrossSuggestedFeesLimits, AcrossSuggestedFeesResponse, BridgeAmounts,
-    BridgeCallDetails, BridgeCosts, BridgeError, BridgeFees, BridgeHook, BridgeLimits,
-    BridgeProviderInfo, BridgeProviderType, BridgeQuoteAmountsAndCosts, BridgeQuoteResult,
-    BridgeQuoteResults, BridgeStatus, BridgeStatusResult, BridgingDepositParams, BridgingFee,
-    BungeeBridge, BungeeBridgeName, BungeeEvent, BungeeEventStatus, BungeeTxDataBytesIndex,
-    CrossChainOrder, DecodedBungeeAmounts, DecodedBungeeTxData, MultiQuoteResult,
+    BridgeCallDetails, BridgeCosts, BridgeDeposit, BridgeError, BridgeFees, BridgeHook,
+    BridgeLimits, BridgeProviderInfo, BridgeProviderType, BridgeQuoteAmountsAndCosts,
+    BridgeQuoteResult, BridgeQuoteResults, BridgeStatus, BridgeStatusResult, BridgingDepositParams,
+    BridgingFee, BungeeBridge, BungeeBridgeName, BungeeEvent, BungeeEventStatus,
+    BungeeTxDataBytesIndex, BuyTokensParams, CrossChainOrder, DecodedBungeeAmounts,
+    DecodedBungeeTxData, GetProviderBuyTokens, IntermediateTokenInfo, MultiQuoteResult,
     QuoteBridgeRequest, QuoteBridgeResponse,
 };
 
