@@ -10,10 +10,14 @@ use alloy_primitives::{Address, B256, U256};
 use cow_errors::CowError;
 use cow_orderbook::types::Order;
 
+use alloy_signer_local::PrivateKeySigner;
+use cow_chains::{EvmCall, SupportedChainId};
+
 use super::{
     provider::{
         BridgeProvider, BridgeStatusFuture, BridgingParamsFuture, BuyTokensFuture,
-        IntermediateTokensFuture, NetworksFuture, QuoteFuture,
+        HookBridgeProvider, IntermediateTokensFuture, NetworksFuture, QuoteFuture,
+        SignedHookFuture, UnsignedCallFuture,
     },
     types::{
         BridgeAmounts, BridgeCosts, BridgeError, BridgeFees, BridgeLimits, BridgeProviderInfo,
@@ -52,8 +56,6 @@ pub const SOCKET_VERIFIER_ADDRESS: &str = "0xa27A3f5A96DF7D8Be26EE2790999860C00e
 /// happen in practice).
 #[must_use]
 pub fn bungee_approve_and_bridge_v1_addresses() -> HashMap<u64, Address> {
-    use cow_chains::SupportedChainId;
-
     // Safety: the address literal is a valid hex address.
     let Ok(addr) = BUNGEE_APPROVE_AND_BRIDGE_V1_ADDRESS.parse::<Address>() else {
         return HashMap::default();
@@ -779,6 +781,48 @@ impl BridgeProvider for BungeeProvider {
     }
 }
 
+impl HookBridgeProvider for BungeeProvider {
+    /// Build the unsigned EVM call that initiates the Bungee bridge.
+    ///
+    /// **Not yet implemented** — will delegate to
+    /// [`create_bungee_deposit_call`] in PR #4 once the call-details
+    /// plumbing is in place.
+    fn get_unsigned_bridge_call<'a>(
+        &'a self,
+        _request: &'a QuoteBridgeRequest,
+        _quote: &'a QuoteBridgeResponse,
+    ) -> UnsignedCallFuture<'a> {
+        Box::pin(async {
+            Err(CowError::Api {
+                status: 0,
+                body: "BungeeProvider::get_unsigned_bridge_call is not yet ported (cow-rs PR #4)"
+                    .into(),
+            })
+        })
+    }
+
+    /// Sign the bridge post-hook.
+    ///
+    /// **Not yet implemented** — requires the `cow-shed` `sign_hook`
+    /// helper from cow-rs PR #5.
+    fn get_signed_hook<'a>(
+        &'a self,
+        _chain_id: SupportedChainId,
+        _unsigned_call: &'a EvmCall,
+        _bridge_hook_nonce: &'a str,
+        _deadline: u64,
+        _hook_gas_limit: u64,
+        _signer: &'a PrivateKeySigner,
+    ) -> SignedHookFuture<'a> {
+        Box::pin(async {
+            Err(CowError::Api {
+                status: 0,
+                body: "BungeeProvider::get_signed_hook is not yet ported (cow-rs PR #4/#5)".into(),
+            })
+        })
+    }
+}
+
 impl BungeeProvider {
     /// Perform the actual HTTP request to the Bungee quote API and parse the
     /// best route from the response.
@@ -968,5 +1012,43 @@ mod bungee_provider_trait_tests {
         assert_eq!(provider.info().name, default.name);
         assert_eq!(provider.info().dapp_id, default.dapp_id);
         assert_eq!(provider.info().provider_type, default.provider_type);
+    }
+
+    // ── HookBridgeProvider stubs ────────────────────────────────────────
+
+    #[tokio::test]
+    async fn get_unsigned_bridge_call_returns_pr4_stub_error() {
+        let provider = test_provider();
+        let req = sample_request();
+        let quote = QuoteBridgeResponse {
+            provider: "bungee".into(),
+            sell_amount: U256::from(100u64),
+            buy_amount: U256::from(99u64),
+            fee_amount: U256::ZERO,
+            estimated_secs: 0,
+            bridge_hook: None,
+        };
+        let err = provider.get_unsigned_bridge_call(&req, &quote).await.unwrap_err();
+        assert!(matches!(err, CowError::Api { status: 0, ref body } if body.contains("PR #4")));
+    }
+
+    #[tokio::test]
+    async fn get_signed_hook_returns_pr4_stub_error() {
+        let provider = test_provider();
+        let signer: PrivateKeySigner =
+            "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80".parse().unwrap();
+        let call = cow_chains::EvmCall { to: Address::ZERO, data: vec![], value: U256::ZERO };
+        let err = provider
+            .get_signed_hook(SupportedChainId::Mainnet, &call, "0", 0, 0, &signer)
+            .await
+            .unwrap_err();
+        assert!(matches!(err, CowError::Api { status: 0, ref body } if body.contains("PR #4")));
+    }
+
+    #[tokio::test]
+    async fn default_gas_limit_estimation_matches_helper() {
+        let provider = test_provider();
+        let gas = provider.get_gas_limit_estimation_for_hook(true, Some(1000), None).await.unwrap();
+        assert_eq!(gas, crate::utils::get_gas_limit_estimation_for_hook(true, Some(1000), None));
     }
 }
