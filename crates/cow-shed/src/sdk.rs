@@ -1,8 +1,10 @@
 //! [`CowShedSdk`] — helpers for building `CowShed` proxy hooks.
 
-use alloy_primitives::{Address, address, keccak256};
+use alloy_primitives::{Address, B256, U256, address, keccak256};
+use alloy_signer_local::PrivateKeySigner;
+use cow_errors::CowError;
 
-use super::types::CowShedHookParams;
+use super::{eip712::typed_data_digest, types::CowShedHookParams};
 
 /// `CowShed` version string for the 1.0.0 release.
 pub const COW_SHED_1_0_0_VERSION: &str = "1.0.0";
@@ -143,7 +145,7 @@ impl CowShedSdk {
     ///
     /// # Errors
     ///
-    /// Returns [`CowError`](cow_errors::CowError) if encoding fails (currently infallible).
+    /// Returns [`CowError`] if encoding fails (currently infallible).
     pub fn build_hook(
         &self,
         _user: Address,
@@ -158,5 +160,244 @@ impl CowShedSdk {
             gas_limit: gas_limit.to_string(),
             dapp_id: None,
         })
+    }
+
+    /// Compute the EIP-712 digest a signer would sign for this hook bundle.
+    ///
+    /// Equivalent to the raw `keccak256(0x1901 ‖ domain ‖ struct)` digest
+    /// produced by `ecdsaSignTypedData` in the `TypeScript` SDK when
+    /// targeting the `CoWShed` proxy on `(chain_id, version)`.
+    ///
+    /// # Arguments
+    ///
+    /// * `proxy` — the user's `CoWShed` proxy address (the EIP-712 `verifyingContract`).
+    /// * `params` — the hook bundle to hash.
+    /// * `version` — the `CoWShed` version string (defaults to [`COW_SHED_LATEST_VERSION`] when
+    ///   calling [`CowShedSdk::sign_hook`]).
+    #[must_use]
+    pub fn hook_typed_data_digest(
+        &self,
+        proxy: Address,
+        params: &CowShedHookParams,
+        version: &str,
+    ) -> B256 {
+        typed_data_digest(self.chain_id, proxy, version, params)
+    }
+
+    /// Sign a [`CowShedHookParams`] bundle under the user's proxy with the
+    /// given ECDSA signer.
+    ///
+    /// Produces a [`SignedCowShedHook`] carrying the raw 65-byte ECDSA
+    /// signature (`r ‖ s ‖ v`) plus the digest that was signed, ready to
+    /// be passed to `CowShed.executeHooks(calls, nonce, deadline, owner,
+    /// signature)` on-chain. Mirrors the end of
+    /// `CoWShedHooks.signCalls(...)` in the `TypeScript` SDK when
+    /// `signingScheme == EIP712`.
+    ///
+    /// # Arguments
+    ///
+    /// * `proxy` — the user's `CoWShed` proxy address (used as the `verifyingContract` of the
+    ///   EIP-712 domain).
+    /// * `params` — the hook bundle to sign.
+    /// * `signer` — the user's private-key signer.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`CowError::Signing`] if the ECDSA operation fails.
+    pub async fn sign_hook(
+        &self,
+        proxy: Address,
+        params: &CowShedHookParams,
+        signer: &PrivateKeySigner,
+    ) -> Result<SignedCowShedHook, CowError> {
+        self.sign_hook_with_version(proxy, params, signer, COW_SHED_LATEST_VERSION).await
+    }
+
+    /// Like [`sign_hook`](Self::sign_hook) but with an explicit `CoWShed`
+    /// version string — use this if you need to pin the domain to a
+    /// specific deployment.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`CowError::Signing`] if the ECDSA operation fails.
+    pub async fn sign_hook_with_version(
+        &self,
+        proxy: Address,
+        params: &CowShedHookParams,
+        signer: &PrivateKeySigner,
+        version: &str,
+    ) -> Result<SignedCowShedHook, CowError> {
+        let digest = typed_data_digest(self.chain_id, proxy, version, params);
+        let signature = alloy_signer::Signer::sign_hash(signer, &digest)
+            .await
+            .map_err(|e| CowError::Signing(e.to_string()))?;
+        Ok(SignedCowShedHook { digest, signature: signature.as_bytes().to_vec() })
+    }
+
+    /// Compute the replay nonce for a `CoWShed` proxy given a stringly-typed
+    /// identifier.
+    ///
+    /// Mirrors the `nonce` component of `CoWShedHooks.signCalls(...)` — the
+    /// TS SDK hashes the caller-provided string (e.g.
+    /// `"bridge-<dapp_id>-<order_uid>"`) into a `bytes32` value. The Rust
+    /// equivalent is `keccak256(bytes(nonce))`.
+    ///
+    /// Callers that already have a raw 32-byte nonce should construct
+    /// [`CowShedHookParams`] directly and bypass this helper.
+    #[must_use]
+    pub fn derive_nonce(nonce: &str) -> B256 {
+        keccak256(nonce.as_bytes())
+    }
+
+    /// Build a UNIX-timestamp deadline `seconds` in the future relative to
+    /// `now_unix`.
+    ///
+    /// Helper used to populate [`CowShedHookParams::deadline`]; mirrors
+    /// `calculateDeadline` from the TS SDK.
+    #[must_use]
+    pub fn deadline_from_now(now_unix: u64, seconds: u64) -> U256 {
+        U256::from(now_unix.saturating_add(seconds))
+    }
+}
+
+// ── Signed hook output ────────────────────────────────────────────────────────
+
+/// A signed `CoWShed` hook bundle — output of [`CowShedSdk::sign_hook`].
+///
+/// Bundles the 32-byte EIP-712 `digest` alongside the 65-byte
+/// `r ‖ s ‖ v` signature so callers can forward the pair directly to
+/// `CoWShed.executeHooks(...)` or re-verify locally.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SignedCowShedHook {
+    /// EIP-712 digest (`keccak256(0x1901 ‖ domain ‖ struct_hash)`).
+    pub digest: B256,
+    /// Raw ECDSA signature bytes (`r ‖ s ‖ v`, 65 bytes total).
+    pub signature: Vec<u8>,
+}
+
+impl SignedCowShedHook {
+    /// Return a hex-encoded, `0x`-prefixed signature string suitable for
+    /// passing to `executeHooks` as the `signature` argument.
+    #[must_use]
+    pub fn signature_hex(&self) -> String {
+        format!("0x{}", alloy_primitives::hex::encode(&self.signature))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::CowShedCall;
+
+    /// Well-known Hardhat test account #0. SAFE to commit — public test key.
+    const TEST_KEY: &str = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
+
+    fn sample_params() -> CowShedHookParams {
+        let call = CowShedCall::new([0xab; 20].into(), vec![0xde, 0xad, 0xbe, 0xef])
+            .with_value(U256::from(42u64));
+        CowShedHookParams::new(vec![call], B256::repeat_byte(0x11), U256::from(9_999_999u64))
+    }
+
+    #[test]
+    fn derive_nonce_matches_keccak_of_bytes() {
+        let nonce = CowShedSdk::derive_nonce("bridge-abc");
+        assert_eq!(nonce, keccak256(b"bridge-abc"));
+    }
+
+    #[test]
+    fn deadline_from_now_adds_seconds() {
+        let deadline = CowShedSdk::deadline_from_now(1_000_000, 300);
+        assert_eq!(deadline, U256::from(1_000_300u64));
+    }
+
+    #[test]
+    fn deadline_from_now_saturates_on_overflow() {
+        let deadline = CowShedSdk::deadline_from_now(u64::MAX - 1, 10);
+        assert_eq!(deadline, U256::from(u64::MAX));
+    }
+
+    #[test]
+    fn hook_typed_data_digest_matches_module_helper() {
+        let sdk = CowShedSdk::new(1);
+        let proxy: Address = [0x22; 20].into();
+        let params = sample_params();
+        let a = sdk.hook_typed_data_digest(proxy, &params, COW_SHED_LATEST_VERSION);
+        let b = typed_data_digest(1, proxy, COW_SHED_LATEST_VERSION, &params);
+        assert_eq!(a, b);
+    }
+
+    #[tokio::test]
+    async fn sign_hook_produces_65_byte_signature() {
+        let sdk = CowShedSdk::new(1);
+        let signer: PrivateKeySigner = TEST_KEY.parse().unwrap();
+        let signed = sdk.sign_hook([0x22; 20].into(), &sample_params(), &signer).await.unwrap();
+        assert_eq!(signed.signature.len(), 65, "r ‖ s ‖ v is 65 bytes");
+        assert!(signed.signature_hex().starts_with("0x"));
+        assert_eq!(signed.signature_hex().len(), 2 + 65 * 2);
+    }
+
+    #[tokio::test]
+    async fn sign_hook_is_deterministic_for_fixed_key_and_params() {
+        let sdk = CowShedSdk::new(1);
+        let signer: PrivateKeySigner = TEST_KEY.parse().unwrap();
+        let proxy: Address = [0x22; 20].into();
+        let params = sample_params();
+        let a = sdk.sign_hook(proxy, &params, &signer).await.unwrap();
+        let b = sdk.sign_hook(proxy, &params, &signer).await.unwrap();
+        assert_eq!(a, b);
+    }
+
+    #[tokio::test]
+    async fn sign_hook_digest_matches_standalone_helper() {
+        let sdk = CowShedSdk::new(1);
+        let signer: PrivateKeySigner = TEST_KEY.parse().unwrap();
+        let proxy: Address = [0x22; 20].into();
+        let params = sample_params();
+        let signed = sdk.sign_hook(proxy, &params, &signer).await.unwrap();
+        assert_eq!(signed.digest, typed_data_digest(1, proxy, COW_SHED_LATEST_VERSION, &params));
+    }
+
+    #[tokio::test]
+    async fn sign_hook_differs_by_chain_id() {
+        let signer: PrivateKeySigner = TEST_KEY.parse().unwrap();
+        let proxy: Address = [0x22; 20].into();
+        let params = sample_params();
+        let a = CowShedSdk::new(1).sign_hook(proxy, &params, &signer).await.unwrap();
+        let b = CowShedSdk::new(100).sign_hook(proxy, &params, &signer).await.unwrap();
+        assert_ne!(a.digest, b.digest);
+        assert_ne!(a.signature, b.signature);
+    }
+
+    #[tokio::test]
+    async fn sign_hook_with_version_pins_domain() {
+        let sdk = CowShedSdk::new(1);
+        let signer: PrivateKeySigner = TEST_KEY.parse().unwrap();
+        let proxy: Address = [0x22; 20].into();
+        let params = sample_params();
+        let v100 = sdk
+            .sign_hook_with_version(proxy, &params, &signer, COW_SHED_1_0_0_VERSION)
+            .await
+            .unwrap();
+        let v101 = sdk
+            .sign_hook_with_version(proxy, &params, &signer, COW_SHED_1_0_1_VERSION)
+            .await
+            .unwrap();
+        assert_ne!(v100.digest, v101.digest);
+    }
+
+    #[tokio::test]
+    async fn signed_hook_can_be_recovered_to_signer_address() {
+        let sdk = CowShedSdk::new(1);
+        let signer: PrivateKeySigner = TEST_KEY.parse().unwrap();
+        let proxy: Address = [0x22; 20].into();
+        let params = sample_params();
+        let signed = sdk.sign_hook(proxy, &params, &signer).await.unwrap();
+
+        // Rebuild the alloy signature and verify the ECDSA recovery
+        // returns the original address.
+        let sig = alloy_primitives::Signature::try_from(signed.signature.as_slice())
+            .expect("valid signature");
+        let recovered = sig.recover_address_from_prehash(&signed.digest).expect("recoverable");
+        assert_eq!(recovered, alloy_signer::Signer::address(&signer));
     }
 }

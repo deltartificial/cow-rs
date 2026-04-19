@@ -13,6 +13,13 @@ pub struct CowShedCall {
     pub value: U256,
     /// If `true`, a revert from this call does not abort the bundle.
     pub allow_failure: bool,
+    /// If `true`, the call is executed via `delegatecall` under the proxy's
+    /// storage context; otherwise a regular `call` is performed.
+    ///
+    /// Matches the `isDelegateCall` field of the on-chain `Call` struct and
+    /// is part of the EIP-712 struct hash, so flipping it changes the
+    /// resulting signature.
+    pub is_delegate_call: bool,
 }
 
 impl CowShedCall {
@@ -25,11 +32,23 @@ impl CowShedCall {
     ///
     /// # Returns
     ///
-    /// A new [`CowShedCall`] with `value` set to zero and `allow_failure` set
-    /// to `false`.
+    /// A new [`CowShedCall`] with `value` set to zero, `allow_failure` set
+    /// to `false`, and `is_delegate_call` set to `false`.
     #[must_use]
     pub const fn new(target: Address, calldata: Vec<u8>) -> Self {
-        Self { target, calldata, value: U256::ZERO, allow_failure: false }
+        Self { target, calldata, value: U256::ZERO, allow_failure: false, is_delegate_call: false }
+    }
+
+    /// Mark this call as a `delegatecall` instead of a regular `call`.
+    ///
+    /// # Returns
+    ///
+    /// The modified [`CowShedCall`] with `is_delegate_call` set to `true`
+    /// (builder pattern).
+    #[must_use]
+    pub const fn as_delegate_call(mut self) -> Self {
+        self.is_delegate_call = true;
+        self
     }
 
     /// Attach an ETH value to this call.

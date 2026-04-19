@@ -1327,8 +1327,11 @@ name = "cow-shed"
 version = "0.2.0"
 dependencies = [
  "alloy-primitives",
+ "alloy-signer",
+ "alloy-signer-local",
  "cow-errors",
  "cow-types",
+ "tokio",
 ]
 
 [[package]]
