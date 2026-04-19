@@ -8,8 +8,8 @@
 //! `get_explorer_url`).
 //!
 //! The trait mirrors the `BridgeProvider<Q>` interface from the `TypeScript`
-//! SDK. Two specialisations layered on top — [`HookBridgeProvider`] and
-//! [`ReceiverAccountBridgeProvider`] — will be added in follow-up PRs to
+//! SDK. Two specialisations layered on top — `HookBridgeProvider` and
+//! `ReceiverAccountBridgeProvider` — will be added in follow-up PRs to
 //! cover providers that submit a signed hook vs. providers that redirect
 //! funds to a deposit address.
 
@@ -79,6 +79,28 @@ provider_future!(IntermediateTokensFuture, Vec<IntermediateTokenInfo>);
 provider_future!(BridgingParamsFuture, Option<BridgingParamsResult>);
 provider_future!(BridgeStatusFuture, BridgeStatusResult);
 
+// ── Thread-safety marker ──────────────────────────────────────────────────────
+//
+// On native targets the trait is `Send + Sync` so providers can be shared
+// between tasks. On WASM the bounds are dropped because the browser
+// `fetch` API is single-threaded. Encoding this via a blanket auto-trait
+// lets us keep a single trait definition below (avoids duplicating ~60
+// lines of method signatures under two `cfg` branches).
+
+/// Auto-implemented marker adding `Send + Sync` on native and nothing on
+/// WASM. Used as a bound on [`BridgeProvider`].
+#[cfg(not(target_arch = "wasm32"))]
+pub trait MaybeSendSync: Send + Sync {}
+#[cfg(not(target_arch = "wasm32"))]
+impl<T: ?Sized + Send + Sync> MaybeSendSync for T {}
+
+/// Auto-implemented marker adding `Send + Sync` on native and nothing on
+/// WASM. Used as a bound on [`BridgeProvider`].
+#[cfg(target_arch = "wasm32")]
+pub trait MaybeSendSync {}
+#[cfg(target_arch = "wasm32")]
+impl<T: ?Sized> MaybeSendSync for T {}
+
 // ── Trait definition ──────────────────────────────────────────────────────────
 
 /// Trait implemented by cross-chain bridge providers (Across, Bungee,
@@ -86,16 +108,16 @@ provider_future!(BridgeStatusFuture, BridgeStatusResult);
 ///
 /// Mirrors the `BridgeProvider<Q>` interface from the `TypeScript` SDK.
 /// Concrete providers typically implement one of the two specialisations
-/// [`HookBridgeProvider`] or [`ReceiverAccountBridgeProvider`] on top of
-/// this base trait.
+/// `HookBridgeProvider` or `ReceiverAccountBridgeProvider` on top of
+/// this base trait (both coming in follow-up PRs).
 ///
 /// # Native vs. WASM
 ///
 /// On native targets the trait requires `Send + Sync` so providers can
-/// be shared between tasks. On `wasm32` targets the bounds are dropped
-/// because the browser `fetch` API is single-threaded.
-#[cfg(not(target_arch = "wasm32"))]
-pub trait BridgeProvider: Send + Sync {
+/// be shared between tasks. On `wasm32` targets those bounds are dropped
+/// via [`MaybeSendSync`] because the browser `fetch` API is
+/// single-threaded.
+pub trait BridgeProvider: MaybeSendSync {
     /// Metadata about this provider (name, logo, dApp ID, …).
     ///
     /// Mirrors the `info` field on the `TypeScript` interface.
@@ -175,60 +197,6 @@ pub trait BridgeProvider: Send + Sync {
     ///
     /// Mirrors `getStatus(bridgingId, originChainId)` from the `TypeScript`
     /// SDK.
-    fn get_status<'a>(
-        &'a self,
-        bridging_id: &'a str,
-        origin_chain_id: u64,
-    ) -> BridgeStatusFuture<'a>;
-}
-
-/// Trait implemented by cross-chain bridge providers (Across, Bungee,
-/// NEAR Intents, …).
-///
-/// WASM variant — see the native variant above for the full documentation.
-/// The trait bounds (`Send + Sync`) are dropped because the browser
-/// `fetch` API is single-threaded.
-#[cfg(target_arch = "wasm32")]
-pub trait BridgeProvider {
-    /// Metadata about this provider.
-    fn info(&self) -> &BridgeProviderInfo;
-
-    /// A short identifier for this provider. Default: delegates to `info().name`.
-    fn name(&self) -> &str {
-        &self.info().name
-    }
-
-    /// Returns `true` if this provider supports the given route.
-    fn supports_route(&self, sell_chain: u64, buy_chain: u64) -> bool;
-
-    /// List the networks supported by this provider.
-    fn get_networks<'a>(&'a self) -> NetworksFuture<'a>;
-
-    /// List the tokens this provider can deliver on a destination chain.
-    fn get_buy_tokens<'a>(&'a self, params: BuyTokensParams) -> BuyTokensFuture<'a>;
-
-    /// List candidate intermediate tokens for a bridging request.
-    fn get_intermediate_tokens<'a>(
-        &'a self,
-        request: &'a QuoteBridgeRequest,
-    ) -> IntermediateTokensFuture<'a>;
-
-    /// Fetch a bridge quote for `req`.
-    fn get_quote<'a>(&'a self, req: &'a QuoteBridgeRequest) -> QuoteFuture<'a>;
-
-    /// Reconstruct bridging deposit parameters from a settlement transaction.
-    fn get_bridging_params<'a>(
-        &'a self,
-        chain_id: u64,
-        order: &'a Order,
-        tx_hash: B256,
-        settlement_override: Option<Address>,
-    ) -> BridgingParamsFuture<'a>;
-
-    /// Return the provider's explorer URL for a given bridging ID.
-    fn get_explorer_url(&self, bridging_id: &str) -> String;
-
-    /// Fetch the current bridge status for a given `bridging_id`.
     fn get_status<'a>(
         &'a self,
         bridging_id: &'a str,
@@ -401,5 +369,57 @@ mod tests {
             .unwrap();
         assert!(tokens.tokens.is_empty());
         assert_eq!(tokens.provider_info.name, "fake-provider");
+    }
+
+    fn sample_request() -> QuoteBridgeRequest {
+        QuoteBridgeRequest {
+            sell_chain_id: 1,
+            buy_chain_id: 10,
+            sell_token: Address::ZERO,
+            sell_token_decimals: 18,
+            buy_token: Address::ZERO,
+            buy_token_decimals: 18,
+            sell_amount: U256::from(1u64),
+            account: Address::ZERO,
+            owner: None,
+            receiver: None,
+            bridge_recipient: None,
+            slippage_bps: 50,
+            bridge_slippage_bps: None,
+            kind: cow_types::OrderKind::Sell,
+        }
+    }
+
+    #[tokio::test]
+    async fn fake_provider_get_intermediate_tokens_is_callable() {
+        let provider = FakeProvider { info: fake_info() };
+        let tokens = provider.get_intermediate_tokens(&sample_request()).await.unwrap();
+        assert!(tokens.is_empty());
+    }
+
+    #[tokio::test]
+    async fn fake_provider_get_quote_returns_default_fake_response() {
+        let provider = FakeProvider { info: fake_info() };
+        let response = provider.get_quote(&sample_request()).await.unwrap();
+        assert_eq!(response.provider, "fake");
+        assert_eq!(response.sell_amount, U256::ZERO);
+        assert_eq!(response.buy_amount, U256::ZERO);
+    }
+
+    #[tokio::test]
+    async fn fake_provider_get_bridging_params_returns_none() {
+        let provider = FakeProvider { info: fake_info() };
+        let order = cow_orderbook::api::mock_get_order(&format!("0x{}", "aa".repeat(56)));
+        let result = provider.get_bridging_params(1, &order, B256::ZERO, None).await.unwrap();
+        assert!(result.is_none());
+    }
+
+    #[tokio::test]
+    async fn fake_provider_get_status_returns_unknown() {
+        let provider = FakeProvider { info: fake_info() };
+        let result = provider.get_status("deposit", 1).await.unwrap();
+        assert_eq!(result.status, BridgeStatus::Unknown);
+        assert!(result.fill_tx_hash.is_none());
+        assert!(result.deposit_tx_hash.is_none());
     }
 }

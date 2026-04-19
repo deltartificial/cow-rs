@@ -5,12 +5,9 @@
 
 use foldhash::HashMap;
 
-use alloy_primitives::{Address, U256};
+use alloy_primitives::{Address, B256, U256};
 
 use cow_errors::CowError;
-
-use alloy_primitives::B256;
-
 use cow_orderbook::types::Order;
 
 use super::{
@@ -863,5 +860,113 @@ impl BungeeProvider {
             estimated_secs,
             bridge_hook: None,
         })
+    }
+}
+
+#[cfg(test)]
+#[allow(
+    clippy::tests_outside_test_module,
+    reason = "inner module pattern — enforced cfg guard keeps tests compile-gated"
+)]
+mod bungee_provider_trait_tests {
+    use super::*;
+
+    fn test_provider() -> BungeeProvider {
+        BungeeProvider::new("test-key")
+    }
+
+    fn sample_request() -> QuoteBridgeRequest {
+        QuoteBridgeRequest {
+            sell_chain_id: 1,
+            buy_chain_id: 10,
+            sell_token: Address::ZERO,
+            sell_token_decimals: 18,
+            buy_token: Address::ZERO,
+            buy_token_decimals: 18,
+            sell_amount: U256::from(100u64),
+            account: Address::ZERO,
+            owner: None,
+            receiver: None,
+            bridge_recipient: None,
+            slippage_bps: 50,
+            bridge_slippage_bps: None,
+            kind: cow_types::OrderKind::Sell,
+        }
+    }
+
+    #[test]
+    fn info_exposes_default_metadata() {
+        let provider = test_provider();
+        let info = provider.info();
+        assert_eq!(info.name, "bungee");
+        assert_eq!(info.dapp_id, crate::sdk::BUNGEE_HOOK_DAPP_ID);
+        assert!(info.is_hook_bridge_provider());
+    }
+
+    #[test]
+    fn name_defaults_to_info_name() {
+        assert_eq!(test_provider().name(), "bungee");
+    }
+
+    #[test]
+    fn supports_route_always_true() {
+        assert!(test_provider().supports_route(1, 10));
+        assert!(test_provider().supports_route(100, 42_161));
+    }
+
+    #[test]
+    fn explorer_url_uses_bungee_domain() {
+        let url = test_provider().get_explorer_url("abc");
+        assert!(url.starts_with("https://bungee.exchange/tx/"));
+        assert!(url.ends_with("/abc"));
+    }
+
+    #[tokio::test]
+    async fn get_networks_returns_pr4_stub_error() {
+        let err = test_provider().get_networks().await.unwrap_err();
+        assert!(matches!(err, CowError::Api { status: 0, ref body } if body.contains("PR #4")));
+    }
+
+    #[tokio::test]
+    async fn get_buy_tokens_returns_pr4_stub_error() {
+        let err = test_provider()
+            .get_buy_tokens(BuyTokensParams {
+                sell_chain_id: 1,
+                buy_chain_id: 10,
+                sell_token_address: None,
+            })
+            .await
+            .unwrap_err();
+        assert!(matches!(err, CowError::Api { status: 0, ref body } if body.contains("PR #4")));
+    }
+
+    #[tokio::test]
+    async fn get_intermediate_tokens_returns_pr4_stub_error() {
+        let req = sample_request();
+        let err = test_provider().get_intermediate_tokens(&req).await.unwrap_err();
+        assert!(matches!(err, CowError::Api { status: 0, ref body } if body.contains("PR #4")));
+    }
+
+    #[tokio::test]
+    async fn get_bridging_params_returns_pr4_stub_error() {
+        let provider = test_provider();
+        let order = cow_orderbook::api::mock_get_order(&format!("0x{}", "aa".repeat(56)));
+        let err = provider.get_bridging_params(1, &order, B256::ZERO, None).await.unwrap_err();
+        assert!(matches!(err, CowError::Api { status: 0, ref body } if body.contains("PR #4")));
+    }
+
+    #[tokio::test]
+    async fn get_status_returns_pr4_stub_error() {
+        let err = test_provider().get_status("deposit-1", 1).await.unwrap_err();
+        assert!(matches!(err, CowError::Api { status: 0, ref body } if body.contains("PR #4")));
+    }
+
+    #[test]
+    fn default_bungee_info_matches_provider_info() {
+        let provider = test_provider();
+        let default = default_bungee_info();
+        assert_eq!(provider.info().name, default.name);
+        assert_eq!(provider.info().dapp_id, default.dapp_id);
+        assert_eq!(provider.info().provider_type, default.provider_type);
     }
 }
