@@ -23,7 +23,10 @@ pub mod logging;
 pub mod serialize;
 
 pub use adapter::{ProviderAdapter, get_global_adapter, set_global_adapter};
-pub use address::{is_co_w_settlement_contract, is_co_w_vault_relayer_contract};
+pub use address::{
+    BTC_ADDRESS_PATTERN, EVM_ADDRESS_PATTERN, SOL_ADDRESS_PATTERN, is_co_w_settlement_contract,
+    is_co_w_vault_relayer_contract,
+};
 pub use contracts::{
     TypedDataVersion, TypedDataVersionedSigner, ecdsa_sign_typed_data,
     get_int_chain_id_typed_data_v4_signer, get_typed_data_v3_signer,
