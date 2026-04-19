@@ -47,7 +47,6 @@ const fn subgraph_url(chain: SupportedChainId, _env: Env) -> Option<&'static str
         SupportedChainId::Avalanche |
         SupportedChainId::BnbChain |
         SupportedChainId::Linea |
-        SupportedChainId::Lens |
         SupportedChainId::Plasma |
         SupportedChainId::Ink => None,
     }

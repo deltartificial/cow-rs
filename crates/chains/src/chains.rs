@@ -615,6 +615,27 @@ pub const fn is_btc_chain(chain_id: u64) -> bool {
     chain_id == NonEvmChains::Bitcoin as u64
 }
 
+/// Check if a chain ID is the Solana non-EVM chain.
+///
+/// # Arguments
+///
+/// * `chain_id` — the numeric chain ID to check.
+///
+/// # Returns
+///
+/// `true` when `chain_id` equals [`NonEvmChains::Solana`].
+///
+/// ```
+/// use cow_chains::chains::is_solana_chain;
+///
+/// assert!(is_solana_chain(1_000_000_001));
+/// assert!(!is_solana_chain(1));
+/// ```
+#[must_use]
+pub const fn is_solana_chain(chain_id: u64) -> bool {
+    chain_id == NonEvmChains::Solana as u64
+}
+
 /// Check if a chain ID is directly supported by `CoW` Protocol for trading.
 ///
 /// # Arguments
@@ -933,6 +954,21 @@ pub fn all_chain_ids() -> Vec<TargetChainId> {
     ids
 }
 
+/// Return a map of every known chain keyed by its numeric chain ID.
+///
+/// Contains entries for both `CoW` Protocol supported chains and
+/// bridge-only additional target chains. The `TypeScript` SDK equivalent
+/// is `ALL_CHAINS_MAP`; the Rust version returns a
+/// [`foldhash::HashMap`].
+///
+/// # Returns
+///
+/// A `HashMap<u64, ChainInfo>` covering every chain in [`all_chains`].
+#[must_use]
+pub fn all_chains_map() -> foldhash::HashMap<u64, ChainInfo> {
+    all_chains().into_iter().map(|info| (info.id(), info)).collect()
+}
+
 // ── Chain info data ──────────────────────────────────────────────────────────
 
 /// Return the [`ChainInfo`] for a [`SupportedChainId`].
@@ -978,7 +1014,6 @@ const fn evm_chain_detail(chain: SupportedChainId) -> EvmChainInfo {
         SupportedChainId::Avalanche => avalanche_chain_info(),
         SupportedChainId::BnbChain => bnb_chain_info(),
         SupportedChainId::Linea => linea_chain_info(),
-        SupportedChainId::Lens => lens_chain_info(),
         SupportedChainId::Plasma => plasma_chain_info(),
         SupportedChainId::Ink => ink_chain_info(),
     }
@@ -1008,10 +1043,6 @@ const fn default_native_currency(chain_id: u64) -> ChainTokenInfo {
             "https://files.cow.fi/token-lists/images/1/0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee/logo.png",
         ),
     }
-}
-
-const fn no_contracts() -> ChainContracts {
-    ChainContracts { multicall3: None, ens_registry: None, ens_universal_resolver: None }
 }
 
 const fn multicall3_only(block_created: u64) -> ChainContracts {
@@ -1316,39 +1347,6 @@ const fn linea_chain_info() -> EvmChainInfo {
     }
 }
 
-// Lens is in the Rust SDK but not in the TS config at this time.
-const fn lens_chain_info() -> EvmChainInfo {
-    EvmChainInfo {
-        id: 232,
-        label: "Lens",
-        eip155_label: "Lens Network",
-        address_prefix: "lens",
-        native_currency: ChainTokenInfo {
-            chain_id: 232,
-            address: EVM_NATIVE_ADDR,
-            decimals: 18,
-            name: "GHO",
-            symbol: "GHO",
-            logo_url: None,
-        },
-        is_testnet: false,
-        color: "#00501e",
-        logo: ThemedImage {
-            light: "https://files.cow.fi/cow-sdk/chains/images/lens-logo.svg",
-            dark: "https://files.cow.fi/cow-sdk/chains/images/lens-logo.svg",
-        },
-        website: WebUrl { name: "Lens", url: "https://lens.xyz" },
-        docs: WebUrl { name: "Lens Docs", url: "https://docs.lens.xyz" },
-        block_explorer: WebUrl { name: "Lens Explorer", url: "https://explorer.lens.xyz" },
-        bridges: &[],
-        contracts: no_contracts(),
-        rpc_urls: ChainRpcUrls { http: &["https://rpc.lens.xyz"], web_socket: None },
-        is_zk_sync: true,
-        is_under_development: false,
-        is_deprecated: false,
-    }
-}
-
 const fn plasma_chain_info() -> EvmChainInfo {
     let logo_url = "https://files.cow.fi/cow-sdk/chains/images/plasma-logo.svg";
     EvmChainInfo {
@@ -1639,6 +1637,22 @@ mod tests {
     }
 
     #[test]
+    fn is_solana_chain_correct() {
+        assert!(is_solana_chain(1_000_000_001));
+        assert!(!is_solana_chain(1_000_000_000));
+        assert!(!is_solana_chain(1));
+    }
+
+    #[test]
+    fn all_chains_map_covers_every_chain() {
+        let map = all_chains_map();
+        assert_eq!(map.len(), all_chains().len());
+        for id in all_chain_ids() {
+            assert!(map.contains_key(&id.as_u64()), "missing chain id {}", id.as_u64());
+        }
+    }
+
+    #[test]
     fn is_supported_chain_correct() {
         assert!(is_supported_chain(1));
         assert!(is_supported_chain(100));
@@ -1768,13 +1782,6 @@ mod tests {
     }
 
     // ── Additional coverage ────────────────────────────────────────────
-
-    #[test]
-    fn is_zk_sync_chain_returns_false_for_lens() {
-        // Lens (232) has is_zk_sync = true in chain info, but it is not in EvmChains
-        // so is_zk_sync_chain returns false because it first checks is_evm_chain.
-        assert!(!is_zk_sync_chain(232));
-    }
 
     #[test]
     fn is_zk_sync_chain_returns_false_for_non_evm() {
