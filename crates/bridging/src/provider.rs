@@ -16,6 +16,8 @@
 use std::pin::Pin;
 
 use alloy_primitives::{Address, B256};
+use alloy_signer_local::PrivateKeySigner;
+use cow_chains::SupportedChainId;
 use cow_errors::CowError;
 use cow_orderbook::types::Order;
 
@@ -78,6 +80,10 @@ provider_future!(BuyTokensFuture, GetProviderBuyTokens);
 provider_future!(IntermediateTokensFuture, Vec<IntermediateTokenInfo>);
 provider_future!(BridgingParamsFuture, Option<BridgingParamsResult>);
 provider_future!(BridgeStatusFuture, BridgeStatusResult);
+provider_future!(UnsignedCallFuture, cow_chains::EvmCall);
+provider_future!(SignedHookFuture, crate::types::BridgeHook);
+provider_future!(ReceiverOverrideFuture, String);
+provider_future!(GasEstimationFuture, u64);
 
 // ── Thread-safety marker ──────────────────────────────────────────────────────
 //
@@ -202,6 +208,118 @@ pub trait BridgeProvider: MaybeSendSync {
         bridging_id: &'a str,
         origin_chain_id: u64,
     ) -> BridgeStatusFuture<'a>;
+}
+
+// ── Sub-traits ────────────────────────────────────────────────────────────────
+
+/// A [`BridgeProvider`] that triggers the bridge through a signed `CoW` Shed
+/// post-hook (e.g. Across, Bungee).
+///
+/// Mirrors the `HookBridgeProvider<Q>` specialisation of the `TypeScript`
+/// SDK. Implementors build an EVM call that the settlement solver
+/// executes as a post-interaction, then sign it under the user's
+/// `CoW` Shed proxy so the bridge contract can pull the intermediate funds.
+///
+/// # Required methods
+///
+/// | Method | Purpose |
+/// |---|---|
+/// | [`get_unsigned_bridge_call`](Self::get_unsigned_bridge_call) | Build the raw EVM call targeting the bridge contract |
+/// | [`get_gas_limit_estimation_for_hook`](Self::get_gas_limit_estimation_for_hook) | Estimate gas without knowing the final amount |
+/// | [`get_signed_hook`](Self::get_signed_hook) | Wrap the call in a `CoW` Shed EIP-712 signed hook |
+pub trait HookBridgeProvider: BridgeProvider {
+    /// Build the unsigned EVM call that initiates the bridge.
+    ///
+    /// The call is later wrapped into a `CoW` Shed post-hook and signed
+    /// with [`get_signed_hook`](Self::get_signed_hook). Mirrors
+    /// `getUnsignedBridgeCall(request, quote)` from the `TypeScript` SDK.
+    fn get_unsigned_bridge_call<'a>(
+        &'a self,
+        request: &'a QuoteBridgeRequest,
+        quote: &'a QuoteBridgeResponse,
+    ) -> UnsignedCallFuture<'a>;
+
+    /// Estimate the gas limit for the bridge post-hook before the final
+    /// amount is known.
+    ///
+    /// Used upstream of the quote to avoid a chicken-and-egg problem
+    /// between amount and gas cost. Mirrors
+    /// `getGasLimitEstimationForHook(request, extraGas, extraGasProxyCreation)`.
+    ///
+    /// The default implementation delegates to the free-standing
+    /// [`get_gas_limit_estimation_for_hook`](crate::utils::get_gas_limit_estimation_for_hook)
+    /// helper; providers can override for route-specific logic (e.g.
+    /// Bungee's +350k buffer for mainnet → gnosis).
+    fn get_gas_limit_estimation_for_hook<'a>(
+        &'a self,
+        proxy_deployed: bool,
+        extra_gas: Option<u64>,
+        extra_gas_proxy_creation: Option<u64>,
+    ) -> GasEstimationFuture<'a> {
+        let gas = crate::utils::get_gas_limit_estimation_for_hook(
+            proxy_deployed,
+            extra_gas,
+            extra_gas_proxy_creation,
+        );
+        Box::pin(async move { Ok(gas) })
+    }
+
+    /// Produce a signed bridge hook ready to attach to the order's app data.
+    ///
+    /// Mirrors `getSignedHook(chainId, unsignedCall, bridgeHookNonce, deadline,
+    /// hookGasLimit, signer)` from the `TypeScript` SDK. Typically delegates
+    /// to `CowShedSdk::sign_hook` once PR #5 lands.
+    #[allow(clippy::too_many_arguments, reason = "1:1 mirror of the TS signature")]
+    fn get_signed_hook<'a>(
+        &'a self,
+        chain_id: SupportedChainId,
+        unsigned_call: &'a cow_chains::EvmCall,
+        bridge_hook_nonce: &'a str,
+        deadline: u64,
+        hook_gas_limit: u64,
+        signer: &'a PrivateKeySigner,
+    ) -> SignedHookFuture<'a>;
+}
+
+/// A [`BridgeProvider`] that relies on a deposit address (e.g. NEAR Intents).
+///
+/// Mirrors the `ReceiverAccountBridgeProvider<Q>` specialisation of the
+/// `TypeScript` SDK. Instead of injecting a post-hook, the provider
+/// declares a deposit address that the user swaps into; the bridge
+/// detects the deposit off-chain and relays it to the destination chain.
+pub trait ReceiverAccountBridgeProvider: BridgeProvider {
+    /// Return the deposit address that the `CoW` swap should pay into to
+    /// trigger this bridge.
+    ///
+    /// Mirrors `getBridgeReceiverOverride(quoteRequest, quoteResult)` from
+    /// the `TypeScript` SDK.
+    fn get_bridge_receiver_override<'a>(
+        &'a self,
+        quote_request: &'a QuoteBridgeRequest,
+        quote_result: &'a QuoteBridgeResponse,
+    ) -> ReceiverOverrideFuture<'a>;
+}
+
+// ── Type guards ───────────────────────────────────────────────────────────────
+
+/// Returns `true` if the provider's [`BridgeProviderInfo::provider_type`] is
+/// [`BridgeProviderType::HookBridgeProvider`](crate::types::BridgeProviderType::HookBridgeProvider).
+///
+/// Mirrors `isHookBridgeProvider` from the `TypeScript` SDK. Useful for
+/// dispatching over a collection of `&dyn BridgeProvider` trait objects
+/// without downcasting.
+#[must_use]
+pub fn is_hook_bridge_provider<P: BridgeProvider + ?Sized>(provider: &P) -> bool {
+    provider.info().is_hook_bridge_provider()
+}
+
+/// Returns `true` if the provider's [`BridgeProviderInfo::provider_type`] is
+/// [`BridgeProviderType::ReceiverAccountBridgeProvider`](crate::types::BridgeProviderType::ReceiverAccountBridgeProvider).
+///
+/// Mirrors `isReceiverAccountBridgeProvider` from the `TypeScript` SDK.
+#[must_use]
+pub fn is_receiver_account_bridge_provider<P: BridgeProvider + ?Sized>(provider: &P) -> bool {
+    provider.info().is_receiver_account_bridge_provider()
 }
 
 #[cfg(all(test, not(target_arch = "wasm32")))]
@@ -421,5 +539,257 @@ mod tests {
         assert_eq!(result.status, BridgeStatus::Unknown);
         assert!(result.fill_tx_hash.is_none());
         assert!(result.deposit_tx_hash.is_none());
+    }
+
+    // ── Type guards ─────────────────────────────────────────────────────
+
+    #[test]
+    fn is_hook_bridge_provider_matches_info_type() {
+        let hook_info = fake_info();
+        let hook_provider = FakeProvider { info: hook_info };
+        assert!(is_hook_bridge_provider(&hook_provider));
+        assert!(!is_receiver_account_bridge_provider(&hook_provider));
+    }
+
+    #[test]
+    fn is_receiver_account_bridge_provider_matches_info_type() {
+        let receiver_info = BridgeProviderInfo {
+            name: "rcv".into(),
+            logo_url: String::new(),
+            dapp_id: "cow-sdk://bridging/providers/rcv".into(),
+            website: String::new(),
+            provider_type: BridgeProviderType::ReceiverAccountBridgeProvider,
+        };
+        let provider = FakeProvider { info: receiver_info };
+        assert!(is_receiver_account_bridge_provider(&provider));
+        assert!(!is_hook_bridge_provider(&provider));
+    }
+
+    #[test]
+    fn type_guards_work_through_trait_object() {
+        let hook_provider: Box<dyn BridgeProvider> = Box::new(FakeProvider { info: fake_info() });
+        assert!(is_hook_bridge_provider(&*hook_provider));
+        assert!(!is_receiver_account_bridge_provider(&*hook_provider));
+    }
+
+    // ── HookBridgeProvider default impl ─────────────────────────────────
+
+    struct FakeHookProvider {
+        info: BridgeProviderInfo,
+    }
+
+    impl BridgeProvider for FakeHookProvider {
+        fn info(&self) -> &BridgeProviderInfo {
+            &self.info
+        }
+        fn supports_route(&self, _s: u64, _b: u64) -> bool {
+            true
+        }
+        fn get_networks<'a>(&'a self) -> NetworksFuture<'a> {
+            Box::pin(async { Ok(Vec::new()) })
+        }
+        fn get_buy_tokens<'a>(&'a self, _p: BuyTokensParams) -> BuyTokensFuture<'a> {
+            let info = self.info.clone();
+            Box::pin(
+                async move { Ok(GetProviderBuyTokens { provider_info: info, tokens: vec![] }) },
+            )
+        }
+        fn get_intermediate_tokens<'a>(
+            &'a self,
+            _req: &'a QuoteBridgeRequest,
+        ) -> IntermediateTokensFuture<'a> {
+            Box::pin(async { Ok(Vec::new()) })
+        }
+        fn get_quote<'a>(&'a self, _req: &'a QuoteBridgeRequest) -> QuoteFuture<'a> {
+            Box::pin(async {
+                Ok(QuoteBridgeResponse {
+                    provider: "hook".into(),
+                    sell_amount: U256::ZERO,
+                    buy_amount: U256::ZERO,
+                    fee_amount: U256::ZERO,
+                    estimated_secs: 0,
+                    bridge_hook: None,
+                })
+            })
+        }
+        fn get_bridging_params<'a>(
+            &'a self,
+            _c: u64,
+            _o: &'a Order,
+            _t: B256,
+            _s: Option<Address>,
+        ) -> BridgingParamsFuture<'a> {
+            Box::pin(async { Ok(None) })
+        }
+        fn get_explorer_url(&self, _id: &str) -> String {
+            String::new()
+        }
+        fn get_status<'a>(&'a self, _id: &'a str, _c: u64) -> BridgeStatusFuture<'a> {
+            Box::pin(async {
+                Ok(BridgeStatusResult {
+                    status: BridgeStatus::Unknown,
+                    fill_time_in_seconds: None,
+                    deposit_tx_hash: None,
+                    fill_tx_hash: None,
+                })
+            })
+        }
+    }
+
+    impl HookBridgeProvider for FakeHookProvider {
+        fn get_unsigned_bridge_call<'a>(
+            &'a self,
+            _req: &'a QuoteBridgeRequest,
+            _quote: &'a QuoteBridgeResponse,
+        ) -> UnsignedCallFuture<'a> {
+            Box::pin(async {
+                Ok(cow_chains::EvmCall { to: Address::ZERO, data: vec![], value: U256::ZERO })
+            })
+        }
+        fn get_signed_hook<'a>(
+            &'a self,
+            _chain: SupportedChainId,
+            _call: &'a cow_chains::EvmCall,
+            _nonce: &'a str,
+            _deadline: u64,
+            _gas: u64,
+            _signer: &'a PrivateKeySigner,
+        ) -> SignedHookFuture<'a> {
+            Box::pin(async {
+                Ok(crate::types::BridgeHook {
+                    post_hook: cow_types::CowHook {
+                        target: String::new(),
+                        call_data: String::new(),
+                        gas_limit: String::new(),
+                        dapp_id: None,
+                    },
+                    recipient: String::new(),
+                })
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn hook_provider_default_gas_estimation_deployed() {
+        let provider = FakeHookProvider { info: fake_info() };
+        let gas = provider.get_gas_limit_estimation_for_hook(true, None, None).await.unwrap();
+        // Matches the free-standing helper with proxy_deployed = true.
+        assert_eq!(gas, crate::utils::get_gas_limit_estimation_for_hook(true, None, None));
+    }
+
+    #[tokio::test]
+    async fn hook_provider_default_gas_estimation_needs_proxy_creation() {
+        let provider = FakeHookProvider { info: fake_info() };
+        let gas =
+            provider.get_gas_limit_estimation_for_hook(false, None, Some(10_000)).await.unwrap();
+        assert_eq!(gas, crate::utils::get_gas_limit_estimation_for_hook(false, None, Some(10_000)));
+    }
+
+    #[tokio::test]
+    async fn hook_provider_required_methods_callable_through_trait() {
+        let provider = FakeHookProvider { info: fake_info() };
+        let req = sample_request();
+        let quote = provider.get_quote(&req).await.unwrap();
+        let call = provider.get_unsigned_bridge_call(&req, &quote).await.unwrap();
+        assert_eq!(call.to, Address::ZERO);
+        assert!(call.data.is_empty());
+
+        let signer: PrivateKeySigner =
+            "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80".parse().unwrap();
+        let hook = provider
+            .get_signed_hook(SupportedChainId::Mainnet, &call, "0", 0, 0, &signer)
+            .await
+            .unwrap();
+        assert!(hook.recipient.is_empty());
+    }
+
+    // ── ReceiverAccountBridgeProvider ───────────────────────────────────
+
+    struct FakeReceiverProvider {
+        info: BridgeProviderInfo,
+    }
+
+    impl BridgeProvider for FakeReceiverProvider {
+        fn info(&self) -> &BridgeProviderInfo {
+            &self.info
+        }
+        fn supports_route(&self, _s: u64, _b: u64) -> bool {
+            true
+        }
+        fn get_networks<'a>(&'a self) -> NetworksFuture<'a> {
+            Box::pin(async { Ok(Vec::new()) })
+        }
+        fn get_buy_tokens<'a>(&'a self, _p: BuyTokensParams) -> BuyTokensFuture<'a> {
+            let info = self.info.clone();
+            Box::pin(
+                async move { Ok(GetProviderBuyTokens { provider_info: info, tokens: vec![] }) },
+            )
+        }
+        fn get_intermediate_tokens<'a>(
+            &'a self,
+            _req: &'a QuoteBridgeRequest,
+        ) -> IntermediateTokensFuture<'a> {
+            Box::pin(async { Ok(Vec::new()) })
+        }
+        fn get_quote<'a>(&'a self, _req: &'a QuoteBridgeRequest) -> QuoteFuture<'a> {
+            Box::pin(async {
+                Ok(QuoteBridgeResponse {
+                    provider: "rcv".into(),
+                    sell_amount: U256::ZERO,
+                    buy_amount: U256::ZERO,
+                    fee_amount: U256::ZERO,
+                    estimated_secs: 0,
+                    bridge_hook: None,
+                })
+            })
+        }
+        fn get_bridging_params<'a>(
+            &'a self,
+            _c: u64,
+            _o: &'a Order,
+            _t: B256,
+            _s: Option<Address>,
+        ) -> BridgingParamsFuture<'a> {
+            Box::pin(async { Ok(None) })
+        }
+        fn get_explorer_url(&self, _id: &str) -> String {
+            String::new()
+        }
+        fn get_status<'a>(&'a self, _id: &'a str, _c: u64) -> BridgeStatusFuture<'a> {
+            Box::pin(async {
+                Ok(BridgeStatusResult {
+                    status: BridgeStatus::Unknown,
+                    fill_time_in_seconds: None,
+                    deposit_tx_hash: None,
+                    fill_tx_hash: None,
+                })
+            })
+        }
+    }
+
+    impl ReceiverAccountBridgeProvider for FakeReceiverProvider {
+        fn get_bridge_receiver_override<'a>(
+            &'a self,
+            _req: &'a QuoteBridgeRequest,
+            _result: &'a QuoteBridgeResponse,
+        ) -> ReceiverOverrideFuture<'a> {
+            Box::pin(async { Ok("near-deposit-address".to_owned()) })
+        }
+    }
+
+    #[tokio::test]
+    async fn receiver_provider_returns_deposit_address() {
+        let info = BridgeProviderInfo {
+            name: "rcv".into(),
+            logo_url: String::new(),
+            dapp_id: "cow-sdk://bridging/providers/rcv".into(),
+            website: String::new(),
+            provider_type: BridgeProviderType::ReceiverAccountBridgeProvider,
+        };
+        let provider = FakeReceiverProvider { info };
+        let req = sample_request();
+        let quote = provider.get_quote(&req).await.unwrap();
+        let addr = provider.get_bridge_receiver_override(&req, &quote).await.unwrap();
+        assert_eq!(addr, "near-deposit-address");
     }
 }

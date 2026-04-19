@@ -35,7 +35,10 @@ pub use bungee::{
 
 pub use provider::{
     BridgeNetworkInfo, BridgeProvider, BridgeStatusFuture, BridgingParamsFuture,
-    BridgingParamsResult, BuyTokensFuture, IntermediateTokensFuture, NetworksFuture, QuoteFuture,
+    BridgingParamsResult, BuyTokensFuture, GasEstimationFuture, HookBridgeProvider,
+    IntermediateTokensFuture, MaybeSendSync, NetworksFuture, QuoteFuture,
+    ReceiverAccountBridgeProvider, ReceiverOverrideFuture, SignedHookFuture, UnsignedCallFuture,
+    is_hook_bridge_provider, is_receiver_account_bridge_provider,
 };
 
 pub use sdk::{

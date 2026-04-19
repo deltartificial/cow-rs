@@ -10,10 +10,14 @@ use alloy_primitives::{Address, B256, U256};
 use cow_errors::CowError;
 use cow_orderbook::types::Order;
 
+use alloy_signer_local::PrivateKeySigner;
+use cow_chains::{EvmCall, SupportedChainId};
+
 use super::{
     provider::{
         BridgeProvider, BridgeStatusFuture, BridgingParamsFuture, BuyTokensFuture,
-        IntermediateTokensFuture, NetworksFuture, QuoteFuture,
+        HookBridgeProvider, IntermediateTokensFuture, NetworksFuture, QuoteFuture,
+        SignedHookFuture, UnsignedCallFuture,
     },
     types::{
         BridgeAmounts, BridgeCosts, BridgeError, BridgeFees, BridgeLimits, BridgeProviderInfo,
@@ -52,8 +56,6 @@ pub const SOCKET_VERIFIER_ADDRESS: &str = "0xa27A3f5A96DF7D8Be26EE2790999860C00e
 /// happen in practice).
 #[must_use]
 pub fn bungee_approve_and_bridge_v1_addresses() -> HashMap<u64, Address> {
-    use cow_chains::SupportedChainId;
-
     // Safety: the address literal is a valid hex address.
     let Ok(addr) = BUNGEE_APPROVE_AND_BRIDGE_V1_ADDRESS.parse::<Address>() else {
         return HashMap::default();
@@ -774,6 +776,48 @@ impl BridgeProvider for BungeeProvider {
             Err(CowError::Api {
                 status: 0,
                 body: "BungeeProvider::get_status is not yet ported (cow-rs PR #4)".into(),
+            })
+        })
+    }
+}
+
+impl HookBridgeProvider for BungeeProvider {
+    /// Build the unsigned EVM call that initiates the Bungee bridge.
+    ///
+    /// **Not yet implemented** — will delegate to
+    /// [`create_bungee_deposit_call`] in PR #4 once the call-details
+    /// plumbing is in place.
+    fn get_unsigned_bridge_call<'a>(
+        &'a self,
+        _request: &'a QuoteBridgeRequest,
+        _quote: &'a QuoteBridgeResponse,
+    ) -> UnsignedCallFuture<'a> {
+        Box::pin(async {
+            Err(CowError::Api {
+                status: 0,
+                body: "BungeeProvider::get_unsigned_bridge_call is not yet ported (cow-rs PR #4)"
+                    .into(),
+            })
+        })
+    }
+
+    /// Sign the bridge post-hook.
+    ///
+    /// **Not yet implemented** — requires [`CowShedSdk::sign_hook`] from
+    /// cow-rs PR #5.
+    fn get_signed_hook<'a>(
+        &'a self,
+        _chain_id: SupportedChainId,
+        _unsigned_call: &'a EvmCall,
+        _bridge_hook_nonce: &'a str,
+        _deadline: u64,
+        _hook_gas_limit: u64,
+        _signer: &'a PrivateKeySigner,
+    ) -> SignedHookFuture<'a> {
+        Box::pin(async {
+            Err(CowError::Api {
+                status: 0,
+                body: "BungeeProvider::get_signed_hook is not yet ported (cow-rs PR #4/#5)".into(),
             })
         })
     }
