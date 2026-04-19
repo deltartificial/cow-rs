@@ -376,12 +376,13 @@ pub use trading::{
     calculate_gas_margin, calculate_unique_order_id, generate_app_data_from_doc,
     get_default_slippage_bps, get_default_utm_params, get_eth_flow_cancellation,
     get_eth_flow_contract, get_is_eth_flow_order, get_order_deadline_from_now, get_order_to_sign,
-    get_order_typed_data, get_quote_raw, get_quote_with_signer, get_settlement_cancellation,
-    get_settlement_contract, get_slippage_percent, get_trade_parameters_after_quote, get_trader,
-    map_quote_amounts_and_costs, percentage_to_bps, post_co_w_protocol_trade,
-    post_cow_protocol_trade, post_sell_native_currency_order, resolve_order_book_api,
-    resolve_signer, resolve_slippage_suggestion, suggest_slippage_bps, suggest_slippage_from_fee,
-    suggest_slippage_from_volume, swap_params_to_limit_order_params, unsigned_order_for_signing,
+    get_order_typed_data, get_quote_raw, get_quote_with_signer, get_quote_without_signer,
+    get_settlement_cancellation, get_settlement_contract, get_slippage_percent,
+    get_trade_parameters_after_quote, get_trader, map_quote_amounts_and_costs, percentage_to_bps,
+    post_co_w_protocol_trade, post_cow_protocol_trade, post_sell_native_currency_order,
+    resolve_order_book_api, resolve_signer, resolve_slippage_suggestion, suggest_slippage_bps,
+    suggest_slippage_from_fee, suggest_slippage_from_volume, swap_params_to_limit_order_params,
+    unsigned_order_for_signing,
 };
 pub use traits::{CowSigner, IpfsClient, OrderbookClient, RpcProvider};
 pub use types::{

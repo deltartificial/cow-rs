@@ -987,3 +987,41 @@ async fn api_error(resp: reqwest::Response) -> CowError {
     };
     CowError::Api { status, body }
 }
+
+#[cfg(test)]
+mod tests {
+    use cow_chains::{Env, SupportedChainId, partner_api_base_url};
+
+    use super::OrderBookApi;
+
+    #[test]
+    fn with_api_key_switches_to_partner_url_and_sets_header() {
+        let chain = SupportedChainId::Mainnet;
+        let env = Env::Prod;
+        let api = OrderBookApi::new(chain, env).with_api_key("secret");
+
+        assert_eq!(api.base_url, partner_api_base_url(chain, env));
+        assert!(api.extra_headers.iter().any(|(k, v)| k == "X-API-Key" && v == "secret"));
+    }
+
+    #[test]
+    fn with_api_key_respects_staging_env() {
+        let chain = SupportedChainId::Sepolia;
+        let env = Env::Staging;
+        let api = OrderBookApi::new(chain, env).with_api_key("another");
+
+        assert!(api.base_url.contains("partners.barn.cow.fi"));
+        assert_eq!(api.base_url, partner_api_base_url(chain, env));
+    }
+
+    #[test]
+    fn with_api_key_overrides_base_url_from_new_with_url() {
+        let chain = SupportedChainId::Mainnet;
+        let env = Env::Prod;
+        let api = OrderBookApi::new_with_url(chain, env, "http://localhost:9999")
+            .with_api_key("third-key");
+
+        // The partner switch takes precedence over a previously-set explicit URL.
+        assert_eq!(api.base_url, partner_api_base_url(chain, env));
+    }
+}
