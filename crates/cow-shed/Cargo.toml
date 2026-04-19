@@ -20,8 +20,13 @@ doctest = false
 
 [dependencies]
 alloy-primitives.workspace = true
+alloy-signer.workspace = true
+alloy-signer-local.workspace = true
 cow-errors.workspace = true
 cow-types.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt"] }
 
 [lints]
 workspace = true
