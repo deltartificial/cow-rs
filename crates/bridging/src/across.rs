@@ -747,15 +747,20 @@ pub fn get_cow_trade_events(
     logs: &[EvmLogEntry],
     settlement_override: Option<Address>,
 ) -> Vec<CowTradeEvent> {
-    // Resolve settlement contract address for this chain.
+    // Accept both prod and staging settlement contracts for the chain.
+    // Mirrors `isCoWSettlementContract(address, chain)` from the TS SDK so that
+    // barn-settled orders are decoded correctly.
     let chain = cow_chains::SupportedChainId::try_from_u64(chain_id);
-    let default_settlement = chain.map(cow_chains::settlement_contract);
+    let default_prod = chain.map(cow_chains::settlement_contract);
+    let default_staging =
+        chain.map(|c| cow_chains::settlement_contract_for_env(c, cow_chains::Env::Staging));
 
     let topic0 = cow_trade_event_topic0();
 
     logs.iter()
         .filter(|log| {
-            let addr_match = default_settlement.is_some_and(|a| a == log.address) ||
+            let addr_match = default_prod.is_some_and(|a| a == log.address) ||
+                default_staging.is_some_and(|a| a == log.address) ||
                 settlement_override.is_some_and(|a| a == log.address);
             addr_match && log.topics.first().is_some_and(|t| *t == topic0)
         })

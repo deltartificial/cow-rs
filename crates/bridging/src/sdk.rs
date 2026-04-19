@@ -512,6 +512,17 @@ pub async fn get_intermediate_swap_result(
     //   4. Optionally get mocked hook for gas estimation
     //   5. Get swap quote via TradingSdk
     //   6. Return swap result with intermediateTokenAmount = afterSlippage.buyAmount
+    //
+    // Parity note (cow-sdk#852): when building the `appData` for the returned swap
+    // result, spread `advanced_settings.app_data.metadata` into the new metadata
+    // object *before* inserting `hooks` and `bridging` so partner / UTM metadata
+    // supplied by the caller survives the intermediate quote:
+    //
+    //     appData.metadata = {
+    //         ...advanced_settings?.app_data?.metadata,
+    //         hooks,
+    //         bridging: { providerId: provider.info.dappId },
+    //     }
     Err(BridgeError::TxBuildError(
         "get_intermediate_swap_result requires TradingSdk (not yet ported)".to_owned(),
     ))
