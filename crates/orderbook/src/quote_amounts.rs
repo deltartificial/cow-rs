@@ -737,6 +737,38 @@ mod tests {
     }
 
     #[test]
+    fn decimal_protocol_fee_bps_from_string_like_ts_test() {
+        // Mirrors the TS getQuote.test case: `protocolFeeBps: '0.3'`.
+        // 0.3 * 100_000 = 30000.000000000004 — the round() guards against the
+        // float-precision error that previously broke BigInt conversion.
+        let order_params = sell_order();
+        let protocol_fee_bps: f64 = "0.3".parse().expect("parse fee bps");
+        let result = get_quote_amounts_and_costs(&QuoteAmountsAndCostsParams {
+            order_params: order_params.clone(),
+            slippage_percent_bps: 0,
+            partner_fee_bps: None,
+            protocol_fee_bps: Some(protocol_fee_bps),
+        });
+        let bps = U256::from((protocol_fee_bps * HUNDRED_THOUSANDS as f64).round() as u64);
+        assert_eq!(bps, U256::from(30_000u64));
+        let denominator = U256::from(ONE_HUNDRED_BPS) * U256::from(HUNDRED_THOUSANDS) - bps;
+        let expected = order_params.buy_amount * bps / denominator;
+        assert_eq!(result.costs.protocol_fee.amount, expected);
+    }
+
+    #[test]
+    fn zero_or_negative_protocol_fee_bps_returns_zero() {
+        let order_params = sell_order();
+        for bps in [0.0, -0.1, -5.0] {
+            let fee = get_protocol_fee_amount(&ProtocolFeeAmountParams {
+                order_params: order_params.clone(),
+                protocol_fee_bps: bps,
+            });
+            assert_eq!(fee, U256::ZERO, "expected 0 for bps={bps}");
+        }
+    }
+
+    #[test]
     fn buy_fractional_protocol_fee_bps() {
         let order_params = buy_order();
         let protocol_fee_bps: f64 = 0.00071;

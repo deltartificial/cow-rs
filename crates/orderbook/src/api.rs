@@ -9,7 +9,7 @@
 
 use std::sync::Arc;
 
-use cow_chains::{Env, SupportedChainId, api_base_url, order_explorer_link};
+use cow_chains::{Env, SupportedChainId, api_base_url, order_explorer_link, partner_api_base_url};
 use cow_errors::CowError;
 
 use cow_http::{RateLimiter, RetryPolicy};
@@ -197,6 +197,33 @@ impl OrderBookApi {
         for (k, v) in headers {
             self.extra_headers.push((k.into(), v.into()));
         }
+        self
+    }
+
+    /// Route the client through the `CoW` Protocol Partner API gateway
+    /// and attach the required `X-API-Key` header.
+    ///
+    /// Switches the base URL to the partner gateway
+    /// ([`partner_api_base_url`]) for this client's chain and env, and
+    /// appends `X-API-Key: <api_key>` to every request. Equivalent to
+    /// calling [`Self::with_header`] with the same key while also
+    /// overriding the base URL.
+    ///
+    /// Explicit base URLs set via [`Self::new_with_url`] are overwritten.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use cow_chains::{Env, SupportedChainId};
+    /// use cow_orderbook::OrderBookApi;
+    ///
+    /// let api =
+    ///     OrderBookApi::new(SupportedChainId::Mainnet, Env::Prod).with_api_key("secret-partner-key");
+    /// ```
+    #[must_use]
+    pub fn with_api_key(mut self, api_key: impl Into<String>) -> Self {
+        self.base_url = partner_api_base_url(self.chain, self.env).into();
+        self.extra_headers.push(("X-API-Key".to_owned(), api_key.into()));
         self
     }
 
