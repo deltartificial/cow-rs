@@ -385,3 +385,180 @@ async fn get_quote_rejects_missing_bridge_recipient() {
     let err = provider.get_quote(&req).await.unwrap_err();
     assert!(err.to_string().to_lowercase().contains("recipient"));
 }
+
+// ── Coverage follow-up ──────────────────────────────────────────────────
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn get_intermediate_tokens_returns_source_tokens_when_target_present() {
+    // tokens_fixture() declares USDC on mainnet + BTC on non-EVM. When
+    // the destination chain request asks for USDC on mainnet (same as
+    // source), the target-has-buy-token check passes and the function
+    // returns the source-chain tokens.
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("GET"))
+        .and(matchers::path("/v0/tokens"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(tokens_fixture()))
+        .mount(&server)
+        .await;
+    let provider = NearIntentsBridgeProvider::new(NearIntentsProviderOptions {
+        base_url: Some(server.uri()),
+        ..Default::default()
+    });
+
+    let mut req = bridge_request_eth_to_btc();
+    // Both source and target on mainnet → USDC is on mainnet → ok.
+    req.buy_chain_id = 1;
+    req.buy_token = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48".parse().unwrap();
+    let tokens = provider.get_intermediate_tokens(&req).await.unwrap();
+    assert_eq!(tokens.len(), 1);
+    assert_eq!(tokens[0].symbol, "USDC");
+}
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn get_intermediate_tokens_empty_when_target_missing() {
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("GET"))
+        .and(matchers::path("/v0/tokens"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(tokens_fixture()))
+        .mount(&server)
+        .await;
+    let provider = NearIntentsBridgeProvider::new(NearIntentsProviderOptions {
+        base_url: Some(server.uri()),
+        ..Default::default()
+    });
+
+    let mut req = bridge_request_eth_to_btc();
+    req.buy_chain_id = 42_161; // Arbitrum — no token in fixture there
+    req.buy_token = "0x1111111111111111111111111111111111111111".parse().unwrap();
+    let tokens = provider.get_intermediate_tokens(&req).await.unwrap();
+    assert!(tokens.is_empty());
+}
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn get_bridging_params_returns_none() {
+    // Per the doc comment, this is wired up by PR #11. For now a call
+    // should return `Ok(None)` regardless of the chain / order passed
+    // in — we construct a minimal order via the mock helper.
+    let provider = NearIntentsBridgeProvider::default();
+    let order = cow_orderbook::api::mock_get_order(&format!("0x{}", "aa".repeat(56)));
+    let result =
+        provider.get_bridging_params(1, &order, alloy_primitives::B256::ZERO, None).await.unwrap();
+    assert!(result.is_none());
+}
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn get_bridge_receiver_override_returns_descriptive_error() {
+    use cow_bridging::{
+        QuoteBridgeResponse, near_intents::types::NearQuote,
+        provider::ReceiverAccountBridgeProvider,
+    };
+    let provider = NearIntentsBridgeProvider::default();
+    // Round-trip a minimal QuoteBridgeRequest / Response through the
+    // receiver-override method; it should surface the PR-#11-cache
+    // placeholder error.
+    let req = bridge_request_eth_to_btc();
+    let response = QuoteBridgeResponse {
+        provider: "near-intents".into(),
+        sell_amount: U256::from(1u64),
+        buy_amount: U256::from(1u64),
+        fee_amount: U256::from(0u64),
+        estimated_secs: 0,
+        bridge_hook: None,
+    };
+    let _ = NearQuote {
+        amount_in: String::new(),
+        amount_in_formatted: String::new(),
+        amount_in_usd: String::new(),
+        min_amount_in: String::new(),
+        amount_out: String::new(),
+        amount_out_formatted: String::new(),
+        amount_out_usd: String::new(),
+        min_amount_out: String::new(),
+        time_estimate: 0,
+        deadline: String::new(),
+        time_when_inactive: String::new(),
+        deposit_address: String::new(),
+    };
+    let err = provider.get_bridge_receiver_override(&req, &response).await.unwrap_err();
+    assert!(err.to_string().contains("cache not yet wired"), "unexpected: {err}");
+}
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn with_api_key_forwards_bearer_on_tokens_endpoint() {
+    // Exercises the `with_api_key` branch of the provider's api-init
+    // helper (provider.rs line 114).
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("GET"))
+        .and(matchers::path("/v0/tokens"))
+        .and(matchers::header("authorization", "Bearer provider-key"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(tokens_fixture()))
+        .mount(&server)
+        .await;
+    let provider = NearIntentsBridgeProvider::new(NearIntentsProviderOptions {
+        base_url: Some(server.uri()),
+        api_key: Some("provider-key".into()),
+        ..Default::default()
+    });
+    let buy = provider
+        .get_buy_tokens(cow_bridging::BuyTokensParams {
+            sell_chain_id: 1,
+            buy_chain_id: 1,
+            sell_token_address: None,
+        })
+        .await
+        .unwrap();
+    assert!(!buy.tokens.is_empty());
+}
+
+#[test]
+fn api_accessor_returns_underlying_client() {
+    let provider = NearIntentsBridgeProvider::new(NearIntentsProviderOptions {
+        base_url: Some("https://example.test".into()),
+        ..Default::default()
+    });
+    assert_eq!(provider.api().base_url(), "https://example.test");
+}
+
+#[test]
+fn options_accessor_returns_configuration() {
+    let provider = NearIntentsBridgeProvider::new(NearIntentsProviderOptions {
+        validity_secs: 42,
+        ..Default::default()
+    });
+    assert_eq!(provider.options().validity_secs, 42);
+}
+
+#[test]
+fn chain_id_to_supported_maps_known_chain() {
+    use cow_bridging::near_intents::chain_id_to_supported;
+    use cow_chains::SupportedChainId;
+    assert_eq!(chain_id_to_supported(1), Some(SupportedChainId::Mainnet));
+    assert_eq!(chain_id_to_supported(0xDEAD_BEEF), None);
+}
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn get_quote_rejects_malformed_deposit_address() {
+    // API returns a quote with a deposit address that can't be parsed
+    // as a 20-byte EVM address → provider surfaces `InvalidApiResponse`
+    // via the attestation flow's `parse_evm_address` helper.
+    let server = MockServer::start().await;
+    let mut quote_body = quote_response_fixture("not-an-address");
+    quote_body["quote"]["depositAddress"] = serde_json::Value::String("not-an-address".into());
+    Mock::given(matchers::method("POST"))
+        .and(matchers::path("/v0/quote"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(quote_body))
+        .mount(&server)
+        .await;
+    let provider = NearIntentsBridgeProvider::new(NearIntentsProviderOptions {
+        base_url: Some(server.uri()),
+        ..Default::default()
+    });
+    let err = provider.get_quote(&bridge_request_eth_to_btc()).await.unwrap_err();
+    assert!(err.to_string().to_lowercase().contains("deposit address"));
+}
