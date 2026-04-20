@@ -2167,4 +2167,397 @@ mod orchestration_tests {
             get_quote_without_bridge(&sample_request(OrderKind::Sell), &Failing).await.unwrap_err();
         assert!(matches!(err, BridgeError::TxBuildError(_)));
     }
+
+    #[tokio::test]
+    async fn get_swap_quote_propagates_quoter_error() {
+        struct Failing;
+        impl SwapQuoter for Failing {
+            fn quote_swap<'a>(&'a self, _p: SwapQuoteParams) -> QuoteSwapFuture<'a> {
+                Box::pin(async {
+                    Err(cow_errors::CowError::Api { status: 500, body: "boom".into() })
+                })
+            }
+        }
+        let err = get_swap_quote(&sample_request(OrderKind::Sell), &Failing).await.unwrap_err();
+        assert!(matches!(err, BridgeError::TxBuildError(_)));
+    }
+
+    // ── Hook branch error paths ──────────────────────────────────────────
+
+    #[tokio::test]
+    async fn hook_branch_propagates_gas_estimation_error() {
+        /// Hook provider whose gas estimation fails.
+        struct FailingGasProvider {
+            info: BridgeProviderInfo,
+            tokens: Vec<IntermediateTokenInfo>,
+        }
+        impl BridgeProvider for FailingGasProvider {
+            fn info(&self) -> &BridgeProviderInfo {
+                &self.info
+            }
+            fn supports_route(&self, _s: u64, _b: u64) -> bool {
+                true
+            }
+            fn get_networks<'a>(&'a self) -> NetworksFuture<'a> {
+                Box::pin(async { Ok(Vec::<BridgeNetworkInfo>::new()) })
+            }
+            fn get_buy_tokens<'a>(&'a self, _p: BuyTokensParams) -> BuyTokensFuture<'a> {
+                let info = self.info.clone();
+                Box::pin(
+                    async move { Ok(GetProviderBuyTokens { provider_info: info, tokens: vec![] }) },
+                )
+            }
+            fn get_intermediate_tokens<'a>(
+                &'a self,
+                _req: &'a QuoteBridgeRequest,
+            ) -> IntermediateTokensFuture<'a> {
+                let tokens = self.tokens.clone();
+                Box::pin(async move { Ok(tokens) })
+            }
+            fn get_quote<'a>(&'a self, _req: &'a QuoteBridgeRequest) -> QuoteFuture<'a> {
+                Box::pin(async { Ok(sample_bridge_response("hook-failing-gas")) })
+            }
+            fn get_bridging_params<'a>(
+                &'a self,
+                _c: u64,
+                _o: &'a cow_orderbook::types::Order,
+                _t: B256,
+                _s: Option<Address>,
+            ) -> BridgingParamsFuture<'a> {
+                Box::pin(async { Ok(None) })
+            }
+            fn get_explorer_url(&self, _id: &str) -> String {
+                String::new()
+            }
+            fn get_status<'a>(&'a self, _id: &'a str, _c: u64) -> BridgeStatusFuture<'a> {
+                Box::pin(async {
+                    Ok(BridgeStatusResult {
+                        status: BridgeStatus::Unknown,
+                        fill_time_in_seconds: None,
+                        deposit_tx_hash: None,
+                        fill_tx_hash: None,
+                    })
+                })
+            }
+            fn as_hook_bridge_provider(&self) -> Option<&dyn HookBridgeProvider> {
+                Some(self)
+            }
+        }
+        impl HookBridgeProvider for FailingGasProvider {
+            fn get_unsigned_bridge_call<'a>(
+                &'a self,
+                _req: &'a QuoteBridgeRequest,
+                _quote: &'a QuoteBridgeResponse,
+            ) -> UnsignedCallFuture<'a> {
+                Box::pin(async {
+                    Err(cow_errors::CowError::Api { status: 0, body: "not called".into() })
+                })
+            }
+            fn get_gas_limit_estimation_for_hook<'a>(
+                &'a self,
+                _proxy_deployed: bool,
+                _extra_gas: Option<u64>,
+                _extra_gas_proxy_creation: Option<u64>,
+            ) -> GasEstimationFuture<'a> {
+                Box::pin(async {
+                    Err(cow_errors::CowError::Api { status: 500, body: "gas oracle down".into() })
+                })
+            }
+            fn get_signed_hook<'a>(
+                &'a self,
+                _chain_id: cow_chains::SupportedChainId,
+                _unsigned_call: &'a EvmCall,
+                _nonce: &'a str,
+                _deadline: u64,
+                _gas: u64,
+                _signer: &'a alloy_signer_local::PrivateKeySigner,
+            ) -> SignedHookFuture<'a> {
+                Box::pin(async { Err(cow_errors::CowError::Signing("n/a".into())) })
+            }
+        }
+
+        let provider = FailingGasProvider { info: hook_info(), tokens: vec![usdc()] };
+        let quoter =
+            FixedQuoter { outcome: sample_outcome(), captured: std::sync::OnceLock::new() };
+        let err = get_quote_with_bridge(&hook_params_with_metadata(None), &provider, &quoter)
+            .await
+            .unwrap_err();
+        if let BridgeError::TxBuildError(msg) = err {
+            assert!(msg.contains("gas oracle down"), "unexpected msg: {msg}");
+        } else {
+            panic!("expected TxBuildError, got {err:?}");
+        }
+    }
+
+    #[tokio::test]
+    async fn hook_branch_propagates_unsigned_call_error() {
+        /// Hook provider whose `get_unsigned_bridge_call` fails.
+        struct FailingUnsignedCall {
+            info: BridgeProviderInfo,
+            tokens: Vec<IntermediateTokenInfo>,
+        }
+        impl BridgeProvider for FailingUnsignedCall {
+            fn info(&self) -> &BridgeProviderInfo {
+                &self.info
+            }
+            fn supports_route(&self, _s: u64, _b: u64) -> bool {
+                true
+            }
+            fn get_networks<'a>(&'a self) -> NetworksFuture<'a> {
+                Box::pin(async { Ok(Vec::<BridgeNetworkInfo>::new()) })
+            }
+            fn get_buy_tokens<'a>(&'a self, _p: BuyTokensParams) -> BuyTokensFuture<'a> {
+                let info = self.info.clone();
+                Box::pin(
+                    async move { Ok(GetProviderBuyTokens { provider_info: info, tokens: vec![] }) },
+                )
+            }
+            fn get_intermediate_tokens<'a>(
+                &'a self,
+                _req: &'a QuoteBridgeRequest,
+            ) -> IntermediateTokensFuture<'a> {
+                let tokens = self.tokens.clone();
+                Box::pin(async move { Ok(tokens) })
+            }
+            fn get_quote<'a>(&'a self, _req: &'a QuoteBridgeRequest) -> QuoteFuture<'a> {
+                Box::pin(async { Ok(sample_bridge_response("hook-bad-calldata")) })
+            }
+            fn get_bridging_params<'a>(
+                &'a self,
+                _c: u64,
+                _o: &'a cow_orderbook::types::Order,
+                _t: B256,
+                _s: Option<Address>,
+            ) -> BridgingParamsFuture<'a> {
+                Box::pin(async { Ok(None) })
+            }
+            fn get_explorer_url(&self, _id: &str) -> String {
+                String::new()
+            }
+            fn get_status<'a>(&'a self, _id: &'a str, _c: u64) -> BridgeStatusFuture<'a> {
+                Box::pin(async {
+                    Ok(BridgeStatusResult {
+                        status: BridgeStatus::Unknown,
+                        fill_time_in_seconds: None,
+                        deposit_tx_hash: None,
+                        fill_tx_hash: None,
+                    })
+                })
+            }
+            fn as_hook_bridge_provider(&self) -> Option<&dyn HookBridgeProvider> {
+                Some(self)
+            }
+        }
+        impl HookBridgeProvider for FailingUnsignedCall {
+            fn get_unsigned_bridge_call<'a>(
+                &'a self,
+                _req: &'a QuoteBridgeRequest,
+                _quote: &'a QuoteBridgeResponse,
+            ) -> UnsignedCallFuture<'a> {
+                Box::pin(async {
+                    Err(cow_errors::CowError::Api { status: 0, body: "bad calldata".into() })
+                })
+            }
+            fn get_gas_limit_estimation_for_hook<'a>(
+                &'a self,
+                _proxy_deployed: bool,
+                _extra_gas: Option<u64>,
+                _extra_gas_proxy_creation: Option<u64>,
+            ) -> GasEstimationFuture<'a> {
+                Box::pin(async move { Ok(500_000u64) })
+            }
+            fn get_signed_hook<'a>(
+                &'a self,
+                _chain_id: cow_chains::SupportedChainId,
+                _unsigned_call: &'a EvmCall,
+                _nonce: &'a str,
+                _deadline: u64,
+                _gas: u64,
+                _signer: &'a alloy_signer_local::PrivateKeySigner,
+            ) -> SignedHookFuture<'a> {
+                Box::pin(async { Err(cow_errors::CowError::Signing("n/a".into())) })
+            }
+        }
+
+        let provider = FailingUnsignedCall { info: hook_info(), tokens: vec![usdc()] };
+        let quoter =
+            FixedQuoter { outcome: sample_outcome(), captured: std::sync::OnceLock::new() };
+        let err = get_quote_with_bridge(&hook_params_with_metadata(None), &provider, &quoter)
+            .await
+            .unwrap_err();
+        if let BridgeError::TxBuildError(msg) = err {
+            assert!(msg.contains("bad calldata"), "unexpected msg: {msg}");
+        } else {
+            panic!("expected TxBuildError, got {err:?}");
+        }
+    }
+
+    // ── Receiver branch error paths ──────────────────────────────────────
+
+    #[tokio::test]
+    async fn receiver_branch_propagates_override_error() {
+        /// Receiver-account provider whose `get_bridge_receiver_override` fails.
+        struct FailingReceiverOverride {
+            info: BridgeProviderInfo,
+            tokens: Vec<IntermediateTokenInfo>,
+        }
+        impl BridgeProvider for FailingReceiverOverride {
+            fn info(&self) -> &BridgeProviderInfo {
+                &self.info
+            }
+            fn supports_route(&self, _s: u64, _b: u64) -> bool {
+                true
+            }
+            fn get_networks<'a>(&'a self) -> NetworksFuture<'a> {
+                Box::pin(async { Ok(Vec::<BridgeNetworkInfo>::new()) })
+            }
+            fn get_buy_tokens<'a>(&'a self, _p: BuyTokensParams) -> BuyTokensFuture<'a> {
+                let info = self.info.clone();
+                Box::pin(
+                    async move { Ok(GetProviderBuyTokens { provider_info: info, tokens: vec![] }) },
+                )
+            }
+            fn get_intermediate_tokens<'a>(
+                &'a self,
+                _req: &'a QuoteBridgeRequest,
+            ) -> IntermediateTokensFuture<'a> {
+                let tokens = self.tokens.clone();
+                Box::pin(async move { Ok(tokens) })
+            }
+            fn get_quote<'a>(&'a self, _req: &'a QuoteBridgeRequest) -> QuoteFuture<'a> {
+                Box::pin(async { Ok(sample_bridge_response("receiver-failing-override")) })
+            }
+            fn get_bridging_params<'a>(
+                &'a self,
+                _c: u64,
+                _o: &'a cow_orderbook::types::Order,
+                _t: B256,
+                _s: Option<Address>,
+            ) -> BridgingParamsFuture<'a> {
+                Box::pin(async { Ok(None) })
+            }
+            fn get_explorer_url(&self, _id: &str) -> String {
+                String::new()
+            }
+            fn get_status<'a>(&'a self, _id: &'a str, _c: u64) -> BridgeStatusFuture<'a> {
+                Box::pin(async {
+                    Ok(BridgeStatusResult {
+                        status: BridgeStatus::Unknown,
+                        fill_time_in_seconds: None,
+                        deposit_tx_hash: None,
+                        fill_tx_hash: None,
+                    })
+                })
+            }
+            fn as_receiver_account_bridge_provider(
+                &self,
+            ) -> Option<&dyn ReceiverAccountBridgeProvider> {
+                Some(self)
+            }
+        }
+        impl ReceiverAccountBridgeProvider for FailingReceiverOverride {
+            fn get_bridge_receiver_override<'a>(
+                &'a self,
+                _quote_request: &'a QuoteBridgeRequest,
+                _quote_result: &'a QuoteBridgeResponse,
+            ) -> ReceiverOverrideFuture<'a> {
+                Box::pin(async {
+                    Err(cow_errors::CowError::Api {
+                        status: 0,
+                        body: "no deposit addr available".into(),
+                    })
+                })
+            }
+        }
+
+        let provider = FailingReceiverOverride { info: receiver_info(), tokens: vec![usdc()] };
+        let quoter =
+            FixedQuoter { outcome: sample_outcome(), captured: std::sync::OnceLock::new() };
+        let err = get_quote_with_bridge(&hook_params_with_metadata(None), &provider, &quoter)
+            .await
+            .unwrap_err();
+        if let BridgeError::TxBuildError(msg) = err {
+            assert!(msg.contains("no deposit addr available"), "unexpected msg: {msg}");
+        } else {
+            panic!("expected TxBuildError, got {err:?}");
+        }
+    }
+
+    // ── Hook branch — shape checks ────────────────────────────────────────
+
+    #[tokio::test]
+    async fn hook_branch_bridge_call_details_carry_unsigned_call_bytes() {
+        let provider = MockHookProvider {
+            info: hook_info(),
+            tokens: vec![usdc()],
+            bridge_response: sample_bridge_response("mock-hook"),
+            unsigned_call: build_unsigned_call(),
+            gas_limit: 500_000,
+        };
+        let quoter =
+            FixedQuoter { outcome: sample_outcome(), captured: std::sync::OnceLock::new() };
+        let result =
+            get_quote_with_hook_bridge(&provider, &hook_params_with_metadata(None), &quoter)
+                .await
+                .unwrap();
+        let details =
+            result.bridge.bridge_call_details.expect("hook branch populates call_details");
+        assert_eq!(details.unsigned_bridge_call.data, vec![0xde, 0xad]);
+        assert_eq!(details.unsigned_bridge_call.to, Address::repeat_byte(0xAC),);
+        // The pre-authorized hook uses the mocked post-hook (PR #7 leaves
+        // the real signing for PR #8).
+        assert_eq!(details.pre_authorized_bridging_hook.post_hook.gas_limit, "500000",);
+    }
+
+    // ── Receiver branch — shape checks ───────────────────────────────────
+
+    #[tokio::test]
+    async fn receiver_branch_sets_override_and_clears_call_details() {
+        let provider = MockReceiverProvider {
+            info: receiver_info(),
+            tokens: vec![usdc()],
+            bridge_response: sample_bridge_response("mock-receiver"),
+            deposit_address: "TOPsolanaDepositAddrXXXXXXXXXXXXXXXXXXXXXXX".into(),
+        };
+        let quoter =
+            FixedQuoter { outcome: sample_outcome(), captured: std::sync::OnceLock::new() };
+        let result = get_quote_with_receiver_account_bridge(
+            &provider,
+            &hook_params_with_metadata(None),
+            &quoter,
+        )
+        .await
+        .unwrap();
+        assert!(result.bridge.bridge_call_details.is_none());
+        assert_eq!(
+            result.bridge.bridge_receiver_override.as_deref(),
+            Some("TOPsolanaDepositAddrXXXXXXXXXXXXXXXXXXXXXXX"),
+        );
+    }
+
+    // ── minimal_bridge_quote_result ──────────────────────────────────────
+
+    #[test]
+    fn minimal_bridge_quote_result_wraps_response_amounts() {
+        let req = sample_request(OrderKind::Sell);
+        let resp = sample_bridge_response("arb");
+        let quote = minimal_bridge_quote_result(&req, &resp);
+        assert!(quote.is_sell);
+        assert_eq!(quote.amounts_and_costs.after_fee.buy_amount, resp.buy_amount);
+        // before_fee.buy_amount must equal buy_amount + fee.
+        assert_eq!(
+            quote.amounts_and_costs.before_fee.buy_amount,
+            resp.buy_amount.saturating_add(resp.fee_amount),
+        );
+        assert_eq!(quote.fees.bridge_fee, resp.fee_amount);
+        assert_eq!(quote.expected_fill_time_seconds, Some(resp.estimated_secs));
+    }
+
+    #[test]
+    fn minimal_bridge_quote_result_flags_buy_orders_as_non_sell() {
+        let req = sample_request(OrderKind::Buy);
+        let resp = sample_bridge_response("arb");
+        let quote = minimal_bridge_quote_result(&req, &resp);
+        assert!(!quote.is_sell);
+    }
 }
