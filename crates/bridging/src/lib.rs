@@ -13,10 +13,12 @@ pub mod across;
 pub mod bungee;
 pub mod provider;
 pub mod sdk;
+pub mod signing_step_manager;
 pub mod swap_quoter;
 pub mod types;
 pub mod utils;
 
+pub use signing_step_manager::{ErrFn, SigningStepManager, StepFn, StepFuture};
 pub use swap_quoter::{QuoteSwapFuture, SwapQuoteOutcome, SwapQuoteParams, SwapQuoter};
 
 pub use across::{

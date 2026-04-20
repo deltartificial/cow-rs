@@ -357,37 +357,120 @@ pub fn get_cross_chain_order(
     })
 }
 
-/// Create a signed bridge hook from a bridge quote.
+/// Context passed to [`get_bridge_signed_hook`].
 ///
-/// In the `TypeScript` SDK this calls `provider.getQuote`, `provider.getUnsignedBridgeCall`,
-/// and `provider.getSignedHook` using the signer. This requires a full `HookBridgeProvider`
-/// implementation and a signer.
+/// Mirrors the `HookBridgeResultContext` struct of the `TypeScript`
+/// SDK: the fields carry the pieces of state a [`crate::provider::HookBridgeProvider`]
+/// needs to both request the hook and derive its nonce.
+#[derive(Debug)]
+pub struct GetBridgeSignedHookContext<'a> {
+    /// Signer that will EIP-712-sign the hook bundle through `cow-shed`.
+    pub signer: &'a alloy_signer_local::PrivateKeySigner,
+    /// Gas-limit estimated for the bridge post-hook. Passed verbatim to
+    /// [`crate::provider::HookBridgeProvider::get_signed_hook`].
+    pub hook_gas_limit: u64,
+    /// Source chain of the bridge — picks the right cow-shed factory /
+    /// domain separator.
+    pub chain_id: cow_chains::SupportedChainId,
+    /// Hook validity deadline (UNIX seconds). Usually equals
+    /// `order_to_sign.valid_to` from the enclosing swap quote.
+    pub deadline: u64,
+}
+
+/// Output of [`get_bridge_signed_hook`].
 ///
-/// This is a stub — the full implementation requires weiroll script construction
-/// and `CowShedSdk` signing infrastructure that is not yet ported.
+/// Bundles the signed hook together with the raw bridge call and the
+/// provider's original [`QuoteBridgeResponse`] so the caller can wire
+/// the three into a final order.
+#[derive(Debug, Clone)]
+pub struct GetBridgeSignedHookOutput {
+    /// Signed bridge hook ready to be attached as a post-interaction
+    /// on the enclosing `CoW` order's app-data.
+    pub hook: BridgeHook,
+    /// Raw EVM call that the cow-shed proxy will execute.
+    pub unsigned_bridge_call: cow_chains::EvmCall,
+    /// The bridging quote produced upstream of the signing step.
+    pub bridging_quote: QuoteBridgeResponse,
+}
+
+/// Produce a signed bridge hook for a [`crate::provider::HookBridgeProvider`].
+///
+/// Mirrors `getBridgeSignedHook` from
+/// `packages/bridging/src/BridgingSdk/getBridgeSignedHook.ts`. The
+/// function:
+///
+/// 1. Asks the provider for a bridge quote ([`crate::provider::BridgeProvider::get_quote`]).
+/// 2. Asks the provider for the unsigned EVM call that will initiate the bridge
+///    ([`crate::provider::HookBridgeProvider::get_unsigned_bridge_call`]).
+/// 3. Derives a deterministic hook nonce from the call data and the order's `valid_to` deadline —
+///    `keccak256(abi.encodePacked(data, uint256 deadline))`. This ties the signed hook to a
+///    specific combination of bridge call and order deadline.
+/// 4. Delegates to [`crate::provider::HookBridgeProvider::get_signed_hook`] to produce the EIP-712
+///    signed hook via `cow-shed`.
 ///
 /// # Errors
 ///
-/// Always returns [`BridgeError::TxBuildError`] until the signing infrastructure
-/// is ported.
-pub async fn get_bridge_signed_hook(
-    _quote: &BridgeQuoteResult,
-    _signer: &[u8],
-) -> Result<BridgeHook, BridgeError> {
-    // TODO: Requires CowShedSdk signing + weiroll delegate-call script generation.
-    // The TS implementation:
-    //   1. Gets a bridge quote from the provider
-    //   2. Gets the unsigned bridge call from the provider
-    //   3. Computes a nonce via keccak256(calldata || deadline)
-    //   4. Calls provider.getSignedHook with the nonce, deadline, and signer
-    Err(BridgeError::TxBuildError(
-        "get_bridge_signed_hook requires CowShedSdk signing infrastructure (not yet ported)"
-            .to_owned(),
-    ))
+/// Returns [`BridgeError::TxBuildError`] if any of the provider calls
+/// fail, wrapping the underlying [`CowError`].
+pub async fn get_bridge_signed_hook<P: crate::provider::HookBridgeProvider + ?Sized>(
+    hook_provider: &P,
+    bridge_request: &QuoteBridgeRequest,
+    context: GetBridgeSignedHookContext<'_>,
+) -> Result<GetBridgeSignedHookOutput, BridgeError> {
+    // 1. Bridge quote from the provider.
+    let bridging_quote = hook_provider
+        .get_quote(bridge_request)
+        .await
+        .map_err(|e| BridgeError::TxBuildError(e.to_string()))?;
+
+    // 2. Raw EVM call.
+    let unsigned_bridge_call = hook_provider
+        .get_unsigned_bridge_call(bridge_request, &bridging_quote)
+        .await
+        .map_err(|e| BridgeError::TxBuildError(e.to_string()))?;
+
+    // 3. Derive the hook nonce.
+    let nonce_hex = derive_hook_nonce(&unsigned_bridge_call.data, context.deadline);
+
+    // 4. Sign the hook.
+    let hook = hook_provider
+        .get_signed_hook(
+            context.chain_id,
+            &unsigned_bridge_call,
+            &nonce_hex,
+            context.deadline,
+            context.hook_gas_limit,
+            context.signer,
+        )
+        .await
+        .map_err(|e| BridgeError::TxBuildError(e.to_string()))?;
+
+    Ok(GetBridgeSignedHookOutput { hook, unsigned_bridge_call, bridging_quote })
+}
+
+/// Derive the bridge-hook nonce as the `TypeScript` SDK does:
+///
+/// ```text
+/// nonce = keccak256( abi.encodePacked(bytes calldata, uint256 deadline) )
+/// ```
+///
+/// `abi.encodePacked` on `(bytes, uint256)` concatenates the raw bytes
+/// of `data` with the 32-byte big-endian `deadline` — no 32-byte offset
+/// prefix like the non-packed encoding would introduce.
+///
+/// The returned string is the `0x`-prefixed lowercase hex of the hash,
+/// matching the TS `solidityKeccak256` output.
+fn derive_hook_nonce(data: &[u8], deadline: u64) -> String {
+    let deadline_be: [u8; 32] = alloy_primitives::U256::from(deadline).to_be_bytes();
+    let mut packed = Vec::with_capacity(data.len() + 32);
+    packed.extend_from_slice(data);
+    packed.extend_from_slice(&deadline_be);
+    let hash = alloy_primitives::keccak256(&packed);
+    format!("{hash:#x}")
 }
 
 /// Parameters for [`get_quote_with_bridge`].
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct GetQuoteWithBridgeParams {
     /// The swap-and-bridge request.
     pub swap_and_bridge_request: QuoteBridgeRequest,
@@ -399,6 +482,33 @@ pub struct GetQuoteWithBridgeParams {
     /// Corresponds to `advanced_settings.app_data.metadata` in the
     /// `TypeScript` SDK — the load-bearing bit of the cow-sdk#852 fix.
     pub advanced_settings_metadata: Option<serde_json::Value>,
+    /// Optional quote-time signer. When provided on the hook branch,
+    /// [`get_quote_with_hook_bridge`] produces a **real** EIP-712 signed
+    /// hook via [`get_bridge_signed_hook`] instead of the placeholder
+    /// mock used for cost estimation. The receiver-account branch
+    /// ignores this field.
+    ///
+    /// Corresponds to the `quoteSigner` parameter of the TS SDK's
+    /// `getQuoteWithHookBridge`. Keep it `None` when the final signing
+    /// wallet is not available yet (e.g. hardware wallet flows).
+    pub quote_signer: Option<std::sync::Arc<alloy_signer_local::PrivateKeySigner>>,
+    /// Hook deadline (UNIX seconds). Defaults to `u32::MAX` when `None`.
+    ///
+    /// Threaded into [`get_bridge_signed_hook`] so the hook nonce binds
+    /// to the same validity as the enclosing order.
+    pub hook_deadline: Option<u64>,
+}
+
+impl std::fmt::Debug for GetQuoteWithBridgeParams {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GetQuoteWithBridgeParams")
+            .field("swap_and_bridge_request", &self.swap_and_bridge_request)
+            .field("slippage_bps", &self.slippage_bps)
+            .field("advanced_settings_metadata", &self.advanced_settings_metadata)
+            .field("quote_signer", &self.quote_signer.is_some())
+            .field("hook_deadline", &self.hook_deadline)
+            .finish()
+    }
 }
 
 /// Get a quote that includes bridging (cross-chain).
@@ -975,13 +1085,17 @@ pub fn safe_call_progressive_callback<F: FnOnce(&MultiQuoteResult)>(
 ///
 /// 1. Estimate gas for the bridge post-hook
 ///    ([`crate::provider::HookBridgeProvider::get_gas_limit_estimation_for_hook`]).
-/// 2. Quote the intermediate swap via [`get_intermediate_swap_result`] (app-data carries a **mock
-///    hook** so the swap cost estimation is realistic).
-/// 3. Ask the provider for a bridge quote ([`BridgeProvider::get_quote`]) and the raw EVM call
-///    ([`crate::provider::HookBridgeProvider::get_unsigned_bridge_call`]).
-/// 4. Package the result in a [`BridgeQuoteAndPost`] where `bridge.bridge_call_details` holds the
-///    unsigned call plus a mocked-for-cost-estimation hook. The **real** signed hook is produced in
-///    PR #8 by `create_post_swap_order_from_quote`.
+/// 2. Quote the intermediate swap via [`get_intermediate_swap_result`] (app-data carries a
+///    cost-estimation mock hook so the swap quote sees realistic gas).
+/// 3. Either:
+///    - **With a signer** (`params.quote_signer.is_some()`): call [`get_bridge_signed_hook`] to
+///      fetch the bridge quote, unsigned call, derive the hook nonce, and produce a real EIP-712
+///      signed hook via `cow-shed`.
+///    - **Without a signer**: fetch [`BridgeProvider::get_quote`] +
+///      [`crate::provider::HookBridgeProvider::get_unsigned_bridge_call`] and package with a
+///      placeholder mock hook — the real hook is signed later during the post flow.
+/// 4. Package the result in a [`BridgeQuoteAndPost`] whose `bridge.bridge_call_details` carries the
+///    unsigned call and either the real or mock pre-authorized hook.
 ///
 /// # Errors
 ///
@@ -1011,21 +1125,48 @@ pub async fn get_quote_with_hook_bridge(
     )
     .await?;
 
-    // 3. Bridge quote + unsigned bridge call.
-    let bridge_response = hook_provider
-        .get_quote(&params.swap_and_bridge_request)
-        .await
-        .map_err(|e| BridgeError::TxBuildError(e.to_string()))?;
+    // 3. Produce the bridge-call details — signed or mock depending on whether a `quote_signer` is
+    //    available.
+    let (unsigned_bridge_call, bridge_response, pre_authorized_bridging_hook) =
+        if let Some(signer) = &params.quote_signer {
+            let chain_id = cow_chains::SupportedChainId::try_from(
+                params.swap_and_bridge_request.sell_chain_id,
+            )
+            .map_err(|e| {
+                BridgeError::TxBuildError(format!(
+                    "unsupported sell_chain_id {} for hook signing: {e}",
+                    params.swap_and_bridge_request.sell_chain_id,
+                ))
+            })?;
+            let deadline = params.hook_deadline.unwrap_or_else(|| u64::from(u32::MAX));
+            let ctx = GetBridgeSignedHookContext {
+                signer: signer.as_ref(),
+                hook_gas_limit,
+                chain_id,
+                deadline,
+            };
+            let out =
+                get_bridge_signed_hook(hook_provider, &params.swap_and_bridge_request, ctx).await?;
+            (out.unsigned_bridge_call, out.bridging_quote, out.hook)
+        } else {
+            let bridge_response = hook_provider
+                .get_quote(&params.swap_and_bridge_request)
+                .await
+                .map_err(|e| BridgeError::TxBuildError(e.to_string()))?;
+            let unsigned_call = hook_provider
+                .get_unsigned_bridge_call(&params.swap_and_bridge_request, &bridge_response)
+                .await
+                .map_err(|e| BridgeError::TxBuildError(e.to_string()))?;
+            let mock_post_hook = crate::utils::hook_mock_for_cost_estimation(hook_gas_limit);
+            let hook = BridgeHook {
+                post_hook: mock_post_hook,
+                recipient: format!("{:#x}", params.swap_and_bridge_request.account),
+            };
+            (unsigned_call, bridge_response, hook)
+        };
 
-    let unsigned_bridge_call = hook_provider
-        .get_unsigned_bridge_call(&params.swap_and_bridge_request, &bridge_response)
-        .await
-        .map_err(|e| BridgeError::TxBuildError(e.to_string()))?;
-
-    // 4. Assemble a BridgeQuoteResult + BridgeCallDetails with a mock signed hook. The real signing
-    //    happens in PR #8.
+    // 4. Assemble the BridgeQuoteResult + BridgeCallDetails.
     let quote = minimal_bridge_quote_result(&params.swap_and_bridge_request, &bridge_response);
-    let mock_post_hook = crate::utils::hook_mock_for_cost_estimation(hook_gas_limit);
 
     Ok(BridgeQuoteAndPost {
         swap,
@@ -1034,10 +1175,7 @@ pub async fn get_quote_with_hook_bridge(
             quote,
             bridge_call_details: Some(crate::types::BridgeCallDetails {
                 unsigned_bridge_call,
-                pre_authorized_bridging_hook: BridgeHook {
-                    post_hook: mock_post_hook,
-                    recipient: format!("{:#x}", params.swap_and_bridge_request.account),
-                },
+                pre_authorized_bridging_hook,
             }),
             bridge_receiver_override: None,
         },
@@ -2014,6 +2152,8 @@ mod orchestration_tests {
             swap_and_bridge_request: sample_request(OrderKind::Sell),
             slippage_bps: 50,
             advanced_settings_metadata: metadata,
+            quote_signer: None,
+            hook_deadline: None,
         }
     }
 
@@ -2034,6 +2174,8 @@ mod orchestration_tests {
             swap_and_bridge_request: sample_request(OrderKind::Buy),
             slippage_bps: 50,
             advanced_settings_metadata: None,
+            quote_signer: None,
+            hook_deadline: None,
         };
         let err = get_quote_with_bridge(&params, &provider, &quoter).await.unwrap_err();
         assert!(matches!(err, BridgeError::OnlySellOrderSupported));
@@ -2559,5 +2701,339 @@ mod orchestration_tests {
         let resp = sample_bridge_response("arb");
         let quote = minimal_bridge_quote_result(&req, &resp);
         assert!(!quote.is_sell);
+    }
+
+    // ── get_bridge_signed_hook ───────────────────────────────────────────
+
+    /// Hook provider that captures calls to `get_signed_hook` so the
+    /// test can inspect the derived nonce / deadline / gas limit.
+    struct SigningCaptureProvider {
+        info: BridgeProviderInfo,
+        tokens: Vec<IntermediateTokenInfo>,
+        bridge_response: QuoteBridgeResponse,
+        unsigned_call: EvmCall,
+        captured_nonce: std::sync::OnceLock<String>,
+        captured_deadline: std::sync::OnceLock<u64>,
+        captured_gas: std::sync::OnceLock<u64>,
+    }
+
+    impl BridgeProvider for SigningCaptureProvider {
+        fn info(&self) -> &BridgeProviderInfo {
+            &self.info
+        }
+        fn supports_route(&self, _s: u64, _b: u64) -> bool {
+            true
+        }
+        fn get_networks<'a>(&'a self) -> NetworksFuture<'a> {
+            Box::pin(async { Ok(Vec::<BridgeNetworkInfo>::new()) })
+        }
+        fn get_buy_tokens<'a>(&'a self, _p: BuyTokensParams) -> BuyTokensFuture<'a> {
+            let info = self.info.clone();
+            Box::pin(
+                async move { Ok(GetProviderBuyTokens { provider_info: info, tokens: vec![] }) },
+            )
+        }
+        fn get_intermediate_tokens<'a>(
+            &'a self,
+            _req: &'a QuoteBridgeRequest,
+        ) -> IntermediateTokensFuture<'a> {
+            let tokens = self.tokens.clone();
+            Box::pin(async move { Ok(tokens) })
+        }
+        fn get_quote<'a>(&'a self, _req: &'a QuoteBridgeRequest) -> QuoteFuture<'a> {
+            let resp = self.bridge_response.clone();
+            Box::pin(async move { Ok(resp) })
+        }
+        fn get_bridging_params<'a>(
+            &'a self,
+            _c: u64,
+            _o: &'a cow_orderbook::types::Order,
+            _t: B256,
+            _s: Option<Address>,
+        ) -> BridgingParamsFuture<'a> {
+            Box::pin(async { Ok(None) })
+        }
+        fn get_explorer_url(&self, _id: &str) -> String {
+            String::new()
+        }
+        fn get_status<'a>(&'a self, _id: &'a str, _c: u64) -> BridgeStatusFuture<'a> {
+            Box::pin(async {
+                Ok(BridgeStatusResult {
+                    status: BridgeStatus::Unknown,
+                    fill_time_in_seconds: None,
+                    deposit_tx_hash: None,
+                    fill_tx_hash: None,
+                })
+            })
+        }
+        fn as_hook_bridge_provider(&self) -> Option<&dyn HookBridgeProvider> {
+            Some(self)
+        }
+    }
+
+    impl HookBridgeProvider for SigningCaptureProvider {
+        fn get_unsigned_bridge_call<'a>(
+            &'a self,
+            _req: &'a QuoteBridgeRequest,
+            _quote: &'a QuoteBridgeResponse,
+        ) -> UnsignedCallFuture<'a> {
+            let call = self.unsigned_call.clone();
+            Box::pin(async move { Ok(call) })
+        }
+        fn get_gas_limit_estimation_for_hook<'a>(
+            &'a self,
+            _proxy_deployed: bool,
+            _extra_gas: Option<u64>,
+            _extra_gas_proxy_creation: Option<u64>,
+        ) -> GasEstimationFuture<'a> {
+            Box::pin(async move { Ok(500_000u64) })
+        }
+        fn get_signed_hook<'a>(
+            &'a self,
+            _chain_id: cow_chains::SupportedChainId,
+            _unsigned_call: &'a EvmCall,
+            nonce: &'a str,
+            deadline: u64,
+            hook_gas_limit: u64,
+            _signer: &'a alloy_signer_local::PrivateKeySigner,
+        ) -> SignedHookFuture<'a> {
+            self.captured_nonce.set(nonce.to_owned()).ok();
+            self.captured_deadline.set(deadline).ok();
+            self.captured_gas.set(hook_gas_limit).ok();
+            Box::pin(async {
+                Ok(BridgeHook {
+                    post_hook: crate::utils::hook_mock_for_cost_estimation(500_000),
+                    recipient: "0x0000000000000000000000000000000000000001".into(),
+                })
+            })
+        }
+    }
+
+    fn make_signer() -> alloy_signer_local::PrivateKeySigner {
+        use std::str::FromStr;
+        alloy_signer_local::PrivateKeySigner::from_str(
+            "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+        )
+        .unwrap()
+    }
+
+    #[tokio::test]
+    async fn get_bridge_signed_hook_threads_context_into_provider() {
+        let provider = SigningCaptureProvider {
+            info: hook_info(),
+            tokens: vec![usdc()],
+            bridge_response: sample_bridge_response("sig-capture"),
+            unsigned_call: build_unsigned_call(),
+            captured_nonce: std::sync::OnceLock::new(),
+            captured_deadline: std::sync::OnceLock::new(),
+            captured_gas: std::sync::OnceLock::new(),
+        };
+        let signer = make_signer();
+        let ctx = GetBridgeSignedHookContext {
+            signer: &signer,
+            hook_gas_limit: 123_456,
+            chain_id: cow_chains::SupportedChainId::Mainnet,
+            deadline: 9_999_999,
+        };
+        let out =
+            get_bridge_signed_hook(&provider, &sample_request(OrderKind::Sell), ctx).await.unwrap();
+        // Gas + deadline must match what we threaded in.
+        assert_eq!(*provider.captured_gas.get().unwrap(), 123_456);
+        assert_eq!(*provider.captured_deadline.get().unwrap(), 9_999_999);
+        // The nonce is keccak256(data || deadline_be) — deterministic.
+        let expected = derive_hook_nonce(&out.unsigned_bridge_call.data, 9_999_999);
+        assert_eq!(provider.captured_nonce.get().unwrap(), &expected);
+        assert_eq!(out.bridging_quote.provider, "sig-capture");
+    }
+
+    #[test]
+    fn derive_hook_nonce_is_deterministic() {
+        let data = vec![0xde, 0xad, 0xbe, 0xef];
+        let a = derive_hook_nonce(&data, 42);
+        let b = derive_hook_nonce(&data, 42);
+        assert_eq!(a, b);
+        assert!(a.starts_with("0x"));
+        assert_eq!(a.len(), 2 + 64); // "0x" + 32 bytes hex
+    }
+
+    #[test]
+    fn derive_hook_nonce_changes_with_deadline() {
+        let data = vec![0x01, 0x02];
+        let a = derive_hook_nonce(&data, 42);
+        let b = derive_hook_nonce(&data, 43);
+        assert_ne!(a, b);
+    }
+
+    #[test]
+    fn derive_hook_nonce_changes_with_data() {
+        let a = derive_hook_nonce(&[0x01], 42);
+        let b = derive_hook_nonce(&[0x02], 42);
+        assert_ne!(a, b);
+    }
+
+    #[tokio::test]
+    async fn get_bridge_signed_hook_propagates_quote_error() {
+        /// Provider whose `get_quote` fails.
+        struct QuoteFailing {
+            info: BridgeProviderInfo,
+        }
+        impl BridgeProvider for QuoteFailing {
+            fn info(&self) -> &BridgeProviderInfo {
+                &self.info
+            }
+            fn supports_route(&self, _s: u64, _b: u64) -> bool {
+                true
+            }
+            fn get_networks<'a>(&'a self) -> NetworksFuture<'a> {
+                Box::pin(async { Ok(Vec::new()) })
+            }
+            fn get_buy_tokens<'a>(&'a self, _p: BuyTokensParams) -> BuyTokensFuture<'a> {
+                let info = self.info.clone();
+                Box::pin(
+                    async move { Ok(GetProviderBuyTokens { provider_info: info, tokens: vec![] }) },
+                )
+            }
+            fn get_intermediate_tokens<'a>(
+                &'a self,
+                _req: &'a QuoteBridgeRequest,
+            ) -> IntermediateTokensFuture<'a> {
+                Box::pin(async { Ok(Vec::new()) })
+            }
+            fn get_quote<'a>(&'a self, _req: &'a QuoteBridgeRequest) -> QuoteFuture<'a> {
+                Box::pin(async {
+                    Err(cow_errors::CowError::Api { status: 500, body: "nope".into() })
+                })
+            }
+            fn get_bridging_params<'a>(
+                &'a self,
+                _c: u64,
+                _o: &'a cow_orderbook::types::Order,
+                _t: B256,
+                _s: Option<Address>,
+            ) -> BridgingParamsFuture<'a> {
+                Box::pin(async { Ok(None) })
+            }
+            fn get_explorer_url(&self, _id: &str) -> String {
+                String::new()
+            }
+            fn get_status<'a>(&'a self, _id: &'a str, _c: u64) -> BridgeStatusFuture<'a> {
+                Box::pin(async {
+                    Ok(BridgeStatusResult {
+                        status: BridgeStatus::Unknown,
+                        fill_time_in_seconds: None,
+                        deposit_tx_hash: None,
+                        fill_tx_hash: None,
+                    })
+                })
+            }
+            fn as_hook_bridge_provider(&self) -> Option<&dyn HookBridgeProvider> {
+                Some(self)
+            }
+        }
+        impl HookBridgeProvider for QuoteFailing {
+            fn get_unsigned_bridge_call<'a>(
+                &'a self,
+                _req: &'a QuoteBridgeRequest,
+                _quote: &'a QuoteBridgeResponse,
+            ) -> UnsignedCallFuture<'a> {
+                Box::pin(async { Err(cow_errors::CowError::Signing("n/a".into())) })
+            }
+            fn get_gas_limit_estimation_for_hook<'a>(
+                &'a self,
+                _proxy_deployed: bool,
+                _extra_gas: Option<u64>,
+                _extra_gas_proxy_creation: Option<u64>,
+            ) -> GasEstimationFuture<'a> {
+                Box::pin(async move { Ok(500_000u64) })
+            }
+            fn get_signed_hook<'a>(
+                &'a self,
+                _chain_id: cow_chains::SupportedChainId,
+                _unsigned_call: &'a EvmCall,
+                _nonce: &'a str,
+                _deadline: u64,
+                _gas: u64,
+                _signer: &'a alloy_signer_local::PrivateKeySigner,
+            ) -> SignedHookFuture<'a> {
+                Box::pin(async { Err(cow_errors::CowError::Signing("n/a".into())) })
+            }
+        }
+
+        let provider = QuoteFailing { info: hook_info() };
+        let signer = make_signer();
+        let err = get_bridge_signed_hook(
+            &provider,
+            &sample_request(OrderKind::Sell),
+            GetBridgeSignedHookContext {
+                signer: &signer,
+                hook_gas_limit: 1_000,
+                chain_id: cow_chains::SupportedChainId::Mainnet,
+                deadline: 1_234,
+            },
+        )
+        .await
+        .unwrap_err();
+        if let BridgeError::TxBuildError(msg) = err {
+            assert!(msg.contains("nope"), "unexpected: {msg}");
+        } else {
+            panic!("expected TxBuildError, got {err:?}");
+        }
+    }
+
+    // ── get_quote_with_hook_bridge with signer ───────────────────────────
+
+    #[tokio::test]
+    async fn hook_branch_produces_real_hook_when_signer_provided() {
+        let provider = SigningCaptureProvider {
+            info: hook_info(),
+            tokens: vec![usdc()],
+            bridge_response: sample_bridge_response("with-signer"),
+            unsigned_call: build_unsigned_call(),
+            captured_nonce: std::sync::OnceLock::new(),
+            captured_deadline: std::sync::OnceLock::new(),
+            captured_gas: std::sync::OnceLock::new(),
+        };
+        let quoter =
+            FixedQuoter { outcome: sample_outcome(), captured: std::sync::OnceLock::new() };
+        let signer = std::sync::Arc::new(make_signer());
+        let params = GetQuoteWithBridgeParams {
+            swap_and_bridge_request: sample_request(OrderKind::Sell),
+            slippage_bps: 50,
+            advanced_settings_metadata: None,
+            quote_signer: Some(std::sync::Arc::clone(&signer)),
+            hook_deadline: Some(5_000_000),
+        };
+
+        get_quote_with_hook_bridge(&provider, &params, &quoter).await.unwrap();
+
+        // The signer path must have threaded the caller's deadline
+        // into get_signed_hook.
+        assert_eq!(*provider.captured_deadline.get().unwrap(), 5_000_000);
+    }
+
+    #[tokio::test]
+    async fn hook_branch_defaults_deadline_to_u32_max_when_unset() {
+        let provider = SigningCaptureProvider {
+            info: hook_info(),
+            tokens: vec![usdc()],
+            bridge_response: sample_bridge_response("default-deadline"),
+            unsigned_call: build_unsigned_call(),
+            captured_nonce: std::sync::OnceLock::new(),
+            captured_deadline: std::sync::OnceLock::new(),
+            captured_gas: std::sync::OnceLock::new(),
+        };
+        let quoter =
+            FixedQuoter { outcome: sample_outcome(), captured: std::sync::OnceLock::new() };
+        let signer = std::sync::Arc::new(make_signer());
+        let params = GetQuoteWithBridgeParams {
+            swap_and_bridge_request: sample_request(OrderKind::Sell),
+            slippage_bps: 50,
+            advanced_settings_metadata: None,
+            quote_signer: Some(std::sync::Arc::clone(&signer)),
+            hook_deadline: None,
+        };
+
+        get_quote_with_hook_bridge(&provider, &params, &quoter).await.unwrap();
+        assert_eq!(*provider.captured_deadline.get().unwrap(), u64::from(u32::MAX));
     }
 }

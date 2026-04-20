@@ -64,6 +64,7 @@
 #![warn(missing_docs)]
 
 pub mod common;
+pub mod cross_chain_post;
 pub mod settlement;
 pub mod trading_swap_quoter;
 pub mod traits;
