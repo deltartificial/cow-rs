@@ -53,11 +53,9 @@ use super::{
 /// # async fn demo() -> Result<(), Box<dyn std::error::Error>> {
 /// let api = NearIntentsApi::new();
 /// let tokens = api.get_tokens().await?;
-/// println!(
-///     "{} tokens across {} chains",
-///     tokens.len(),
-///     tokens.iter().map(|t| t.blockchain).count()
-/// );
+/// let chains: std::collections::HashSet<&str> =
+///     tokens.iter().map(|t| t.blockchain.as_str()).collect();
+/// println!("{} tokens across {} chains", tokens.len(), chains.len());
 /// # Ok(())
 /// # }
 /// ```
