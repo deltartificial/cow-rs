@@ -2308,11 +2308,114 @@ async fn create_post_swap_order_from_quote_returns_tx_build_error() {
 }
 
 #[tokio::test]
-async fn get_intermediate_swap_result_returns_tx_build_error() {
-    use cow_rs::bridging::sdk::get_intermediate_swap_result;
-    let result = get_intermediate_swap_result(&sample_request()).await;
-    assert!(result.is_err());
-    assert!(matches!(result, Err(BridgeError::TxBuildError(_))));
+async fn get_intermediate_swap_result_errors_with_no_provider_tokens() {
+    // The cross-chain provider returns an empty candidate list, so the
+    // intermediate-swap step bails out with NoIntermediateTokens. The
+    // old signature took only the request and returned TxBuildError;
+    // the new one plumbs a provider + quoter through (cow-rs PR #6).
+    use alloy_primitives::{Address, B256, U256};
+    use cow_rs::bridging::{
+        BridgeNetworkInfo, BridgeProvider, BridgeProviderInfo, BridgeProviderType, BridgeStatus,
+        BridgeStatusResult, BuyTokensParams, GetProviderBuyTokens, IntermediateTokenInfo,
+        QuoteBridgeRequest, QuoteBridgeResponse, QuoteSwapFuture, SwapQuoteOutcome,
+        SwapQuoteParams, SwapQuoter,
+        provider::{
+            BridgeStatusFuture, BridgingParamsFuture, BuyTokensFuture, IntermediateTokensFuture,
+            NetworksFuture, QuoteFuture,
+        },
+        sdk::get_intermediate_swap_result,
+    };
+
+    struct EmptyTokensProvider;
+    impl BridgeProvider for EmptyTokensProvider {
+        fn info(&self) -> &BridgeProviderInfo {
+            static INFO: std::sync::OnceLock<BridgeProviderInfo> = std::sync::OnceLock::new();
+            INFO.get_or_init(|| BridgeProviderInfo {
+                name: "empty".to_owned(),
+                logo_url: String::new(),
+                dapp_id: "cow-sdk://bridging/providers/empty".to_owned(),
+                website: String::new(),
+                provider_type: BridgeProviderType::HookBridgeProvider,
+            })
+        }
+        fn supports_route(&self, _s: u64, _b: u64) -> bool {
+            true
+        }
+        fn get_networks<'a>(&'a self) -> NetworksFuture<'a> {
+            Box::pin(async { Ok(Vec::<BridgeNetworkInfo>::new()) })
+        }
+        fn get_buy_tokens<'a>(&'a self, _p: BuyTokensParams) -> BuyTokensFuture<'a> {
+            let info = self.info().clone();
+            Box::pin(
+                async move { Ok(GetProviderBuyTokens { provider_info: info, tokens: vec![] }) },
+            )
+        }
+        fn get_intermediate_tokens<'a>(
+            &'a self,
+            _req: &'a QuoteBridgeRequest,
+        ) -> IntermediateTokensFuture<'a> {
+            Box::pin(async { Ok(Vec::<IntermediateTokenInfo>::new()) })
+        }
+        fn get_quote<'a>(&'a self, _req: &'a QuoteBridgeRequest) -> QuoteFuture<'a> {
+            Box::pin(async {
+                Ok(QuoteBridgeResponse {
+                    provider: "empty".into(),
+                    sell_amount: U256::ZERO,
+                    buy_amount: U256::ZERO,
+                    fee_amount: U256::ZERO,
+                    estimated_secs: 0,
+                    bridge_hook: None,
+                })
+            })
+        }
+        fn get_bridging_params<'a>(
+            &'a self,
+            _c: u64,
+            _o: &'a cow_orderbook::types::Order,
+            _t: B256,
+            _s: Option<Address>,
+        ) -> BridgingParamsFuture<'a> {
+            Box::pin(async { Ok(None) })
+        }
+        fn get_explorer_url(&self, _id: &str) -> String {
+            String::new()
+        }
+        fn get_status<'a>(&'a self, _id: &'a str, _c: u64) -> BridgeStatusFuture<'a> {
+            Box::pin(async {
+                Ok(BridgeStatusResult {
+                    status: BridgeStatus::Unknown,
+                    fill_time_in_seconds: None,
+                    deposit_tx_hash: None,
+                    fill_tx_hash: None,
+                })
+            })
+        }
+    }
+
+    struct NeverCalledQuoter;
+    impl SwapQuoter for NeverCalledQuoter {
+        fn quote_swap<'a>(&'a self, _p: SwapQuoteParams) -> QuoteSwapFuture<'a> {
+            Box::pin(async {
+                Ok(SwapQuoteOutcome {
+                    sell_amount: U256::ZERO,
+                    buy_amount_after_slippage: U256::ZERO,
+                    fee_amount: U256::ZERO,
+                    valid_to: 0,
+                    app_data_hex: String::new(),
+                    full_app_data: String::new(),
+                })
+            })
+        }
+    }
+
+    let result = get_intermediate_swap_result(
+        &sample_request(),
+        &EmptyTokensProvider,
+        &NeverCalledQuoter,
+        None,
+    )
+    .await;
+    assert!(matches!(result, Err(BridgeError::NoIntermediateTokens)));
 }
 
 #[tokio::test]
@@ -2995,12 +3098,9 @@ async fn get_swap_quote_returns_error() {
     assert!(result.is_err());
 }
 
-#[tokio::test]
-async fn get_intermediate_swap_result_returns_error() {
-    use cow_rs::bridging::sdk::get_intermediate_swap_result;
-    let result = get_intermediate_swap_result(&sample_request()).await;
-    assert!(result.is_err());
-}
+// `get_intermediate_swap_result` now takes a provider and a quoter — see
+// the dedicated coverage test `get_intermediate_swap_result_errors_with_no_provider_tokens`
+// above. The old single-argument stub is no longer a meaningful smoke test.
 
 // ── QuoteStrategy equality ─────────────────────────────────────────────────
 

@@ -2,6 +2,8 @@
 
 use cow_errors::CowError;
 
+use crate::swap_quoter::SwapQuoter;
+
 // ── Bridging constants ──────────────────────────────────────────────────────
 
 /// Bungee bridge backend API path segment.
@@ -489,43 +491,138 @@ pub async fn create_post_swap_order_from_quote(
     ))
 }
 
-/// Get the result of the intermediate swap step.
+/// Quote the intermediate swap step of a cross-chain bridge flow.
 ///
-/// In the `TypeScript` SDK, this:
-/// 1. Determines intermediate tokens from the provider
-/// 2. Picks the best intermediate token
-/// 3. Optionally attaches a mocked bridge hook for gas estimation
-/// 4. Gets a swap quote via `TradingSdk`
-/// 5. Returns the swap result with `intermediateTokenAmount`
+/// Given a bridge request and a [`BridgeProvider`], this:
+/// 1. Asks the provider for candidate intermediate tokens
+///    ([`BridgeProvider::get_intermediate_tokens`]).
+/// 2. Picks the best candidate via [`crate::utils::determine_intermediate_token`].
+/// 3. Asks the [`SwapQuoter`] to price the swap from the sell token to the intermediate token.
+/// 4. Merges any caller-supplied `app_data.metadata` with the auto-generated `hooks` / `bridging`
+///    metadata — the cow-sdk#852 fix: caller-provided partner / UTM metadata must survive the
+///    intermediate quote instead of being overwritten.
+/// 5. Returns a [`QuoteBridgeResponse`] whose `buy_amount` is the swap's `afterSlippage.buyAmount`
+///    — the amount handed off to the bridge.
+///
+/// # Arguments
+///
+/// * `request` — the top-level bridge quote request.
+/// * `provider` — the [`BridgeProvider`] that will route the bridge step.
+/// * `quoter` — a [`SwapQuoter`] that can price the intermediate swap (typically a wrapper around
+///   `cow_trading::TradingSdk::get_quote_only`).
+/// * `advanced_settings_metadata` — optional caller-supplied app-data metadata JSON. When `Some`,
+///   its keys are merged with the auto-generated `hooks` / `bridging` entries (see cow-sdk#852).
 ///
 /// # Errors
 ///
-/// Always returns [`BridgeError::TxBuildError`] until the trading SDK is ported.
+/// * [`BridgeError::NoIntermediateTokens`] if the provider returns an empty candidate list.
+/// * [`BridgeError::TxBuildError`] if the swap quote fails, wrapping the underlying [`CowError`].
 pub async fn get_intermediate_swap_result(
-    _request: &QuoteBridgeRequest,
+    request: &QuoteBridgeRequest,
+    provider: &dyn crate::provider::BridgeProvider,
+    quoter: &dyn SwapQuoter,
+    advanced_settings_metadata: Option<&serde_json::Value>,
 ) -> Result<QuoteBridgeResponse, BridgeError> {
-    // TODO: Requires TradingSdk + BridgeProvider.getIntermediateTokens.
-    // Flow:
-    //   1. Get intermediate tokens from provider (with caching)
-    //   2. determineIntermediateToken(sourceChainId, sellToken, candidates, correlatedTokens)
-    //   3. Build bridge request without amount
-    //   4. Optionally get mocked hook for gas estimation
-    //   5. Get swap quote via TradingSdk
-    //   6. Return swap result with intermediateTokenAmount = afterSlippage.buyAmount
-    //
-    // Parity note (cow-sdk#852): when building the `appData` for the returned swap
-    // result, spread `advanced_settings.app_data.metadata` into the new metadata
-    // object *before* inserting `hooks` and `bridging` so partner / UTM metadata
-    // supplied by the caller survives the intermediate quote:
-    //
-    //     appData.metadata = {
-    //         ...advanced_settings?.app_data?.metadata,
-    //         hooks,
-    //         bridging: { providerId: provider.info.dappId },
-    //     }
-    Err(BridgeError::TxBuildError(
-        "get_intermediate_swap_result requires TradingSdk (not yet ported)".to_owned(),
-    ))
+    use crate::utils::determine_intermediate_token;
+
+    // 1. Ask the provider for candidates.
+    let candidates = provider
+        .get_intermediate_tokens(request)
+        .await
+        .map_err(|e| BridgeError::TxBuildError(e.to_string()))?;
+
+    if candidates.is_empty() {
+        return Err(BridgeError::NoIntermediateTokens);
+    }
+
+    // 2. Pick the best candidate.
+    let candidate_addrs: Vec<alloy_primitives::Address> =
+        candidates.iter().map(|t| t.address).collect();
+    let intermediate = determine_intermediate_token(
+        request.sell_chain_id,
+        request.sell_token,
+        &candidate_addrs,
+        &foldhash::HashSet::default(),
+        false,
+    )?;
+    let intermediate_info =
+        candidates.iter().find(|t| t.address == intermediate).cloned().ok_or_else(|| {
+            BridgeError::TxBuildError("intermediate token not in candidates".into())
+        })?;
+
+    // 3. Build the app-data JSON with caller metadata preserved (#852 fix).
+    let app_data_json = build_intermediate_app_data_json(advanced_settings_metadata, provider);
+
+    // 4. Quote the swap.
+    let params = crate::swap_quoter::SwapQuoteParams {
+        owner: request.account,
+        chain_id: request.sell_chain_id,
+        sell_token: request.sell_token,
+        sell_token_decimals: request.sell_token_decimals,
+        buy_token: intermediate_info.address,
+        buy_token_decimals: intermediate_info.decimals,
+        amount: request.sell_amount,
+        kind: request.kind,
+        slippage_bps: request.slippage_bps,
+        app_data_json: Some(app_data_json),
+    };
+    let outcome =
+        quoter.quote_swap(params).await.map_err(|e| BridgeError::TxBuildError(e.to_string()))?;
+
+    // 5. Wrap the outcome in a QuoteBridgeResponse.
+    Ok(QuoteBridgeResponse {
+        provider: provider.info().name.clone(),
+        sell_amount: outcome.sell_amount,
+        buy_amount: outcome.buy_amount_after_slippage,
+        fee_amount: outcome.fee_amount,
+        estimated_secs: 0,
+        bridge_hook: None,
+    })
+}
+
+/// Build the `appData` JSON for the intermediate swap, preserving
+/// caller-supplied metadata.
+///
+/// Implements the cow-sdk#852 fix: when `advanced_settings.app_data.metadata`
+/// exists, its keys are spread into the final metadata object *before*
+/// the auto-generated `hooks` and `bridging` entries. This matches the
+/// `TypeScript` flow:
+///
+/// ```text
+/// appData.metadata = {
+///     ...advanced_settings?.app_data?.metadata,
+///     hooks,
+///     bridging: { providerId: provider.info.dappId },
+/// }
+/// ```
+///
+/// The return value is a stringified JSON document ready to be passed
+/// through a [`SwapQuoter`].
+fn build_intermediate_app_data_json(
+    caller_metadata: Option<&serde_json::Value>,
+    provider: &dyn crate::provider::BridgeProvider,
+) -> String {
+    let mut metadata = caller_metadata.and_then(|v| v.as_object().cloned()).unwrap_or_default();
+
+    // Overwrite with auto-generated fields — they are the load-bearing
+    // bits for the on-chain bridge flow.
+    metadata.insert(
+        "bridging".to_owned(),
+        serde_json::json!({ "providerId": provider.info().dapp_id }),
+    );
+    // Hooks are populated by the orchestration layer in PR #7 once the
+    // real post-hook is known; for now carry an empty hooks entry so
+    // the shape mirrors the TS output.
+    if !metadata.contains_key("hooks") {
+        metadata.insert("hooks".to_owned(), serde_json::json!({ "post": [] }));
+    }
+
+    let doc = serde_json::json!({
+        "version": "1.4.0",
+        "appCode": "CoW Bridging",
+        "metadata": metadata,
+    });
+    serde_json::to_string(&doc).unwrap_or_else(|_| "{}".to_owned())
 }
 
 // ── Timeout ─────────────────────────────────────────────────────────────────
@@ -955,5 +1052,271 @@ pub mod test_helpers {
         fn get_rpc_provider_returns_url() {
             assert!(get_rpc_provider().starts_with("https://"));
         }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::tests_outside_test_module, reason = "inner module pattern")]
+mod intermediate_swap_tests {
+    use alloy_primitives::{B256, U256};
+    use cow_types::OrderKind;
+
+    use super::*;
+    use crate::{
+        provider::{
+            BridgeNetworkInfo, BridgeStatusFuture, BridgingParamsFuture, BuyTokensFuture,
+            IntermediateTokensFuture, NetworksFuture, QuoteFuture,
+        },
+        swap_quoter::{QuoteSwapFuture, SwapQuoteOutcome, SwapQuoteParams},
+        types::{
+            BridgeProviderInfo, BridgeProviderType, BuyTokensParams, GetProviderBuyTokens,
+            IntermediateTokenInfo,
+        },
+    };
+
+    fn dummy_info(name: &str) -> BridgeProviderInfo {
+        BridgeProviderInfo {
+            name: name.to_owned(),
+            logo_url: String::new(),
+            dapp_id: format!("cow-sdk://bridging/providers/{name}"),
+            website: String::new(),
+            provider_type: BridgeProviderType::HookBridgeProvider,
+        }
+    }
+
+    struct FixedProvider {
+        info: BridgeProviderInfo,
+        tokens: Vec<IntermediateTokenInfo>,
+    }
+
+    impl BridgeProvider for FixedProvider {
+        fn info(&self) -> &BridgeProviderInfo {
+            &self.info
+        }
+        fn supports_route(&self, _s: u64, _b: u64) -> bool {
+            true
+        }
+        fn get_networks<'a>(&'a self) -> NetworksFuture<'a> {
+            Box::pin(async { Ok(Vec::<BridgeNetworkInfo>::new()) })
+        }
+        fn get_buy_tokens<'a>(&'a self, _p: BuyTokensParams) -> BuyTokensFuture<'a> {
+            let info = self.info.clone();
+            Box::pin(
+                async move { Ok(GetProviderBuyTokens { provider_info: info, tokens: vec![] }) },
+            )
+        }
+        fn get_intermediate_tokens<'a>(
+            &'a self,
+            _req: &'a QuoteBridgeRequest,
+        ) -> IntermediateTokensFuture<'a> {
+            let tokens = self.tokens.clone();
+            Box::pin(async move { Ok(tokens) })
+        }
+        fn get_quote<'a>(&'a self, _req: &'a QuoteBridgeRequest) -> QuoteFuture<'a> {
+            Box::pin(async {
+                Ok(QuoteBridgeResponse {
+                    provider: "fixed".into(),
+                    sell_amount: U256::ZERO,
+                    buy_amount: U256::ZERO,
+                    fee_amount: U256::ZERO,
+                    estimated_secs: 0,
+                    bridge_hook: None,
+                })
+            })
+        }
+        fn get_bridging_params<'a>(
+            &'a self,
+            _c: u64,
+            _o: &'a cow_orderbook::types::Order,
+            _t: B256,
+            _s: Option<Address>,
+        ) -> BridgingParamsFuture<'a> {
+            Box::pin(async { Ok(None) })
+        }
+        fn get_explorer_url(&self, _id: &str) -> String {
+            String::new()
+        }
+        fn get_status<'a>(&'a self, _id: &'a str, _c: u64) -> BridgeStatusFuture<'a> {
+            Box::pin(async {
+                Ok(BridgeStatusResult {
+                    status: BridgeStatus::Unknown,
+                    fill_time_in_seconds: None,
+                    deposit_tx_hash: None,
+                    fill_tx_hash: None,
+                })
+            })
+        }
+    }
+
+    struct CapturingQuoter {
+        captured: std::sync::OnceLock<SwapQuoteParams>,
+        outcome: SwapQuoteOutcome,
+    }
+
+    impl SwapQuoter for CapturingQuoter {
+        fn quote_swap<'a>(&'a self, params: SwapQuoteParams) -> QuoteSwapFuture<'a> {
+            self.captured.set(params).ok();
+            let outcome = self.outcome.clone();
+            Box::pin(async move { Ok(outcome) })
+        }
+    }
+
+    fn usdc_token() -> IntermediateTokenInfo {
+        IntermediateTokenInfo {
+            chain_id: 1,
+            address: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48".parse().unwrap(),
+            decimals: 6,
+            symbol: "USDC".into(),
+            name: "USD Coin".into(),
+            logo_url: None,
+        }
+    }
+
+    fn sample_request() -> QuoteBridgeRequest {
+        QuoteBridgeRequest {
+            sell_chain_id: 1,
+            buy_chain_id: 42_161,
+            sell_token: Address::repeat_byte(0x11),
+            sell_token_decimals: 18,
+            buy_token: Address::repeat_byte(0x22),
+            buy_token_decimals: 6,
+            sell_amount: U256::from(1_000_000u64),
+            account: Address::repeat_byte(0x33),
+            owner: None,
+            receiver: None,
+            bridge_recipient: None,
+            slippage_bps: 50,
+            bridge_slippage_bps: None,
+            kind: OrderKind::Sell,
+        }
+    }
+
+    fn default_outcome() -> SwapQuoteOutcome {
+        SwapQuoteOutcome {
+            sell_amount: U256::from(1_000_000u64),
+            buy_amount_after_slippage: U256::from(999_500u64),
+            fee_amount: U256::from(500u64),
+            valid_to: 9_999_999,
+            app_data_hex: "0xabc".into(),
+            full_app_data: "{\"version\":\"1.4.0\"}".into(),
+        }
+    }
+
+    #[tokio::test]
+    async fn errors_when_provider_has_no_candidates() {
+        let provider = FixedProvider { info: dummy_info("p"), tokens: vec![] };
+        let quoter =
+            CapturingQuoter { captured: std::sync::OnceLock::new(), outcome: default_outcome() };
+        let err = get_intermediate_swap_result(&sample_request(), &provider, &quoter, None)
+            .await
+            .unwrap_err();
+        assert!(matches!(err, BridgeError::NoIntermediateTokens));
+    }
+
+    #[tokio::test]
+    async fn picks_first_candidate_and_returns_wrapped_outcome() {
+        let provider = FixedProvider { info: dummy_info("p"), tokens: vec![usdc_token()] };
+        let quoter =
+            CapturingQuoter { captured: std::sync::OnceLock::new(), outcome: default_outcome() };
+        let resp = get_intermediate_swap_result(&sample_request(), &provider, &quoter, None)
+            .await
+            .unwrap();
+        assert_eq!(resp.provider, "p");
+        assert_eq!(resp.buy_amount, U256::from(999_500u64));
+        assert_eq!(resp.fee_amount, U256::from(500u64));
+    }
+
+    #[tokio::test]
+    async fn threads_intermediate_token_to_quoter() {
+        let provider = FixedProvider { info: dummy_info("p"), tokens: vec![usdc_token()] };
+        let quoter =
+            CapturingQuoter { captured: std::sync::OnceLock::new(), outcome: default_outcome() };
+        get_intermediate_swap_result(&sample_request(), &provider, &quoter, None).await.unwrap();
+        let captured = quoter.captured.get().cloned().expect("quoter called");
+        assert_eq!(captured.buy_token, usdc_token().address);
+        assert_eq!(captured.buy_token_decimals, 6);
+        assert_eq!(captured.chain_id, 1);
+    }
+
+    // ── cow-sdk#852 metadata preservation ────────────────────────────────
+
+    #[tokio::test]
+    async fn fix_852_preserves_caller_metadata() {
+        let provider = FixedProvider { info: dummy_info("cow-prov"), tokens: vec![usdc_token()] };
+        let quoter =
+            CapturingQuoter { captured: std::sync::OnceLock::new(), outcome: default_outcome() };
+        let caller_meta = serde_json::json!({
+            "partnerFee":   { "bps": 25, "recipient": "0xpartner" },
+            "utm":          { "utmSource": "cow-widget" },
+            "orderClass":   { "orderClass": "market" }
+        });
+
+        get_intermediate_swap_result(&sample_request(), &provider, &quoter, Some(&caller_meta))
+            .await
+            .unwrap();
+
+        let captured = quoter.captured.get().cloned().expect("quoter called");
+        let app_data_json = captured.app_data_json.expect("app_data threaded through");
+        let parsed: serde_json::Value = serde_json::from_str(&app_data_json).unwrap();
+        let metadata = parsed.get("metadata").expect("metadata key present");
+
+        // Caller metadata survived.
+        assert_eq!(
+            metadata.get("partnerFee").and_then(|v| v.get("bps")).and_then(|v| v.as_u64()),
+            Some(25)
+        );
+        assert_eq!(
+            metadata.get("utm").and_then(|v| v.get("utmSource")).and_then(|v| v.as_str()),
+            Some("cow-widget")
+        );
+        assert_eq!(
+            metadata.get("orderClass").and_then(|v| v.get("orderClass")).and_then(|v| v.as_str()),
+            Some("market")
+        );
+
+        // Auto-generated bridging entry present.
+        assert_eq!(
+            metadata.get("bridging").and_then(|v| v.get("providerId")).and_then(|v| v.as_str()),
+            Some("cow-sdk://bridging/providers/cow-prov")
+        );
+
+        // Hooks default to an empty post list if the caller didn't supply any.
+        assert!(metadata.get("hooks").is_some());
+    }
+
+    #[tokio::test]
+    async fn bridging_entry_overwrites_caller_attempt_to_inject_its_own() {
+        let provider = FixedProvider { info: dummy_info("cow-prov"), tokens: vec![usdc_token()] };
+        let quoter =
+            CapturingQuoter { captured: std::sync::OnceLock::new(), outcome: default_outcome() };
+        // Caller tries to inject a different providerId — the auto-generated
+        // one must win because that's what the on-chain hook encodes.
+        let caller_meta = serde_json::json!({
+            "bridging": { "providerId": "caller-spoofed" },
+        });
+
+        get_intermediate_swap_result(&sample_request(), &provider, &quoter, Some(&caller_meta))
+            .await
+            .unwrap();
+        let captured = quoter.captured.get().cloned().unwrap();
+        let parsed: serde_json::Value =
+            serde_json::from_str(&captured.app_data_json.unwrap()).unwrap();
+        assert_eq!(
+            parsed.pointer("/metadata/bridging/providerId").and_then(|v| v.as_str()),
+            Some("cow-sdk://bridging/providers/cow-prov")
+        );
+    }
+
+    #[tokio::test]
+    async fn no_caller_metadata_still_produces_bridging_entry() {
+        let provider = FixedProvider { info: dummy_info("cow-prov"), tokens: vec![usdc_token()] };
+        let quoter =
+            CapturingQuoter { captured: std::sync::OnceLock::new(), outcome: default_outcome() };
+        get_intermediate_swap_result(&sample_request(), &provider, &quoter, None).await.unwrap();
+        let captured = quoter.captured.get().cloned().unwrap();
+        let parsed: serde_json::Value =
+            serde_json::from_str(&captured.app_data_json.unwrap()).unwrap();
+        assert!(parsed.pointer("/metadata/bridging/providerId").is_some());
+        assert!(parsed.pointer("/metadata/hooks").is_some());
     }
 }
