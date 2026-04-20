@@ -903,6 +903,10 @@ impl BridgeProvider for BungeeProvider {
     ) -> BridgeStatusFuture<'a> {
         Box::pin(self.get_status_inner(bridging_id))
     }
+
+    fn as_hook_bridge_provider(&self) -> Option<&dyn HookBridgeProvider> {
+        Some(self)
+    }
 }
 
 impl HookBridgeProvider for BungeeProvider {

@@ -393,78 +393,135 @@ pub struct GetQuoteWithBridgeParams {
     pub swap_and_bridge_request: QuoteBridgeRequest,
     /// Slippage tolerance in basis points for the swap leg.
     pub slippage_bps: u32,
+    /// Optional caller-supplied app-data metadata to merge into the
+    /// auto-generated `hooks` / `bridging` metadata.
+    ///
+    /// Corresponds to `advanced_settings.app_data.metadata` in the
+    /// `TypeScript` SDK — the load-bearing bit of the cow-sdk#852 fix.
+    pub advanced_settings_metadata: Option<serde_json::Value>,
 }
 
 /// Get a quote that includes bridging (cross-chain).
 ///
-/// In the `TypeScript` SDK, this orchestrates:
-/// 1. Determine the intermediate token
-/// 2. Get a swap quote (sell token → intermediate token)
-/// 3. Get a bridge quote (intermediate token on source → buy token on dest)
-/// 4. Optionally sign hooks via `CowShedSdk`
+/// Dispatches to the hook-bridge or receiver-account-bridge branch based on
+/// the provider's runtime type, mirroring the `TypeScript`
+/// `getQuoteWithBridge` in
+/// `packages/bridging/src/BridgingSdk/getQuoteWithBridge.ts`.
 ///
-/// This stub documents the required flow. Full implementation requires
-/// `TradingSdk` and `BridgeProvider` orchestration.
+/// # Flow
+///
+/// 1. Reject non-sell orders (cross-chain only supports `OrderKind::Sell`).
+/// 2. If the provider implements [`crate::provider::HookBridgeProvider`], delegate to
+///    [`get_quote_with_hook_bridge`].
+/// 3. Otherwise, if the provider implements [`crate::provider::ReceiverAccountBridgeProvider`],
+///    delegate to [`get_quote_with_receiver_account_bridge`].
+/// 4. Fall through to an error if the provider implements neither.
 ///
 /// # Errors
 ///
-/// Always returns [`BridgeError::TxBuildError`] until the trading SDK is ported.
+/// * [`BridgeError::OnlySellOrderSupported`] when `kind != Sell`.
+/// * [`BridgeError::TxBuildError`] when the provider implements neither sub-trait.
+/// * Any error returned by the delegated branch.
 pub async fn get_quote_with_bridge(
-    _params: &GetQuoteWithBridgeParams,
+    params: &GetQuoteWithBridgeParams,
+    provider: &dyn BridgeProvider,
+    quoter: &dyn SwapQuoter,
 ) -> Result<BridgeQuoteAndPost, BridgeError> {
-    // TODO: Requires TradingSdk for swap quoting and BridgeProvider for bridge quoting.
-    // Flow:
-    //   1. Validate kind == Sell
-    //   2. Get intermediate tokens from provider
-    //   3. Determine best intermediate token (determine_intermediate_token)
-    //   4. Get swap quote via TradingSdk
-    //   5. Get bridge quote from provider
-    //   6. For hook providers: sign the hook via CowShedSdk
-    //   7. For receiver-account providers: set receiver override
-    //   8. Return BridgeQuoteAndPost
-    Err(BridgeError::TxBuildError(
-        "get_quote_with_bridge requires TradingSdk orchestration (not yet ported)".to_owned(),
-    ))
+    if params.swap_and_bridge_request.kind != cow_types::OrderKind::Sell {
+        return Err(BridgeError::OnlySellOrderSupported);
+    }
+
+    if let Some(hook_provider) = provider.as_hook_bridge_provider() {
+        return get_quote_with_hook_bridge(hook_provider, params, quoter).await;
+    }
+
+    if let Some(receiver_provider) = provider.as_receiver_account_bridge_provider() {
+        return get_quote_with_receiver_account_bridge(receiver_provider, params, quoter).await;
+    }
+
+    Err(BridgeError::TxBuildError(format!(
+        "provider {name} implements neither HookBridgeProvider nor ReceiverAccountBridgeProvider",
+        name = provider.info().name,
+    )))
 }
 
 /// Get a quote without bridging (same-chain swap).
 ///
-/// In the `TypeScript` SDK, this delegates directly to `TradingSdk.getQuote`.
-/// The Rust version is a stub that documents the required parameters.
+/// Delegates to the [`SwapQuoter`] — equivalent to calling `TradingSdk::get_quote_only`
+/// with the bridge request fields mapped to `TradeParameters`.
+///
+/// Mirrors `getQuoteWithoutBridge` in the `TypeScript` SDK.
 ///
 /// # Errors
 ///
-/// Always returns [`BridgeError::TxBuildError`] until the trading SDK is ported.
+/// Returns [`BridgeError::TxBuildError`] when the quoter fails.
 pub async fn get_quote_without_bridge(
-    _request: &QuoteBridgeRequest,
+    request: &QuoteBridgeRequest,
+    quoter: &dyn SwapQuoter,
 ) -> Result<QuoteAndPost, BridgeError> {
-    // TODO: Requires TradingSdk.getQuote delegation.
-    // Flow:
-    //   1. Map QuoteBridgeRequest fields to TradeParameters
-    //   2. Call tradingSdk.getQuote(swapParams, advancedSettings)
-    //   3. Return QuoteAndPost wrapping the result
-    Err(BridgeError::TxBuildError(
-        "get_quote_without_bridge requires TradingSdk (not yet ported)".to_owned(),
-    ))
+    let params = crate::swap_quoter::SwapQuoteParams {
+        owner: request.account,
+        chain_id: request.sell_chain_id,
+        sell_token: request.sell_token,
+        sell_token_decimals: request.sell_token_decimals,
+        buy_token: request.buy_token,
+        buy_token_decimals: request.buy_token_decimals,
+        amount: request.sell_amount,
+        kind: request.kind,
+        slippage_bps: request.slippage_bps,
+        app_data_json: None,
+    };
+    let outcome =
+        quoter.quote_swap(params).await.map_err(|e| BridgeError::TxBuildError(e.to_string()))?;
+
+    Ok(QuoteAndPost {
+        quote: QuoteBridgeResponse {
+            provider: "same-chain".to_owned(),
+            sell_amount: outcome.sell_amount,
+            buy_amount: outcome.buy_amount_after_slippage,
+            fee_amount: outcome.fee_amount,
+            estimated_secs: 0,
+            bridge_hook: None,
+        },
+    })
 }
 
-/// Get a swap quote from the order book.
+/// Get a swap quote for an intermediate hop, as a stand-alone helper.
 ///
-/// In the `TypeScript` SDK, this calls `TradingSdk.getQuoteResults` with
-/// the intermediate token as the buy token.
+/// Builds swap parameters from the bridge request (using `buy_token` as
+/// the intermediate token destination) and asks the [`SwapQuoter`] to
+/// price it. Mirrors `getSwapQuote` in the `TypeScript` SDK.
 ///
 /// # Errors
 ///
-/// Always returns [`BridgeError::TxBuildError`] until the trading SDK is ported.
+/// Returns [`BridgeError::TxBuildError`] when the quoter fails.
 pub async fn get_swap_quote(
-    _request: &QuoteBridgeRequest,
+    request: &QuoteBridgeRequest,
+    quoter: &dyn SwapQuoter,
 ) -> Result<QuoteBridgeResponse, BridgeError> {
-    // TODO: Requires TradingSdk.getQuoteResults.
-    // Flow:
-    //   1. Build swap params (sellToken → intermediateToken, on sellChain)
-    //   2. Call tradingSdk.getQuoteResults
-    //   3. Return the swap result with intermediate token amounts
-    Err(BridgeError::TxBuildError("get_swap_quote requires TradingSdk (not yet ported)".to_owned()))
+    let params = crate::swap_quoter::SwapQuoteParams {
+        owner: request.account,
+        chain_id: request.sell_chain_id,
+        sell_token: request.sell_token,
+        sell_token_decimals: request.sell_token_decimals,
+        buy_token: request.buy_token,
+        buy_token_decimals: request.buy_token_decimals,
+        amount: request.sell_amount,
+        kind: request.kind,
+        slippage_bps: request.slippage_bps,
+        app_data_json: None,
+    };
+    let outcome =
+        quoter.quote_swap(params).await.map_err(|e| BridgeError::TxBuildError(e.to_string()))?;
+
+    Ok(QuoteBridgeResponse {
+        provider: "swap".to_owned(),
+        sell_amount: outcome.sell_amount,
+        buy_amount: outcome.buy_amount_after_slippage,
+        fee_amount: outcome.fee_amount,
+        estimated_secs: 0,
+        bridge_hook: None,
+    })
 }
 
 /// Build an order from a completed bridge quote.
@@ -909,44 +966,202 @@ pub fn safe_call_progressive_callback<F: FnOnce(&MultiQuoteResult)>(
 
 // ── Hook-based and receiver-account bridge quote ────────────────────────────
 
-/// Get a quote for a hook-based bridge.
+/// Orchestrate a cross-chain quote for a hook-based bridge (Across, Bungee, …).
 ///
-/// For providers that use a post-swap hook (e.g. Across, Bungee), this
-/// function orchestrates the intermediate swap + bridge hook flow.
+/// Mirrors `getQuoteWithHookBridge` from
+/// `packages/bridging/src/BridgingSdk/getQuoteWithBridge.ts:209-312`.
 ///
-/// Mirrors `getQuoteWithHookBridge` from `getQuoteWithBridge.ts`.
+/// # Flow
 ///
-/// Currently delegates to the existing [`get_quote_with_bridge`] stub since
-/// both hook-based and receiver-account providers follow the same top-level
-/// quote path.
+/// 1. Estimate gas for the bridge post-hook
+///    ([`crate::provider::HookBridgeProvider::get_gas_limit_estimation_for_hook`]).
+/// 2. Quote the intermediate swap via [`get_intermediate_swap_result`] (app-data carries a **mock
+///    hook** so the swap cost estimation is realistic).
+/// 3. Ask the provider for a bridge quote ([`BridgeProvider::get_quote`]) and the raw EVM call
+///    ([`crate::provider::HookBridgeProvider::get_unsigned_bridge_call`]).
+/// 4. Package the result in a [`BridgeQuoteAndPost`] where `bridge.bridge_call_details` holds the
+///    unsigned call plus a mocked-for-cost-estimation hook. The **real** signed hook is produced in
+///    PR #8 by `create_post_swap_order_from_quote`.
 ///
 /// # Errors
 ///
-/// Returns [`BridgeError::TxBuildError`] until the full orchestration is ported.
+/// Returns [`BridgeError::TxBuildError`] if any downstream quoter / provider call fails.
 pub async fn get_quote_with_hook_bridge(
+    hook_provider: &dyn crate::provider::HookBridgeProvider,
     params: &GetQuoteWithBridgeParams,
+    quoter: &dyn SwapQuoter,
 ) -> Result<BridgeQuoteAndPost, BridgeError> {
-    get_quote_with_bridge(params).await
+    // 1. Gas limit estimation for the post-hook (real value used by the mock hook so that the
+    //    intermediate swap sees realistic gas).
+    let hook_gas_limit = hook_provider
+        .get_gas_limit_estimation_for_hook(
+            true,
+            Some(DEFAULT_EXTRA_GAS_FOR_HOOK_ESTIMATION),
+            Some(DEFAULT_EXTRA_GAS_PROXY_CREATION),
+        )
+        .await
+        .map_err(|e| BridgeError::TxBuildError(e.to_string()))?;
+
+    // 2. Intermediate swap result (reuses PR #6 implementation).
+    let swap = get_intermediate_swap_result(
+        &params.swap_and_bridge_request,
+        hook_provider,
+        quoter,
+        params.advanced_settings_metadata.as_ref(),
+    )
+    .await?;
+
+    // 3. Bridge quote + unsigned bridge call.
+    let bridge_response = hook_provider
+        .get_quote(&params.swap_and_bridge_request)
+        .await
+        .map_err(|e| BridgeError::TxBuildError(e.to_string()))?;
+
+    let unsigned_bridge_call = hook_provider
+        .get_unsigned_bridge_call(&params.swap_and_bridge_request, &bridge_response)
+        .await
+        .map_err(|e| BridgeError::TxBuildError(e.to_string()))?;
+
+    // 4. Assemble a BridgeQuoteResult + BridgeCallDetails with a mock signed hook. The real signing
+    //    happens in PR #8.
+    let quote = minimal_bridge_quote_result(&params.swap_and_bridge_request, &bridge_response);
+    let mock_post_hook = crate::utils::hook_mock_for_cost_estimation(hook_gas_limit);
+
+    Ok(BridgeQuoteAndPost {
+        swap,
+        bridge: crate::types::BridgeQuoteResults {
+            provider_info: hook_provider.info().clone(),
+            quote,
+            bridge_call_details: Some(crate::types::BridgeCallDetails {
+                unsigned_bridge_call,
+                pre_authorized_bridging_hook: BridgeHook {
+                    post_hook: mock_post_hook,
+                    recipient: format!("{:#x}", params.swap_and_bridge_request.account),
+                },
+            }),
+            bridge_receiver_override: None,
+        },
+    })
 }
 
-/// Get a quote for a receiver-account-based bridge.
+/// Orchestrate a cross-chain quote for a receiver-account-based bridge (NEAR Intents, …).
 ///
-/// For providers that send tokens to a specific deposit address (receiver
-/// override), this function sets the swap receiver to the deposit account.
+/// Mirrors `getQuoteWithReceiverAccountBridge` from
+/// `packages/bridging/src/BridgingSdk/getQuoteWithBridge.ts:145-207`.
 ///
-/// Mirrors `getQuoteWithReceiverAccountBridge` from `getQuoteWithBridge.ts`.
+/// # Flow
 ///
-/// Currently delegates to the existing [`get_quote_with_bridge`] stub since
-/// both hook-based and receiver-account providers follow the same top-level
-/// quote path.
+/// 1. Quote the intermediate swap via [`get_intermediate_swap_result`] (no hook injection — the
+///    bridge is triggered by the deposit itself, not a post-hook).
+/// 2. Ask the provider for a bridge quote ([`BridgeProvider::get_quote`]).
+/// 3. Ask the provider for the deposit-address override
+///    ([`crate::provider::ReceiverAccountBridgeProvider::get_bridge_receiver_override`]).
+/// 4. Package the result in a [`BridgeQuoteAndPost`] where `bridge.bridge_receiver_override` holds
+///    the deposit address and `bridge.bridge_call_details` is `None`.
 ///
 /// # Errors
 ///
-/// Returns [`BridgeError::TxBuildError`] until the full orchestration is ported.
+/// Returns [`BridgeError::TxBuildError`] if any downstream quoter / provider call fails.
 pub async fn get_quote_with_receiver_account_bridge(
+    receiver_provider: &dyn crate::provider::ReceiverAccountBridgeProvider,
     params: &GetQuoteWithBridgeParams,
+    quoter: &dyn SwapQuoter,
 ) -> Result<BridgeQuoteAndPost, BridgeError> {
-    get_quote_with_bridge(params).await
+    // 1. Intermediate swap result — no hook; just the metadata fix (#852).
+    let swap = get_intermediate_swap_result(
+        &params.swap_and_bridge_request,
+        receiver_provider,
+        quoter,
+        params.advanced_settings_metadata.as_ref(),
+    )
+    .await?;
+
+    // 2. Bridge quote.
+    let bridge_response = receiver_provider
+        .get_quote(&params.swap_and_bridge_request)
+        .await
+        .map_err(|e| BridgeError::TxBuildError(e.to_string()))?;
+
+    // 3. Deposit-address override.
+    let receiver_override = receiver_provider
+        .get_bridge_receiver_override(&params.swap_and_bridge_request, &bridge_response)
+        .await
+        .map_err(|e| BridgeError::TxBuildError(e.to_string()))?;
+
+    let quote = minimal_bridge_quote_result(&params.swap_and_bridge_request, &bridge_response);
+
+    Ok(BridgeQuoteAndPost {
+        swap,
+        bridge: crate::types::BridgeQuoteResults {
+            provider_info: receiver_provider.info().clone(),
+            quote,
+            bridge_call_details: None,
+            bridge_receiver_override: Some(receiver_override),
+        },
+    })
+}
+
+/// Build a minimal [`crate::types::BridgeQuoteResult`] from a provider's
+/// [`QuoteBridgeResponse`].
+///
+/// The orchestration layer doesn't have access to the richer
+/// provider-specific conversion (`to_bridge_quote_result` for Across,
+/// `bungee_to_bridge_quote_result` for Bungee) because those take
+/// provider-specific API responses as input. We rebuild the minimal
+/// `BridgeQuoteResult` from the `QuoteBridgeResponse` alone so the
+/// orchestrator can wrap the result in a [`BridgeQuoteAndPost`].
+///
+/// The simplification is intentional: `BridgeQuoteResult` holds more
+/// granular fee breakdown than `QuoteBridgeResponse` does, so a subset
+/// of fields end up defaulted.
+fn minimal_bridge_quote_result(
+    request: &QuoteBridgeRequest,
+    response: &QuoteBridgeResponse,
+) -> crate::types::BridgeQuoteResult {
+    use crate::types::{
+        BridgeAmounts, BridgeCosts, BridgeFees, BridgeLimits, BridgeQuoteAmountsAndCosts,
+        BridgingFee,
+    };
+
+    let fee = response.fee_amount;
+    let before_fee_buy = response.buy_amount.saturating_add(fee);
+
+    BridgeQuoteResult {
+        id: None,
+        signature: None,
+        attestation_signature: None,
+        quote_body: None,
+        is_sell: request.kind == cow_types::OrderKind::Sell,
+        amounts_and_costs: BridgeQuoteAmountsAndCosts {
+            before_fee: BridgeAmounts {
+                sell_amount: response.sell_amount,
+                buy_amount: before_fee_buy,
+            },
+            after_fee: BridgeAmounts {
+                sell_amount: response.sell_amount,
+                buy_amount: response.buy_amount,
+            },
+            after_slippage: BridgeAmounts {
+                sell_amount: response.sell_amount,
+                buy_amount: response.buy_amount,
+            },
+            costs: BridgeCosts {
+                bridging_fee: BridgingFee {
+                    fee_bps: 0,
+                    amount_in_sell_currency: fee,
+                    amount_in_buy_currency: fee,
+                },
+            },
+            slippage_bps: request.slippage_bps,
+        },
+        expected_fill_time_seconds: Some(response.estimated_secs),
+        quote_timestamp: 0,
+        fees: BridgeFees { bridge_fee: fee, destination_gas_fee: alloy_primitives::U256::ZERO },
+        limits: BridgeLimits {
+            min_deposit: alloy_primitives::U256::ZERO,
+            max_deposit: alloy_primitives::U256::MAX,
+        },
+    }
 }
 
 // ── Test utilities ──────────────────────────────────────────────────────────
@@ -1451,5 +1666,505 @@ mod intermediate_swap_tests {
             serde_json::from_str(&captured.app_data_json.unwrap()).unwrap();
         assert!(parsed.pointer("/metadata/bridging/providerId").is_some());
         assert!(parsed.pointer("/metadata/hooks").is_some());
+    }
+}
+
+// ── Orchestration tests (PR #7) ──────────────────────────────────────────────
+
+#[cfg(test)]
+#[allow(clippy::tests_outside_test_module, reason = "inner module pattern")]
+mod orchestration_tests {
+    use alloy_primitives::{B256, U256};
+    use cow_chains::EvmCall;
+    use cow_types::OrderKind;
+
+    use super::*;
+    use crate::{
+        provider::{
+            BridgeNetworkInfo, BridgeStatusFuture, BridgingParamsFuture, BuyTokensFuture,
+            GasEstimationFuture, HookBridgeProvider, IntermediateTokensFuture, NetworksFuture,
+            QuoteFuture, ReceiverAccountBridgeProvider, ReceiverOverrideFuture, SignedHookFuture,
+            UnsignedCallFuture,
+        },
+        swap_quoter::{QuoteSwapFuture, SwapQuoteOutcome, SwapQuoteParams},
+        types::{
+            BridgeProviderInfo, BridgeProviderType, BuyTokensParams, GetProviderBuyTokens,
+            IntermediateTokenInfo,
+        },
+    };
+
+    fn hook_info() -> BridgeProviderInfo {
+        BridgeProviderInfo {
+            name: "mock-hook".into(),
+            logo_url: String::new(),
+            dapp_id: "cow-sdk://bridging/providers/mock-hook".into(),
+            website: String::new(),
+            provider_type: BridgeProviderType::HookBridgeProvider,
+        }
+    }
+
+    fn receiver_info() -> BridgeProviderInfo {
+        BridgeProviderInfo {
+            name: "mock-receiver".into(),
+            logo_url: String::new(),
+            dapp_id: "cow-sdk://bridging/providers/mock-receiver".into(),
+            website: String::new(),
+            provider_type: BridgeProviderType::ReceiverAccountBridgeProvider,
+        }
+    }
+
+    fn usdc() -> IntermediateTokenInfo {
+        IntermediateTokenInfo {
+            chain_id: 1,
+            address: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48".parse().unwrap(),
+            decimals: 6,
+            symbol: "USDC".into(),
+            name: "USD Coin".into(),
+            logo_url: None,
+        }
+    }
+
+    fn sample_request(kind: OrderKind) -> QuoteBridgeRequest {
+        QuoteBridgeRequest {
+            sell_chain_id: 1,
+            buy_chain_id: 42_161,
+            sell_token: Address::repeat_byte(0x11),
+            sell_token_decimals: 18,
+            buy_token: Address::repeat_byte(0x22),
+            buy_token_decimals: 6,
+            sell_amount: U256::from(1_000_000u64),
+            account: Address::repeat_byte(0x33),
+            owner: None,
+            receiver: None,
+            bridge_recipient: None,
+            slippage_bps: 50,
+            bridge_slippage_bps: None,
+            kind,
+        }
+    }
+
+    fn sample_outcome() -> SwapQuoteOutcome {
+        SwapQuoteOutcome {
+            sell_amount: U256::from(1_000_000u64),
+            buy_amount_after_slippage: U256::from(999_500u64),
+            fee_amount: U256::from(500u64),
+            valid_to: 9_999_999,
+            app_data_hex: "0xabc".into(),
+            full_app_data: "{}".into(),
+        }
+    }
+
+    fn sample_bridge_response(provider_name: &str) -> QuoteBridgeResponse {
+        QuoteBridgeResponse {
+            provider: provider_name.to_owned(),
+            sell_amount: U256::from(999_500u64),
+            buy_amount: U256::from(998_000u64),
+            fee_amount: U256::from(1_500u64),
+            estimated_secs: 42,
+            bridge_hook: None,
+        }
+    }
+
+    // ── Mock providers ───────────────────────────────────────────────────
+
+    /// A hook provider wired to return fixed bridge + unsigned-call data.
+    struct MockHookProvider {
+        info: BridgeProviderInfo,
+        tokens: Vec<IntermediateTokenInfo>,
+        bridge_response: QuoteBridgeResponse,
+        unsigned_call: EvmCall,
+        gas_limit: u64,
+    }
+
+    impl BridgeProvider for MockHookProvider {
+        fn info(&self) -> &BridgeProviderInfo {
+            &self.info
+        }
+        fn supports_route(&self, _s: u64, _b: u64) -> bool {
+            true
+        }
+        fn get_networks<'a>(&'a self) -> NetworksFuture<'a> {
+            Box::pin(async { Ok(Vec::<BridgeNetworkInfo>::new()) })
+        }
+        fn get_buy_tokens<'a>(&'a self, _p: BuyTokensParams) -> BuyTokensFuture<'a> {
+            let info = self.info.clone();
+            Box::pin(
+                async move { Ok(GetProviderBuyTokens { provider_info: info, tokens: vec![] }) },
+            )
+        }
+        fn get_intermediate_tokens<'a>(
+            &'a self,
+            _req: &'a QuoteBridgeRequest,
+        ) -> IntermediateTokensFuture<'a> {
+            let tokens = self.tokens.clone();
+            Box::pin(async move { Ok(tokens) })
+        }
+        fn get_quote<'a>(&'a self, _req: &'a QuoteBridgeRequest) -> QuoteFuture<'a> {
+            let response = self.bridge_response.clone();
+            Box::pin(async move { Ok(response) })
+        }
+        fn get_bridging_params<'a>(
+            &'a self,
+            _c: u64,
+            _o: &'a cow_orderbook::types::Order,
+            _t: B256,
+            _s: Option<Address>,
+        ) -> BridgingParamsFuture<'a> {
+            Box::pin(async { Ok(None) })
+        }
+        fn get_explorer_url(&self, _id: &str) -> String {
+            String::new()
+        }
+        fn get_status<'a>(&'a self, _id: &'a str, _c: u64) -> BridgeStatusFuture<'a> {
+            Box::pin(async {
+                Ok(BridgeStatusResult {
+                    status: BridgeStatus::Unknown,
+                    fill_time_in_seconds: None,
+                    deposit_tx_hash: None,
+                    fill_tx_hash: None,
+                })
+            })
+        }
+        fn as_hook_bridge_provider(&self) -> Option<&dyn HookBridgeProvider> {
+            Some(self)
+        }
+    }
+
+    impl HookBridgeProvider for MockHookProvider {
+        fn get_unsigned_bridge_call<'a>(
+            &'a self,
+            _req: &'a QuoteBridgeRequest,
+            _quote: &'a QuoteBridgeResponse,
+        ) -> UnsignedCallFuture<'a> {
+            let call = self.unsigned_call.clone();
+            Box::pin(async move { Ok(call) })
+        }
+        fn get_gas_limit_estimation_for_hook<'a>(
+            &'a self,
+            _proxy_deployed: bool,
+            _extra_gas: Option<u64>,
+            _extra_gas_proxy_creation: Option<u64>,
+        ) -> GasEstimationFuture<'a> {
+            let gas = self.gas_limit;
+            Box::pin(async move { Ok(gas) })
+        }
+        fn get_signed_hook<'a>(
+            &'a self,
+            _chain_id: cow_chains::SupportedChainId,
+            _unsigned_call: &'a EvmCall,
+            _nonce: &'a str,
+            _deadline: u64,
+            _gas: u64,
+            _signer: &'a alloy_signer_local::PrivateKeySigner,
+        ) -> SignedHookFuture<'a> {
+            Box::pin(async {
+                Err(cow_errors::CowError::Signing("not needed in PR #7 tests".into()))
+            })
+        }
+    }
+
+    /// A receiver-account provider wired to return a fixed deposit address.
+    struct MockReceiverProvider {
+        info: BridgeProviderInfo,
+        tokens: Vec<IntermediateTokenInfo>,
+        bridge_response: QuoteBridgeResponse,
+        deposit_address: String,
+    }
+
+    impl BridgeProvider for MockReceiverProvider {
+        fn info(&self) -> &BridgeProviderInfo {
+            &self.info
+        }
+        fn supports_route(&self, _s: u64, _b: u64) -> bool {
+            true
+        }
+        fn get_networks<'a>(&'a self) -> NetworksFuture<'a> {
+            Box::pin(async { Ok(Vec::<BridgeNetworkInfo>::new()) })
+        }
+        fn get_buy_tokens<'a>(&'a self, _p: BuyTokensParams) -> BuyTokensFuture<'a> {
+            let info = self.info.clone();
+            Box::pin(
+                async move { Ok(GetProviderBuyTokens { provider_info: info, tokens: vec![] }) },
+            )
+        }
+        fn get_intermediate_tokens<'a>(
+            &'a self,
+            _req: &'a QuoteBridgeRequest,
+        ) -> IntermediateTokensFuture<'a> {
+            let tokens = self.tokens.clone();
+            Box::pin(async move { Ok(tokens) })
+        }
+        fn get_quote<'a>(&'a self, _req: &'a QuoteBridgeRequest) -> QuoteFuture<'a> {
+            let response = self.bridge_response.clone();
+            Box::pin(async move { Ok(response) })
+        }
+        fn get_bridging_params<'a>(
+            &'a self,
+            _c: u64,
+            _o: &'a cow_orderbook::types::Order,
+            _t: B256,
+            _s: Option<Address>,
+        ) -> BridgingParamsFuture<'a> {
+            Box::pin(async { Ok(None) })
+        }
+        fn get_explorer_url(&self, _id: &str) -> String {
+            String::new()
+        }
+        fn get_status<'a>(&'a self, _id: &'a str, _c: u64) -> BridgeStatusFuture<'a> {
+            Box::pin(async {
+                Ok(BridgeStatusResult {
+                    status: BridgeStatus::Unknown,
+                    fill_time_in_seconds: None,
+                    deposit_tx_hash: None,
+                    fill_tx_hash: None,
+                })
+            })
+        }
+        fn as_receiver_account_bridge_provider(
+            &self,
+        ) -> Option<&dyn ReceiverAccountBridgeProvider> {
+            Some(self)
+        }
+    }
+
+    impl ReceiverAccountBridgeProvider for MockReceiverProvider {
+        fn get_bridge_receiver_override<'a>(
+            &'a self,
+            _quote_request: &'a QuoteBridgeRequest,
+            _quote_result: &'a QuoteBridgeResponse,
+        ) -> ReceiverOverrideFuture<'a> {
+            let addr = self.deposit_address.clone();
+            Box::pin(async move { Ok(addr) })
+        }
+    }
+
+    /// A provider that implements neither sub-trait.
+    struct MockUnknownProvider {
+        info: BridgeProviderInfo,
+    }
+
+    impl BridgeProvider for MockUnknownProvider {
+        fn info(&self) -> &BridgeProviderInfo {
+            &self.info
+        }
+        fn supports_route(&self, _s: u64, _b: u64) -> bool {
+            true
+        }
+        fn get_networks<'a>(&'a self) -> NetworksFuture<'a> {
+            Box::pin(async { Ok(Vec::<BridgeNetworkInfo>::new()) })
+        }
+        fn get_buy_tokens<'a>(&'a self, _p: BuyTokensParams) -> BuyTokensFuture<'a> {
+            let info = self.info.clone();
+            Box::pin(
+                async move { Ok(GetProviderBuyTokens { provider_info: info, tokens: vec![] }) },
+            )
+        }
+        fn get_intermediate_tokens<'a>(
+            &'a self,
+            _req: &'a QuoteBridgeRequest,
+        ) -> IntermediateTokensFuture<'a> {
+            Box::pin(async { Ok(Vec::<IntermediateTokenInfo>::new()) })
+        }
+        fn get_quote<'a>(&'a self, _req: &'a QuoteBridgeRequest) -> QuoteFuture<'a> {
+            Box::pin(async { Ok(sample_bridge_response("unknown")) })
+        }
+        fn get_bridging_params<'a>(
+            &'a self,
+            _c: u64,
+            _o: &'a cow_orderbook::types::Order,
+            _t: B256,
+            _s: Option<Address>,
+        ) -> BridgingParamsFuture<'a> {
+            Box::pin(async { Ok(None) })
+        }
+        fn get_explorer_url(&self, _id: &str) -> String {
+            String::new()
+        }
+        fn get_status<'a>(&'a self, _id: &'a str, _c: u64) -> BridgeStatusFuture<'a> {
+            Box::pin(async {
+                Ok(BridgeStatusResult {
+                    status: BridgeStatus::Unknown,
+                    fill_time_in_seconds: None,
+                    deposit_tx_hash: None,
+                    fill_tx_hash: None,
+                })
+            })
+        }
+    }
+
+    struct FixedQuoter {
+        outcome: SwapQuoteOutcome,
+        captured: std::sync::OnceLock<SwapQuoteParams>,
+    }
+
+    impl SwapQuoter for FixedQuoter {
+        fn quote_swap<'a>(&'a self, params: SwapQuoteParams) -> QuoteSwapFuture<'a> {
+            self.captured.set(params).ok();
+            let outcome = self.outcome.clone();
+            Box::pin(async move { Ok(outcome) })
+        }
+    }
+
+    fn build_unsigned_call() -> EvmCall {
+        EvmCall { to: Address::repeat_byte(0xAC), data: vec![0xde, 0xad], value: U256::ZERO }
+    }
+
+    fn hook_params_with_metadata(metadata: Option<serde_json::Value>) -> GetQuoteWithBridgeParams {
+        GetQuoteWithBridgeParams {
+            swap_and_bridge_request: sample_request(OrderKind::Sell),
+            slippage_bps: 50,
+            advanced_settings_metadata: metadata,
+        }
+    }
+
+    // ── Dispatcher tests ─────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn get_quote_with_bridge_rejects_buy_orders() {
+        let provider = MockHookProvider {
+            info: hook_info(),
+            tokens: vec![usdc()],
+            bridge_response: sample_bridge_response("mock-hook"),
+            unsigned_call: build_unsigned_call(),
+            gas_limit: 500_000,
+        };
+        let quoter =
+            FixedQuoter { outcome: sample_outcome(), captured: std::sync::OnceLock::new() };
+        let params = GetQuoteWithBridgeParams {
+            swap_and_bridge_request: sample_request(OrderKind::Buy),
+            slippage_bps: 50,
+            advanced_settings_metadata: None,
+        };
+        let err = get_quote_with_bridge(&params, &provider, &quoter).await.unwrap_err();
+        assert!(matches!(err, BridgeError::OnlySellOrderSupported));
+    }
+
+    #[tokio::test]
+    async fn get_quote_with_bridge_dispatches_to_hook_branch() {
+        let provider = MockHookProvider {
+            info: hook_info(),
+            tokens: vec![usdc()],
+            bridge_response: sample_bridge_response("mock-hook"),
+            unsigned_call: build_unsigned_call(),
+            gas_limit: 500_000,
+        };
+        let quoter =
+            FixedQuoter { outcome: sample_outcome(), captured: std::sync::OnceLock::new() };
+        let result = get_quote_with_bridge(&hook_params_with_metadata(None), &provider, &quoter)
+            .await
+            .unwrap();
+        // Hook branch populates bridge_call_details, leaves override empty.
+        assert!(result.bridge.bridge_call_details.is_some());
+        assert!(result.bridge.bridge_receiver_override.is_none());
+        assert_eq!(result.bridge.provider_info.name, "mock-hook");
+    }
+
+    #[tokio::test]
+    async fn get_quote_with_bridge_dispatches_to_receiver_branch() {
+        let provider = MockReceiverProvider {
+            info: receiver_info(),
+            tokens: vec![usdc()],
+            bridge_response: sample_bridge_response("mock-receiver"),
+            deposit_address: "0xDEA00DEA00DEA00DEA00DEA00DEA00DEA00DEA000".into(),
+        };
+        let quoter =
+            FixedQuoter { outcome: sample_outcome(), captured: std::sync::OnceLock::new() };
+        let result = get_quote_with_bridge(&hook_params_with_metadata(None), &provider, &quoter)
+            .await
+            .unwrap();
+        // Receiver branch populates receiver_override, leaves call_details empty.
+        assert!(result.bridge.bridge_call_details.is_none());
+        assert_eq!(
+            result.bridge.bridge_receiver_override.as_deref(),
+            Some("0xDEA00DEA00DEA00DEA00DEA00DEA00DEA00DEA000"),
+        );
+    }
+
+    #[tokio::test]
+    async fn get_quote_with_bridge_errors_on_unknown_provider_kind() {
+        let provider = MockUnknownProvider { info: hook_info() };
+        let quoter =
+            FixedQuoter { outcome: sample_outcome(), captured: std::sync::OnceLock::new() };
+        let err = get_quote_with_bridge(&hook_params_with_metadata(None), &provider, &quoter)
+            .await
+            .unwrap_err();
+        if let BridgeError::TxBuildError(msg) = err {
+            assert!(msg.contains("implements neither"));
+        } else {
+            panic!("expected TxBuildError, got {err:?}");
+        }
+    }
+
+    // ── Metadata preservation (#852 at orchestration level) ──────────────
+
+    #[tokio::test]
+    async fn hook_branch_preserves_caller_metadata_on_intermediate_swap() {
+        let provider = MockHookProvider {
+            info: hook_info(),
+            tokens: vec![usdc()],
+            bridge_response: sample_bridge_response("mock-hook"),
+            unsigned_call: build_unsigned_call(),
+            gas_limit: 500_000,
+        };
+        let quoter =
+            FixedQuoter { outcome: sample_outcome(), captured: std::sync::OnceLock::new() };
+        let caller_meta = serde_json::json!({
+            "partnerFee": { "bps": 25, "recipient": "0xpartner" },
+        });
+        let params = hook_params_with_metadata(Some(caller_meta));
+
+        get_quote_with_bridge(&params, &provider, &quoter).await.unwrap();
+
+        let captured = quoter.captured.get().cloned().expect("quoter called");
+        let app_data: serde_json::Value =
+            serde_json::from_str(&captured.app_data_json.unwrap()).unwrap();
+        assert_eq!(app_data.pointer("/metadata/partnerFee/bps").and_then(|v| v.as_u64()), Some(25),);
+        assert_eq!(
+            app_data.pointer("/metadata/bridging/providerId").and_then(|v| v.as_str()),
+            Some("cow-sdk://bridging/providers/mock-hook"),
+        );
+    }
+
+    // ── Simple flows ─────────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn get_quote_without_bridge_calls_quoter_with_full_request() {
+        let outcome = sample_outcome();
+        let quoter = FixedQuoter { outcome: outcome.clone(), captured: std::sync::OnceLock::new() };
+        let result =
+            get_quote_without_bridge(&sample_request(OrderKind::Sell), &quoter).await.unwrap();
+        assert_eq!(result.quote.sell_amount, outcome.sell_amount);
+        assert_eq!(result.quote.buy_amount, outcome.buy_amount_after_slippage);
+        assert_eq!(result.quote.fee_amount, outcome.fee_amount);
+        assert_eq!(result.quote.provider, "same-chain");
+
+        let captured = quoter.captured.get().cloned().unwrap();
+        // `get_quote_without_bridge` maps the *final* buy token directly —
+        // no intermediate-token substitution.
+        assert_eq!(captured.buy_token, sample_request(OrderKind::Sell).buy_token);
+    }
+
+    #[tokio::test]
+    async fn get_swap_quote_returns_provider_agnostic_response() {
+        let outcome = sample_outcome();
+        let quoter = FixedQuoter { outcome: outcome.clone(), captured: std::sync::OnceLock::new() };
+        let resp = get_swap_quote(&sample_request(OrderKind::Sell), &quoter).await.unwrap();
+        assert_eq!(resp.provider, "swap");
+        assert_eq!(resp.buy_amount, outcome.buy_amount_after_slippage);
+    }
+
+    #[tokio::test]
+    async fn get_quote_without_bridge_propagates_quoter_error() {
+        struct Failing;
+        impl SwapQuoter for Failing {
+            fn quote_swap<'a>(&'a self, _p: SwapQuoteParams) -> QuoteSwapFuture<'a> {
+                Box::pin(async {
+                    Err(cow_errors::CowError::Api { status: 502, body: "upstream".into() })
+                })
+            }
+        }
+        let err =
+            get_quote_without_bridge(&sample_request(OrderKind::Sell), &Failing).await.unwrap_err();
+        assert!(matches!(err, BridgeError::TxBuildError(_)));
     }
 }

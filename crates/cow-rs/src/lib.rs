@@ -65,6 +65,7 @@
 
 pub mod common;
 pub mod settlement;
+pub mod trading_swap_quoter;
 pub mod traits;
 
 // ── Clean layered re-exports (primary API) ───────────────────────────────────
@@ -259,8 +260,8 @@ pub use app_data::{
 pub use bridging::{
     ACROSS_DEPOSIT_EVENT_INTERFACE, BridgeError, BridgeProvider, BridgingSdk,
     COW_TRADE_EVENT_INTERFACE, QuoteBridgeRequest, QuoteBridgeResponse, QuoteStrategy,
-    create_strategies, get_cache_key, safe_call_best_quote_callback,
-    safe_call_progressive_callback,
+    SwapQuoteOutcome, SwapQuoteParams, SwapQuoter, create_strategies, get_cache_key,
+    safe_call_best_quote_callback, safe_call_progressive_callback,
 };
 pub use composable::{
     BlockInfo, COMPOSABLE_COW_ADDRESS, CURRENT_BLOCK_TIMESTAMP_FACTORY_ADDRESS,
@@ -316,6 +317,7 @@ pub use ethflow::{
 };
 pub use flash_loans::{FlashLoanParams, FlashLoanProvider, FlashLoanSdk};
 pub use onchain::{OnchainReader, permit::OnchainTokenInfo};
+pub use trading_swap_quoter::TradingSwapQuoter;
 // `implementation_address` and `owner_address` are methods on `OnchainReader`.
 pub use order_book::{
     AppDataObject, Auction, CompetitionAuction, CompetitionOrderStatus, CompetitionOrderStatusKind,
