@@ -1307,6 +1307,111 @@ mod intermediate_swap_tests {
         );
     }
 
+    // ── Error-path coverage ─────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn propagates_quoter_error_as_tx_build_error() {
+        struct FailingQuoter;
+        impl SwapQuoter for FailingQuoter {
+            fn quote_swap<'a>(&'a self, _p: SwapQuoteParams) -> QuoteSwapFuture<'a> {
+                Box::pin(async {
+                    Err(cow_errors::CowError::Api { status: 500, body: "orderbook down".into() })
+                })
+            }
+        }
+        let provider = FixedProvider { info: dummy_info("p"), tokens: vec![usdc_token()] };
+        let err = get_intermediate_swap_result(&sample_request(), &provider, &FailingQuoter, None)
+            .await
+            .unwrap_err();
+        let msg = if let BridgeError::TxBuildError(s) = err {
+            s
+        } else {
+            panic!("expected TxBuildError, got {err:?}")
+        };
+        assert!(msg.contains("500"));
+        assert!(msg.contains("orderbook down"));
+    }
+
+    #[tokio::test]
+    async fn errors_when_all_candidates_are_the_sell_token() {
+        // `determine_intermediate_token` filters candidates equal to the
+        // sell token when `allow_intermediate_eq_sell = false`. With ≥ 2
+        // candidates all equal to the sell token the filter empties and
+        // the function must surface `NoIntermediateTokens`.
+        let req = sample_request();
+        let same = |chain| IntermediateTokenInfo {
+            chain_id: chain,
+            address: req.sell_token,
+            decimals: 18,
+            symbol: "SELL".into(),
+            name: "Sell Token".into(),
+            logo_url: None,
+        };
+        struct Never;
+        impl SwapQuoter for Never {
+            fn quote_swap<'a>(&'a self, _p: SwapQuoteParams) -> QuoteSwapFuture<'a> {
+                Box::pin(async { panic!("quoter should not be called") })
+            }
+        }
+        let provider = FixedProvider {
+            info: dummy_info("p"),
+            tokens: vec![same(req.sell_chain_id), same(req.sell_chain_id)],
+        };
+        let err = get_intermediate_swap_result(&req, &provider, &Never, None).await.unwrap_err();
+        assert!(matches!(err, BridgeError::NoIntermediateTokens));
+    }
+
+    #[tokio::test]
+    async fn provider_info_name_is_threaded_into_response() {
+        let provider = FixedProvider { info: dummy_info("zany"), tokens: vec![usdc_token()] };
+        let quoter =
+            CapturingQuoter { captured: std::sync::OnceLock::new(), outcome: default_outcome() };
+        let resp = get_intermediate_swap_result(&sample_request(), &provider, &quoter, None)
+            .await
+            .unwrap();
+        assert_eq!(resp.provider, "zany");
+    }
+
+    #[tokio::test]
+    async fn non_object_caller_metadata_is_ignored_gracefully() {
+        let provider = FixedProvider { info: dummy_info("p"), tokens: vec![usdc_token()] };
+        let quoter =
+            CapturingQuoter { captured: std::sync::OnceLock::new(), outcome: default_outcome() };
+        // A JSON scalar is not a metadata object — the function must
+        // tolerate it without panicking and still inject the bridging entry.
+        let bogus = serde_json::json!("not-an-object");
+        get_intermediate_swap_result(&sample_request(), &provider, &quoter, Some(&bogus))
+            .await
+            .unwrap();
+        let captured = quoter.captured.get().cloned().unwrap();
+        let parsed: serde_json::Value =
+            serde_json::from_str(&captured.app_data_json.unwrap()).unwrap();
+        assert!(parsed.pointer("/metadata/bridging/providerId").is_some());
+    }
+
+    #[tokio::test]
+    async fn caller_hooks_entry_is_preserved_when_present() {
+        // If the caller already supplied a hooks entry, we must not clobber
+        // it with the empty default — some flows pre-populate `hooks.pre`.
+        let provider = FixedProvider { info: dummy_info("p"), tokens: vec![usdc_token()] };
+        let quoter =
+            CapturingQuoter { captured: std::sync::OnceLock::new(), outcome: default_outcome() };
+        let caller_meta = serde_json::json!({
+            "hooks": { "pre": [{ "target": "0xabc", "callData": "0x", "gasLimit": "100000" }], "post": [] },
+        });
+        get_intermediate_swap_result(&sample_request(), &provider, &quoter, Some(&caller_meta))
+            .await
+            .unwrap();
+        let captured = quoter.captured.get().cloned().unwrap();
+        let parsed: serde_json::Value =
+            serde_json::from_str(&captured.app_data_json.unwrap()).unwrap();
+        let pre = parsed
+            .pointer("/metadata/hooks/pre")
+            .and_then(|v| v.as_array())
+            .expect("pre array present");
+        assert_eq!(pre.len(), 1);
+    }
+
     #[tokio::test]
     async fn no_caller_metadata_still_produces_bridging_entry() {
         let provider = FixedProvider { info: dummy_info("cow-prov"), tokens: vec![usdc_token()] };

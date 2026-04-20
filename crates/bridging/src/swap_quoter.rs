@@ -44,9 +44,9 @@ pub struct SwapQuoteParams {
 }
 
 /// Minimal swap-quote response returned by a [`SwapQuoter`]. Carries
-/// just enough to build the outer [`QuoteBridgeResponse`]
-/// (cf. [`crate::types::QuoteBridgeResponse`]) and upstream app-data
-/// attribution.
+/// just enough to build the outer
+/// [`QuoteBridgeResponse`](crate::types::QuoteBridgeResponse) and upstream
+/// app-data attribution.
 #[derive(Debug, Clone)]
 pub struct SwapQuoteOutcome {
     /// Sell amount as quoted by the orderbook (atoms).
