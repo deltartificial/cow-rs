@@ -13,8 +13,11 @@ pub mod across;
 pub mod bungee;
 pub mod provider;
 pub mod sdk;
+pub mod swap_quoter;
 pub mod types;
 pub mod utils;
+
+pub use swap_quoter::{QuoteSwapFuture, SwapQuoteOutcome, SwapQuoteParams, SwapQuoter};
 
 pub use across::{
     ACROSS_API_BASE, ACROSS_DEPOSIT_EVENT_INTERFACE, ACROSS_FUNDS_DEPOSITED_TOPIC,
