@@ -1564,4 +1564,212 @@ mod provider_tests {
         let out = p.get_bridging_params(1, &order, B256::ZERO, None).await.unwrap();
         assert!(out.is_none());
     }
+
+    // ── Wiremock HTTP tests ─────────────────────────────────────────────
+
+    // The Across types don't use `rename_all = "camelCase"` (a deliberate
+    // choice of the existing code that predates this PR), so the mock
+    // bodies must match the struct's snake_case field names.
+    fn mock_fees_body() -> serde_json::Value {
+        serde_json::json!({
+            "total_relay_fee":     {"pct": "1000000000000000", "total": "100"},
+            "relayer_capital_fee": {"pct": "500000000000000",  "total": "50"},
+            "relayer_gas_fee":     {"pct": "500000000000000",  "total": "50"},
+            "lp_fee":              {"pct": "0",                "total": "0"},
+            "timestamp":           "1700000000",
+            "is_amount_too_low":   false,
+            "quote_block":         "18000000",
+            "spoke_pool_address":  "0x5c7BCd6E7De5423a257D81B442095A1a6ced35C5",
+            "exclusive_relayer":   "0x0000000000000000000000000000000000000000",
+            "exclusivity_deadline":"0",
+            "estimated_fill_time_sec":"30",
+            "fill_deadline":       "1800000000",
+            "limits": {
+                "min_deposit":               "1000",
+                "max_deposit":               "1000000000",
+                "max_deposit_instant":       "100000000",
+                "max_deposit_short_delay":   "500000000",
+                "recommended_deposit_instant":"50000000"
+            }
+        })
+    }
+
+    fn mock_status_body(status: &str) -> serde_json::Value {
+        serde_json::json!({
+            "status":                  status,
+            "origin_chain_id":         "1",
+            "deposit_id":              "42",
+            "deposit_tx_hash":         "0xdeadbeef",
+            "fill_tx":                 "0xbeefbeef",
+            "destination_chain_id":    "42161",
+            "deposit_refund_tx_hash":  null
+        })
+    }
+
+    async fn provider_pointing_at(server_uri: &str) -> AcrossBridgeProvider {
+        AcrossBridgeProvider::new(Arc::new(CowShedSdk::new(1))).with_api_base(server_uri.to_owned())
+    }
+
+    #[tokio::test]
+    async fn get_quote_parses_suggested_fees_and_fills_response() {
+        use wiremock::{
+            Mock, MockServer, ResponseTemplate,
+            matchers::{method, path},
+        };
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/suggested-fees"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(mock_fees_body()))
+            .mount(&server)
+            .await;
+
+        let p = provider_pointing_at(&server.uri()).await;
+        let quote = p.get_quote(&sample_request()).await.unwrap();
+        assert_eq!(quote.provider, "across");
+        assert_eq!(quote.estimated_secs, 30);
+        assert!(!quote.buy_amount.is_zero());
+    }
+
+    #[tokio::test]
+    async fn get_quote_propagates_http_error() {
+        use wiremock::{
+            Mock, MockServer, ResponseTemplate,
+            matchers::{method, path},
+        };
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/suggested-fees"))
+            .respond_with(ResponseTemplate::new(503).set_body_string("upstream down"))
+            .mount(&server)
+            .await;
+
+        let p = provider_pointing_at(&server.uri()).await;
+        let err = p.get_quote(&sample_request()).await.unwrap_err();
+        assert!(matches!(err, CowError::Api { status: 503, ref body } if body == "upstream down"));
+    }
+
+    #[tokio::test]
+    async fn get_quote_errors_on_unsupported_chain_pair() {
+        let p = test_provider();
+        let mut req = sample_request();
+        req.sell_chain_id = 9999;
+        let err = p.get_quote(&req).await.unwrap_err();
+        assert!(
+            matches!(err, CowError::Api { status: 0, ref body } if body.contains("unsupported"))
+        );
+    }
+
+    #[tokio::test]
+    async fn get_status_maps_filled_to_executed() {
+        use wiremock::{
+            Mock, MockServer, ResponseTemplate,
+            matchers::{method, path},
+        };
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/deposit/status"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(mock_status_body("filled")))
+            .mount(&server)
+            .await;
+
+        let p = provider_pointing_at(&server.uri()).await;
+        let status = p.get_status("42", 1).await.unwrap();
+        assert_eq!(status.status, BridgeStatus::Executed);
+        assert_eq!(status.deposit_tx_hash.as_deref(), Some("0xdeadbeef"));
+        assert_eq!(status.fill_tx_hash.as_deref(), Some("0xbeefbeef"));
+    }
+
+    #[tokio::test]
+    async fn get_status_maps_pending_to_in_progress() {
+        use wiremock::{
+            Mock, MockServer, ResponseTemplate,
+            matchers::{method, path},
+        };
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/deposit/status"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(mock_status_body("pending")))
+            .mount(&server)
+            .await;
+
+        let p = provider_pointing_at(&server.uri()).await;
+        let status = p.get_status("42", 1).await.unwrap();
+        assert_eq!(status.status, BridgeStatus::InProgress);
+    }
+
+    #[tokio::test]
+    async fn get_status_propagates_http_error() {
+        use wiremock::{
+            Mock, MockServer, ResponseTemplate,
+            matchers::{method, path},
+        };
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/deposit/status"))
+            .respond_with(ResponseTemplate::new(404).set_body_string("not found"))
+            .mount(&server)
+            .await;
+
+        let p = provider_pointing_at(&server.uri()).await;
+        let err = p.get_status("missing", 1).await.unwrap_err();
+        assert!(matches!(err, CowError::Api { status: 404, .. }));
+    }
+
+    #[tokio::test]
+    async fn get_unsigned_bridge_call_builds_deposit_v3_calldata() {
+        use wiremock::{
+            Mock, MockServer, ResponseTemplate,
+            matchers::{method, path},
+        };
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/suggested-fees"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(mock_fees_body()))
+            .mount(&server)
+            .await;
+
+        let p = provider_pointing_at(&server.uri()).await;
+        let req = sample_request();
+        let dummy_quote = QuoteBridgeResponse {
+            provider: "across".into(),
+            sell_amount: req.sell_amount,
+            buy_amount: U256::from(990_000u64),
+            fee_amount: U256::from(10_000u64),
+            estimated_secs: 30,
+            bridge_hook: None,
+        };
+        let call = p.get_unsigned_bridge_call(&req, &dummy_quote).await.unwrap();
+        assert!(!call.data.is_empty());
+        // First 4 bytes must be the depositV3 selector.
+        let expected_selector = &alloy_primitives::keccak256(
+            b"depositV3(address,address,address,address,uint256,uint256,uint256,address,uint32,uint32,uint32,bytes)",
+        )[..4];
+        assert_eq!(&call.data[..4], expected_selector);
+    }
+
+    #[tokio::test]
+    async fn get_signed_hook_signs_with_cow_shed() {
+        let p = test_provider();
+        let signer: PrivateKeySigner =
+            "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80".parse().unwrap();
+        let call = EvmCall {
+            to: "0x5c7BCd6E7De5423a257D81B442095A1a6ced35C5".parse().unwrap(),
+            data: vec![0xde, 0xad, 0xbe, 0xef],
+            value: U256::ZERO,
+        };
+        let hook = p
+            .get_signed_hook(
+                SupportedChainId::Mainnet,
+                &call,
+                "nonce-1",
+                9_999_999,
+                500_000,
+                &signer,
+            )
+            .await
+            .unwrap();
+        assert_eq!(hook.post_hook.dapp_id.as_deref(), Some(ACROSS_HOOK_DAPP_ID));
+        assert_eq!(hook.post_hook.gas_limit, "500000");
+        assert!(hook.recipient.starts_with("0x"));
+    }
 }
