@@ -23,7 +23,15 @@
 pub mod const_;
 
 pub mod api;
+pub mod provider;
 pub mod types;
+pub mod util;
+
+pub use provider::{
+    NEAR_INTENTS_DEFAULT_VALIDITY_SECS, NearIntentsBridgeProvider, NearIntentsProviderOptions,
+    chain_id_to_supported, default_near_intents_info, get_token_by_address_and_chain_id,
+    map_near_status_to_cow, near_intents_supported_chains,
+};
 
 pub use api::NearIntentsApi;
 pub use const_::{
@@ -31,8 +39,8 @@ pub use const_::{
     NEAR_INTENTS_HOOK_DAPP_ID, NEAR_INTENTS_QUOTE_TIMEOUT_MS,
 };
 pub use types::{
-    DefuseBlockchain, DefuseToken, NearAppFee, NearAttestationRequest, NearAttestationResponse,
-    NearChainTxHash, NearDepositMode, NearDepositType, NearExecutionStatus,
-    NearExecutionStatusResponse, NearQuote, NearQuoteRequest, NearQuoteResponse, NearRecipientType,
-    NearRefundType, NearSwapDetails, NearSwapType,
+    DefuseToken, NearAppFee, NearAttestationRequest, NearAttestationResponse, NearChainTxHash,
+    NearDepositMode, NearDepositType, NearExecutionStatus, NearExecutionStatusResponse, NearQuote,
+    NearQuoteRequest, NearQuoteResponse, NearRecipientType, NearRefundType, NearSwapDetails,
+    NearSwapType,
 };

@@ -19,22 +19,6 @@ use serde::{Deserialize, Serialize};
 
 // ── /v0/tokens ────────────────────────────────────────────────────────────
 
-/// Blockchain an asset lives on (`TokenResponse.blockchain` in the TS SDK).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "UPPERCASE")]
-pub enum DefuseBlockchain {
-    /// Ethereum mainnet.
-    Eth,
-    /// Base L2.
-    Base,
-    /// Bitcoin.
-    Btc,
-    /// Solana.
-    Sol,
-    /// TON.
-    Ton,
-}
-
 /// A single entry in the `GET /v0/tokens` response array.
 ///
 /// Mirrors the Defuse `TokenResponse` interface:
@@ -57,8 +41,15 @@ pub struct DefuseToken {
     pub asset_id: String,
     /// ERC-20-style decimals (`6` for USDC, `18` for ETH, …).
     pub decimals: u8,
-    /// Chain the asset lives on.
-    pub blockchain: DefuseBlockchain,
+    /// Chain the asset lives on — raw Defuse blockchain key. See
+    /// [`crate::near_intents::util::blockchain_key_to_chain_id`] for
+    /// the `"eth"` / `"arb"` / `"btc"` / … → EIP-155 chain-id mapping.
+    ///
+    /// Stored as [`String`] (rather than a typed enum) so the
+    /// deserializer doesn't fail when the Defuse API adds a new chain
+    /// key — callers who want strict validation can match on the
+    /// string themselves.
+    pub blockchain: String,
     /// Short symbol (e.g. `"USDC"`, `"ETH"`).
     pub symbol: String,
     /// Last-known USD price.
@@ -352,27 +343,36 @@ mod tests {
     use super::*;
 
     #[test]
-    fn defuse_blockchain_roundtrips_through_uppercase_json() {
-        let t = DefuseBlockchain::Btc;
-        let j = serde_json::to_string(&t).unwrap();
-        assert_eq!(j, "\"BTC\"");
-        let back: DefuseBlockchain = serde_json::from_str(&j).unwrap();
-        assert_eq!(back, t);
-    }
-
-    #[test]
     fn defuse_token_optional_contract_address_deserializes() {
         let sample = r#"{
             "assetId": "nep141:eth",
             "decimals": 18,
-            "blockchain": "ETH",
+            "blockchain": "eth",
             "symbol": "ETH",
             "price": 4463.25,
             "priceUpdatedAt": "2025-09-05T12:00:38.695Z"
         }"#;
         let t: DefuseToken = serde_json::from_str(sample).unwrap();
         assert_eq!(t.decimals, 18);
+        assert_eq!(t.blockchain, "eth");
         assert!(t.contract_address.is_none());
+    }
+
+    #[test]
+    fn defuse_token_accepts_unknown_blockchain_key() {
+        // The enum-free `blockchain: String` means a future Defuse key
+        // deserializes without breaking. Rust-side lookup happens in
+        // `util::blockchain_key_to_chain_id`.
+        let sample = r#"{
+            "assetId": "nep141:future",
+            "decimals": 18,
+            "blockchain": "some-new-chain",
+            "symbol": "FTR",
+            "price": 1.0,
+            "priceUpdatedAt": "2025-09-05T12:00:38.695Z"
+        }"#;
+        let t: DefuseToken = serde_json::from_str(sample).unwrap();
+        assert_eq!(t.blockchain, "some-new-chain");
     }
 
     #[test]
@@ -456,7 +456,7 @@ mod tests {
         let sample = r#"{
             "assetId": "nep141:usdc.e",
             "decimals": 6,
-            "blockchain": "ETH",
+            "blockchain": "eth",
             "symbol": "USDC",
             "price": 1.0,
             "priceUpdatedAt": "2025-09-05T12:00:38.695Z",

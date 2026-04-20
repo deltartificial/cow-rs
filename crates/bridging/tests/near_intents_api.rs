@@ -18,8 +18,8 @@ use cow_bridging::{
     near_intents::{
         NearIntentsApi,
         types::{
-            DefuseBlockchain, NearAttestationRequest, NearDepositMode, NearDepositType,
-            NearExecutionStatus, NearQuoteRequest, NearRecipientType, NearRefundType, NearSwapType,
+            NearAttestationRequest, NearDepositMode, NearDepositType, NearExecutionStatus,
+            NearQuoteRequest, NearRecipientType, NearRefundType, NearSwapType,
         },
     },
 };
@@ -56,7 +56,7 @@ fn sample_tokens_response() -> serde_json::Value {
         {
             "assetId": "nep141:eth",
             "decimals": 18,
-            "blockchain": "ETH",
+            "blockchain": "eth",
             "symbol": "ETH",
             "price": 4463.25,
             "priceUpdatedAt": "2025-09-05T12:00:38.695Z"
@@ -64,7 +64,7 @@ fn sample_tokens_response() -> serde_json::Value {
         {
             "assetId": "nep141:usdc.e",
             "decimals": 6,
-            "blockchain": "ETH",
+            "blockchain": "eth",
             "symbol": "USDC",
             "price": 1.0,
             "priceUpdatedAt": "2025-09-05T12:00:38.695Z",
@@ -73,7 +73,7 @@ fn sample_tokens_response() -> serde_json::Value {
         {
             "assetId": "nep141:btc",
             "decimals": 8,
-            "blockchain": "BTC",
+            "blockchain": "btc",
             "symbol": "BTC",
             "price": 60000.0,
             "priceUpdatedAt": "2025-09-05T12:00:38.695Z"
@@ -172,7 +172,7 @@ async fn get_tokens_parses_happy_path() {
         tokens[1].contract_address.as_deref(),
         Some("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48")
     );
-    assert_eq!(tokens[2].blockchain, DefuseBlockchain::Btc);
+    assert_eq!(tokens[2].blockchain, "btc");
 }
 
 #[cfg_attr(miri, ignore)]

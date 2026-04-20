@@ -237,6 +237,7 @@ serde = { version = "1.0.171", features = ["derive"] }
 serde-wasm-bindgen = "0.6"
 serde_json = "1.0.100"
 serde_yaml = "0.9"
+sha2 = { version = "0.10", default-features = false }
 # syn ≥1.0.67 needed for parse_quote_spanned (wasm-bindgen transitive)
 syn = { version = "1.0.67", features = ["full"] }
 thiserror = "2"
