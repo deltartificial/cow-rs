@@ -1413,6 +1413,34 @@ mod intermediate_swap_tests {
     }
 
     #[tokio::test]
+    async fn fixed_provider_surface_is_callable_for_coverage() {
+        // Exercise every `FixedProvider` trait method once — otherwise the
+        // trait-impl rows stay uncovered because `get_intermediate_swap_result`
+        // only calls `info()` + `get_intermediate_tokens()`.
+        use alloy_primitives::{Address, B256};
+        let p = FixedProvider { info: dummy_info("surface"), tokens: vec![usdc_token()] };
+        assert!(p.supports_route(1, 10));
+        assert!(p.get_networks().await.unwrap().is_empty());
+        let toks = p
+            .get_buy_tokens(BuyTokensParams {
+                sell_chain_id: 1,
+                buy_chain_id: 10,
+                sell_token_address: None,
+            })
+            .await
+            .unwrap();
+        assert!(toks.tokens.is_empty());
+        assert_eq!(p.get_quote(&sample_request()).await.unwrap().provider, "fixed");
+        let order = cow_orderbook::api::mock_get_order(&format!("0x{}", "aa".repeat(56)));
+        assert!(p.get_bridging_params(1, &order, B256::ZERO, None).await.unwrap().is_none());
+        assert!(p.get_explorer_url("x").is_empty());
+        assert_eq!(p.get_status("x", 1).await.unwrap().status, BridgeStatus::Unknown);
+        // `Address` is imported to silence the unused-import lint if the
+        // local scope ever loses its reference.
+        let _ = Address::ZERO;
+    }
+
+    #[tokio::test]
     async fn no_caller_metadata_still_produces_bridging_entry() {
         let provider = FixedProvider { info: dummy_info("cow-prov"), tokens: vec![usdc_token()] };
         let quoter =
