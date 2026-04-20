@@ -11,6 +11,7 @@
 
 pub mod across;
 pub mod bungee;
+pub mod near_intents;
 pub mod provider;
 pub mod sdk;
 pub mod signing_step_manager;

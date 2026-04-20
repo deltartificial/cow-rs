@@ -1057,6 +1057,7 @@ dependencies = [
  "cow-chains",
  "cow-errors",
  "cow-orderbook",
+ "cow-primitives",
  "cow-shed",
  "cow-types",
  "foldhash 0.2.0",

@@ -30,6 +30,7 @@ alloy-signer-local.workspace = true
 cow-chains.workspace = true
 cow-errors.workspace = true
 cow-orderbook.workspace = true
+cow-primitives.workspace = true
 cow-shed.workspace = true
 cow-types.workspace = true
 foldhash.workspace = true
