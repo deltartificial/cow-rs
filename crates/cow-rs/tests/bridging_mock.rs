@@ -2522,11 +2522,15 @@ fn bungee_provider_name_is_bungee() {
 }
 
 #[test]
-fn bungee_provider_supports_any_route() {
+fn bungee_provider_supports_supported_routes_only() {
     use cow_rs::bridging::bungee::BungeeProvider;
     let provider = BungeeProvider::new("test-key");
+    // Mainnet <-> Arbitrum One is supported.
     assert!(BridgeProvider::supports_route(&provider, 1, 42161));
-    assert!(BridgeProvider::supports_route(&provider, 99999, 0));
+    // Unsupported chain IDs are rejected as of PR #4.
+    assert!(!BridgeProvider::supports_route(&provider, 99999, 0));
+    // Same-chain is never bridgeable.
+    assert!(!BridgeProvider::supports_route(&provider, 1, 1));
 }
 
 // ── decode_amounts for GnosisNative ────────────────────────────────────────

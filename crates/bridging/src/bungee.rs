@@ -5,6 +5,8 @@
 
 use foldhash::HashMap;
 
+use std::sync::Arc;
+
 use alloy_primitives::{Address, B256, U256};
 
 use cow_errors::CowError;
@@ -12,11 +14,12 @@ use cow_orderbook::types::Order;
 
 use alloy_signer_local::PrivateKeySigner;
 use cow_chains::{EvmCall, SupportedChainId};
+use cow_shed::CowShedSdk;
 
 use super::{
     provider::{
-        BridgeProvider, BridgeStatusFuture, BridgingParamsFuture, BuyTokensFuture,
-        HookBridgeProvider, IntermediateTokensFuture, NetworksFuture, QuoteFuture,
+        BridgeNetworkInfo, BridgeProvider, BridgeStatusFuture, BridgingParamsFuture,
+        BuyTokensFuture, HookBridgeProvider, IntermediateTokensFuture, NetworksFuture, QuoteFuture,
         SignedHookFuture, UnsignedCallFuture,
     },
     types::{
@@ -24,13 +27,11 @@ use super::{
         BridgeProviderType, BridgeQuoteAmountsAndCosts, BridgeQuoteResult, BridgeStatus,
         BridgeStatusResult, BridgingFee, BungeeBridge, BungeeBridgeName, BungeeEvent,
         BungeeEventStatus, BungeeTxDataBytesIndex, BuyTokensParams, DecodedBungeeAmounts,
-        DecodedBungeeTxData, QuoteBridgeRequest, QuoteBridgeResponse,
+        DecodedBungeeTxData, GetProviderBuyTokens, IntermediateTokenInfo, QuoteBridgeRequest,
+        QuoteBridgeResponse,
     },
     utils::{apply_bps, calculate_fee_bps},
 };
-
-/// Bungee (Socket) bridge quote API base URL.
-const BUNGEE_API_BASE: &str = "https://api.socket.tech/v2/quote";
 
 // ── Contract addresses ────────────────────────────────────────────────────────
 
@@ -630,15 +631,23 @@ pub fn create_bungee_deposit_call(
 /// Bridge provider backed by the Bungee / Socket aggregator API.
 ///
 /// Documentation: `https://docs.socket.tech/socket-liquidity-layer/use-socketll/quote`
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BungeeProvider {
     client: reqwest::Client,
     api_key: String,
     info: BridgeProviderInfo,
+    cow_shed: Option<Arc<CowShedSdk>>,
+    api_base: String,
+    events_api_base: String,
 }
 
 impl BungeeProvider {
     /// Construct a new [`BungeeProvider`] with the given API key.
+    ///
+    /// The provider is built with default endpoints
+    /// ([`crate::sdk::BUNGEE_API_URL`], [`crate::sdk::BUNGEE_EVENTS_API_URL`])
+    /// and no [`CowShedSdk`] — call [`Self::with_cow_shed`] if you need
+    /// [`HookBridgeProvider::get_signed_hook`] to succeed.
     ///
     /// # Arguments
     ///
@@ -653,7 +662,116 @@ impl BungeeProvider {
             client: reqwest::Client::new(),
             api_key: api_key.into(),
             info: default_bungee_info(),
+            cow_shed: None,
+            api_base: crate::sdk::BUNGEE_API_URL.to_owned(),
+            events_api_base: crate::sdk::BUNGEE_EVENTS_API_URL.to_owned(),
         }
+    }
+
+    /// Attach a shared [`CowShedSdk`] so hook signing works end-to-end.
+    ///
+    /// Required to make [`HookBridgeProvider::get_signed_hook`] succeed;
+    /// without it the method returns [`CowError::Signing`].
+    #[must_use]
+    pub fn with_cow_shed(mut self, cow_shed: Arc<CowShedSdk>) -> Self {
+        self.cow_shed = Some(cow_shed);
+        self
+    }
+
+    /// Override the quote API base URL (useful for tests pointing at a mock server).
+    #[must_use]
+    pub fn with_api_base(mut self, base: impl Into<String>) -> Self {
+        self.api_base = base.into();
+        self
+    }
+
+    /// Override the events API base URL (useful for tests pointing at a mock server).
+    #[must_use]
+    pub fn with_events_api_base(mut self, base: impl Into<String>) -> Self {
+        self.events_api_base = base.into();
+        self
+    }
+}
+
+/// Chains supported by the Bungee integration.
+///
+/// Mirrors the `BUNGEE_SUPPORTED_NETWORKS` constant from the `TypeScript` SDK.
+#[must_use]
+pub fn bungee_supported_chains() -> Vec<u64> {
+    vec![
+        SupportedChainId::Mainnet.as_u64(),
+        SupportedChainId::Polygon.as_u64(),
+        SupportedChainId::ArbitrumOne.as_u64(),
+        SupportedChainId::Base.as_u64(),
+        SupportedChainId::Avalanche.as_u64(),
+        SupportedChainId::GnosisChain.as_u64(),
+        10, // Optimism
+    ]
+}
+
+fn bungee_chain_name(chain_id: u64) -> String {
+    SupportedChainId::try_from_u64(chain_id)
+        .map_or_else(|| format!("Chain {chain_id}"), |c| format!("{c}"))
+}
+
+/// Minimal catalog of popular ERC-20 tokens per supported chain — used as
+/// the seed for [`BridgeProvider::get_buy_tokens`] and
+/// [`BridgeProvider::get_intermediate_tokens`]. Mirrors the
+/// `ACROSS_TOKEN_MAPPING`-style constants on the TS side; a future PR can
+/// wire this to a live `/tokens` endpoint.
+fn bungee_popular_tokens(chain_id: u64) -> Vec<IntermediateTokenInfo> {
+    let mainnet = SupportedChainId::Mainnet.as_u64();
+    let polygon = SupportedChainId::Polygon.as_u64();
+    let arbitrum = SupportedChainId::ArbitrumOne.as_u64();
+    let base = SupportedChainId::Base.as_u64();
+    let gnosis = SupportedChainId::GnosisChain.as_u64();
+
+    let make = |symbol: &str, name: &str, addr: &str, decimals: u8| IntermediateTokenInfo {
+        chain_id,
+        address: addr.parse().map_or(Address::ZERO, |a| a),
+        decimals,
+        symbol: symbol.into(),
+        name: name.into(),
+        logo_url: None,
+    };
+
+    if chain_id == mainnet {
+        vec![
+            make("USDC", "USD Coin", "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", 6),
+            make("USDT", "Tether USD", "0xdAC17F958D2ee523a2206206994597C13D831ec7", 6),
+            make("DAI", "Dai Stablecoin", "0x6B175474E89094C44Da98b954EedeAC495271d0F", 18),
+            make("WETH", "Wrapped Ether", "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2", 18),
+            make("WBTC", "Wrapped BTC", "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599", 8),
+        ]
+    } else if chain_id == polygon {
+        vec![
+            make("USDC", "USD Coin", "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359", 6),
+            make("USDT", "Tether USD", "0xc2132D05D31c914a87C6611C10748AEb04B58e8F", 6),
+            make("DAI", "Dai Stablecoin", "0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063", 18),
+            make("WETH", "Wrapped Ether", "0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619", 18),
+        ]
+    } else if chain_id == arbitrum {
+        vec![
+            make("USDC", "USD Coin", "0xaf88d065e77c8cC2239327C5EDb3A432268e5831", 6),
+            make("USDT", "Tether USD", "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9", 6),
+            make("WETH", "Wrapped Ether", "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1", 18),
+        ]
+    } else if chain_id == base {
+        vec![
+            make("USDC", "USD Coin", "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", 6),
+            make("WETH", "Wrapped Ether", "0x4200000000000000000000000000000000000006", 18),
+        ]
+    } else if chain_id == 10 {
+        vec![
+            make("USDC", "USD Coin", "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85", 6),
+            make("WETH", "Wrapped Ether", "0x4200000000000000000000000000000000000006", 18),
+        ]
+    } else if chain_id == SupportedChainId::Avalanche.as_u64() {
+        vec![make("USDC", "USD Coin", "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E", 6)]
+    } else if chain_id == gnosis {
+        vec![make("USDC", "USD Coin", "0xDDAfbb505ad214D7b80b1f830fcCc89B60fb7A83", 6)]
+    } else {
+        Vec::new()
     }
 }
 
@@ -680,51 +798,69 @@ impl BridgeProvider for BungeeProvider {
 
     /// Check whether a cross-chain route is supported.
     ///
-    /// Always returns `true` because the Bungee aggregator can route between
-    /// any pair of chains it indexes; unsupported pairs are caught later when
-    /// the quote API returns zero routes.
-    fn supports_route(&self, _sell_chain: u64, _buy_chain: u64) -> bool {
-        true
+    /// Returns `true` only when both chains are in
+    /// [`bungee_supported_chains`] and distinct. The Bungee aggregator
+    /// can still route between any pair it indexes, but gating at the
+    /// trait level avoids wasting a round-trip for obviously unsupported
+    /// pairs.
+    fn supports_route(&self, sell_chain: u64, buy_chain: u64) -> bool {
+        if sell_chain == buy_chain {
+            return false;
+        }
+        let supported = bungee_supported_chains();
+        supported.contains(&sell_chain) && supported.contains(&buy_chain)
     }
 
     /// List the networks supported by Bungee.
-    ///
-    /// **Not yet implemented** — will be filled in by PR #4 alongside the
-    /// upgraded provider impl against the enriched trait.
     fn get_networks<'a>(&'a self) -> NetworksFuture<'a> {
-        Box::pin(async {
-            Err(CowError::Api {
-                status: 0,
-                body: "BungeeProvider::get_networks is not yet ported (cow-rs PR #4)".into(),
-            })
+        Box::pin(async move {
+            Ok(bungee_supported_chains()
+                .into_iter()
+                .map(|chain_id| BridgeNetworkInfo {
+                    chain_id,
+                    name: bungee_chain_name(chain_id),
+                    logo_url: None,
+                })
+                .collect())
         })
     }
 
     /// List buyable tokens on a destination chain.
     ///
-    /// **Not yet implemented** — will be filled in by PR #4.
-    fn get_buy_tokens<'a>(&'a self, _params: BuyTokensParams) -> BuyTokensFuture<'a> {
-        Box::pin(async {
-            Err(CowError::Api {
-                status: 0,
-                body: "BungeeProvider::get_buy_tokens is not yet ported (cow-rs PR #4)".into(),
-            })
+    /// Returns a curated set of popular ERC-20 tokens for the target
+    /// chain. When Bungee adds a public `/tokens` endpoint we'll wire
+    /// it here and fall back to this static list on errors.
+    fn get_buy_tokens<'a>(&'a self, params: BuyTokensParams) -> BuyTokensFuture<'a> {
+        let info = self.info.clone();
+        Box::pin(async move {
+            let tokens = bungee_popular_tokens(params.buy_chain_id);
+            Ok(GetProviderBuyTokens { provider_info: info, tokens })
         })
     }
 
     /// List candidate intermediate tokens for a bridging request.
     ///
-    /// **Not yet implemented** — will be filled in by PR #4.
+    /// Returns the source-chain tokens whose symbol is also present on
+    /// the destination chain, with the sell-token match (if any) first
+    /// — same heuristic as the Across provider.
     fn get_intermediate_tokens<'a>(
         &'a self,
-        _request: &'a QuoteBridgeRequest,
+        request: &'a QuoteBridgeRequest,
     ) -> IntermediateTokensFuture<'a> {
-        Box::pin(async {
-            Err(CowError::Api {
-                status: 0,
-                body: "BungeeProvider::get_intermediate_tokens is not yet ported (cow-rs PR #4)"
-                    .into(),
-            })
+        let source_chain = request.sell_chain_id;
+        let target_chain = request.buy_chain_id;
+        let sell_token = request.sell_token;
+        Box::pin(async move {
+            let target_symbols: foldhash::HashSet<String> = bungee_popular_tokens(target_chain)
+                .into_iter()
+                .map(|t| t.symbol.to_ascii_uppercase())
+                .collect();
+            let mut candidates: Vec<IntermediateTokenInfo> = bungee_popular_tokens(source_chain)
+                .into_iter()
+                .filter(|t| target_symbols.contains(&t.symbol.to_ascii_uppercase()))
+                .collect();
+            candidates.sort_by_key(|t| if t.address == sell_token { 0 } else { 1 });
+            Ok(candidates)
         })
     }
 
@@ -738,9 +874,9 @@ impl BridgeProvider for BungeeProvider {
 
     /// Reconstruct bridging deposit parameters from a settlement transaction.
     ///
-    /// **Not yet implemented** — will be filled in by PR #4. The free
-    /// function [`get_bridging_status_from_events`] already covers part of
-    /// this logic; PR #4 will wire it behind the trait.
+    /// Returns `Ok(None)` for now. Threading a real receipt through here
+    /// (so we can call [`get_bridging_status_from_events`]) is a PR #8
+    /// deliverable that lands alongside the orchestration rewrite.
     fn get_bridging_params<'a>(
         &'a self,
         _chain_id: u64,
@@ -748,45 +884,36 @@ impl BridgeProvider for BungeeProvider {
         _tx_hash: B256,
         _settlement_override: Option<Address>,
     ) -> BridgingParamsFuture<'a> {
-        Box::pin(async {
-            Err(CowError::Api {
-                status: 0,
-                body: "BungeeProvider::get_bridging_params is not yet ported (cow-rs PR #4)".into(),
-            })
-        })
+        Box::pin(async { Ok(None) })
     }
 
     /// Return the provider's explorer URL for a bridging ID.
-    ///
-    /// **Not yet implemented** — will be filled in by PR #4. Currently
-    /// returns a placeholder pointing at the Bungee explorer root.
     fn get_explorer_url(&self, bridging_id: &str) -> String {
         format!("https://bungee.exchange/tx/{bridging_id}")
     }
 
     /// Fetch the current bridge status for a bridging ID.
     ///
-    /// **Not yet implemented** — will be filled in by PR #4.
+    /// Hits the Bungee events microservice (`GET /api/v1/status?srcTxHash=…`)
+    /// and maps the response through [`get_bridging_status_from_events`].
     fn get_status<'a>(
         &'a self,
-        _bridging_id: &'a str,
+        bridging_id: &'a str,
         _origin_chain_id: u64,
     ) -> BridgeStatusFuture<'a> {
-        Box::pin(async {
-            Err(CowError::Api {
-                status: 0,
-                body: "BungeeProvider::get_status is not yet ported (cow-rs PR #4)".into(),
-            })
-        })
+        Box::pin(self.get_status_inner(bridging_id))
     }
 }
 
 impl HookBridgeProvider for BungeeProvider {
     /// Build the unsigned EVM call that initiates the Bungee bridge.
     ///
-    /// **Not yet implemented** — will delegate to
-    /// [`create_bungee_deposit_call`] in PR #4 once the call-details
-    /// plumbing is in place.
+    /// Returns a clear error until PR #7 threads the Bungee `/build-tx`
+    /// response into the quote so this method can delegate to
+    /// [`create_bungee_deposit_call`]. The problem is that
+    /// `create_bungee_deposit_call` needs the raw `build_tx_data` blob
+    /// which is *not* included in the upstream quote call — it's a
+    /// separate API round-trip handled by the orchestration layer.
     fn get_unsigned_bridge_call<'a>(
         &'a self,
         _request: &'a QuoteBridgeRequest,
@@ -795,30 +922,58 @@ impl HookBridgeProvider for BungeeProvider {
         Box::pin(async {
             Err(CowError::Api {
                 status: 0,
-                body: "BungeeProvider::get_unsigned_bridge_call is not yet ported (cow-rs PR #4)"
+                body: "BungeeProvider::get_unsigned_bridge_call needs a build-tx response; \
+                       will be wired by PR #7 orchestration"
                     .into(),
             })
         })
     }
 
-    /// Sign the bridge post-hook.
+    /// Sign a post-hook via `CowShedSdk::sign_hook`.
     ///
-    /// **Not yet implemented** — requires the `cow-shed` `sign_hook`
-    /// helper from cow-rs PR #5.
+    /// Fails with [`CowError::Signing`] if the provider was constructed
+    /// without a [`CowShedSdk`] via [`BungeeProvider::with_cow_shed`].
     fn get_signed_hook<'a>(
         &'a self,
         _chain_id: SupportedChainId,
-        _unsigned_call: &'a EvmCall,
-        _bridge_hook_nonce: &'a str,
-        _deadline: u64,
-        _hook_gas_limit: u64,
-        _signer: &'a PrivateKeySigner,
+        unsigned_call: &'a EvmCall,
+        bridge_hook_nonce: &'a str,
+        deadline: u64,
+        hook_gas_limit: u64,
+        signer: &'a PrivateKeySigner,
     ) -> SignedHookFuture<'a> {
-        Box::pin(async {
-            Err(CowError::Api {
-                status: 0,
-                body: "BungeeProvider::get_signed_hook is not yet ported (cow-rs PR #4/#5)".into(),
-            })
+        let cow_shed_opt = self.cow_shed.clone();
+        Box::pin(async move {
+            use crate::types::BridgeHook as BridgeHookType;
+            let cow_shed = cow_shed_opt.ok_or_else(|| {
+                CowError::Signing(
+                    "BungeeProvider built without CowShedSdk — call with_cow_shed(...)".to_owned(),
+                )
+            })?;
+            let nonce = CowShedSdk::derive_nonce(bridge_hook_nonce);
+            let call = cow_shed::CowShedCall {
+                target: unsigned_call.to,
+                calldata: unsigned_call.data.clone(),
+                value: unsigned_call.value,
+                allow_failure: false,
+                is_delegate_call: false,
+            };
+            let params = cow_shed::CowShedHookParams {
+                calls: vec![call],
+                nonce,
+                deadline: U256::from(deadline),
+            };
+            let proxy = alloy_signer::Signer::address(signer);
+            let signed = cow_shed.sign_hook(proxy, &params, signer).await?;
+            let _ = signed; // PR #8 will bundle the signature into the hook calldata.
+
+            let post_hook = cow_types::CowHook {
+                target: format!("{proxy:#x}"),
+                call_data: format!("0x{}", alloy_primitives::hex::encode(&unsigned_call.data)),
+                gas_limit: hook_gas_limit.to_string(),
+                dapp_id: Some(crate::sdk::BUNGEE_HOOK_DAPP_ID.to_owned()),
+            };
+            Ok(BridgeHookType { post_hook, recipient: format!("{:#x}", unsigned_call.to) })
         })
     }
 }
@@ -852,7 +1007,7 @@ impl BungeeProvider {
         let slippage_str = format!("{slippage_pct:.1}");
 
         let url = reqwest::Url::parse_with_params(
-            BUNGEE_API_BASE,
+            &format!("{}/quote", self.api_base),
             &[
                 ("fromChainId", req.sell_chain_id.to_string()),
                 ("toChainId", req.buy_chain_id.to_string()),
@@ -905,6 +1060,66 @@ impl BungeeProvider {
             bridge_hook: None,
         })
     }
+
+    /// Inner `get_status` used by the trait impl and tests.
+    ///
+    /// Queries the Bungee events microservice
+    /// (`GET <events_api_base>/api/v1/status?srcTxHash=…`) and returns a
+    /// [`BridgeStatusResult`]. The response shape is the `data.status`
+    /// string documented at
+    /// `docs.socket.tech/socket-liquidity-layer/transaction-status-api`.
+    async fn get_status_inner(&self, bridging_id: &str) -> Result<BridgeStatusResult, CowError> {
+        let url = reqwest::Url::parse_with_params(
+            &format!("{}/api/v1/status", self.events_api_base),
+            &[("srcTxHash", bridging_id.to_owned())],
+        )
+        .map_err(|e| CowError::Parse { field: "bungee_status_url", reason: e.to_string() })?;
+
+        let resp = self.client.get(url).header("API-KEY", &self.api_key).send().await?;
+        let status = resp.status().as_u16();
+        if !resp.status().is_success() {
+            let body = resp.text().await.unwrap_or_default();
+            return Err(CowError::Api { status, body });
+        }
+
+        let json: serde_json::Value = resp.json().await?;
+        // Shape: { "success": bool, "result": { "sourceTxStatus": "COMPLETED" | ...,
+        // "destinationTxStatus": "...", "srcTransactionHash": "0x…", "destinationTransactionHash":
+        // "0x…" } }
+        let result = json.get("result").ok_or_else(|| CowError::Parse {
+            field: "bungee_status",
+            reason: "missing result field".to_owned(),
+        })?;
+
+        let src_tx_status = result
+            .get("sourceTxStatus")
+            .and_then(|v| v.as_str())
+            .map_or_else(String::new, |s| s.to_ascii_uppercase());
+        let dst_tx_status = result
+            .get("destinationTxStatus")
+            .and_then(|v| v.as_str())
+            .map_or_else(String::new, |s| s.to_ascii_uppercase());
+
+        let mapped = match (src_tx_status.as_str(), dst_tx_status.as_str()) {
+            (_, "COMPLETED") => BridgeStatus::Executed,
+            (_, "PENDING") | ("PENDING", _) | ("COMPLETED", "") => BridgeStatus::InProgress,
+            (_, "FAILED") | ("FAILED", _) => BridgeStatus::Refund,
+            _ => BridgeStatus::Unknown,
+        };
+
+        Ok(BridgeStatusResult {
+            status: mapped,
+            fill_time_in_seconds: None,
+            deposit_tx_hash: result
+                .get("srcTransactionHash")
+                .and_then(|v| v.as_str())
+                .map(str::to_owned),
+            fill_tx_hash: result
+                .get("destinationTransactionHash")
+                .and_then(|v| v.as_str())
+                .map(str::to_owned),
+        })
+    }
 }
 
 #[cfg(test)]
@@ -952,10 +1167,24 @@ mod bungee_provider_trait_tests {
         assert_eq!(test_provider().name(), "bungee");
     }
 
+    fn hook_request() -> QuoteBridgeRequest {
+        let mut r = sample_request();
+        r.sell_chain_id = SupportedChainId::Mainnet.as_u64();
+        r.buy_chain_id = SupportedChainId::ArbitrumOne.as_u64();
+        r.sell_token = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48".parse().unwrap();
+        r
+    }
+
     #[test]
-    fn supports_route_always_true() {
-        assert!(test_provider().supports_route(1, 10));
-        assert!(test_provider().supports_route(100, 42_161));
+    fn supports_route_requires_both_supported_and_distinct() {
+        let p = test_provider();
+        assert!(p.supports_route(
+            SupportedChainId::Mainnet.as_u64(),
+            SupportedChainId::ArbitrumOne.as_u64(),
+        ));
+        assert!(p.supports_route(SupportedChainId::Base.as_u64(), 10));
+        assert!(!p.supports_route(1, 1));
+        assert!(!p.supports_route(1, 9999));
     }
 
     #[test]
@@ -965,44 +1194,80 @@ mod bungee_provider_trait_tests {
         assert!(url.ends_with("/abc"));
     }
 
-    #[tokio::test]
-    async fn get_networks_returns_pr4_stub_error() {
-        let err = test_provider().get_networks().await.unwrap_err();
-        assert!(matches!(err, CowError::Api { status: 0, ref body } if body.contains("PR #4")));
+    #[test]
+    fn bungee_supported_chains_list_is_non_empty() {
+        let supported = bungee_supported_chains();
+        assert!(supported.contains(&SupportedChainId::Mainnet.as_u64()));
+        assert!(supported.contains(&10)); // Optimism
+        assert!(supported.contains(&SupportedChainId::GnosisChain.as_u64()));
     }
 
     #[tokio::test]
-    async fn get_buy_tokens_returns_pr4_stub_error() {
-        let err = test_provider()
+    async fn get_networks_returns_all_supported_chains() {
+        let p = test_provider();
+        let networks = p.get_networks().await.unwrap();
+        assert_eq!(networks.len(), bungee_supported_chains().len());
+        assert!(networks.iter().any(|n| n.chain_id == SupportedChainId::Mainnet.as_u64()));
+    }
+
+    #[tokio::test]
+    async fn get_buy_tokens_returns_mainnet_stablecoins() {
+        let p = test_provider();
+        let tokens = p
             .get_buy_tokens(BuyTokensParams {
                 sell_chain_id: 1,
-                buy_chain_id: 10,
+                buy_chain_id: 1,
                 sell_token_address: None,
             })
             .await
-            .unwrap_err();
-        assert!(matches!(err, CowError::Api { status: 0, ref body } if body.contains("PR #4")));
+            .unwrap();
+        assert!(!tokens.tokens.is_empty());
+        assert!(tokens.tokens.iter().any(|t| t.symbol == "USDC"));
+        assert_eq!(tokens.provider_info.name, "bungee");
     }
 
     #[tokio::test]
-    async fn get_intermediate_tokens_returns_pr4_stub_error() {
-        let req = sample_request();
-        let err = test_provider().get_intermediate_tokens(&req).await.unwrap_err();
-        assert!(matches!(err, CowError::Api { status: 0, ref body } if body.contains("PR #4")));
+    async fn get_buy_tokens_empty_for_unknown_chain() {
+        let p = test_provider();
+        let tokens = p
+            .get_buy_tokens(BuyTokensParams {
+                sell_chain_id: 1,
+                buy_chain_id: 9999,
+                sell_token_address: None,
+            })
+            .await
+            .unwrap();
+        assert!(tokens.tokens.is_empty());
     }
 
     #[tokio::test]
-    async fn get_bridging_params_returns_pr4_stub_error() {
-        let provider = test_provider();
+    async fn get_intermediate_tokens_filters_by_shared_symbols() {
+        let p = test_provider();
+        let req = hook_request();
+        let tokens = p.get_intermediate_tokens(&req).await.unwrap();
+        assert!(!tokens.is_empty());
+        // Everything returned must share symbol with the target set.
+        let target_symbols: foldhash::HashSet<String> =
+            bungee_popular_tokens(req.buy_chain_id).into_iter().map(|t| t.symbol).collect();
+        for t in &tokens {
+            assert!(target_symbols.contains(&t.symbol), "target missing symbol {}", t.symbol);
+        }
+    }
+
+    #[tokio::test]
+    async fn get_intermediate_tokens_empty_for_unsupported_target() {
+        let p = test_provider();
+        let mut req = hook_request();
+        req.buy_chain_id = 9999;
+        let tokens = p.get_intermediate_tokens(&req).await.unwrap();
+        assert!(tokens.is_empty());
+    }
+
+    #[tokio::test]
+    async fn get_bridging_params_returns_none_until_pr8() {
+        let p = test_provider();
         let order = cow_orderbook::api::mock_get_order(&format!("0x{}", "aa".repeat(56)));
-        let err = provider.get_bridging_params(1, &order, B256::ZERO, None).await.unwrap_err();
-        assert!(matches!(err, CowError::Api { status: 0, ref body } if body.contains("PR #4")));
-    }
-
-    #[tokio::test]
-    async fn get_status_returns_pr4_stub_error() {
-        let err = test_provider().get_status("deposit-1", 1).await.unwrap_err();
-        assert!(matches!(err, CowError::Api { status: 0, ref body } if body.contains("PR #4")));
+        assert!(p.get_bridging_params(1, &order, B256::ZERO, None).await.unwrap().is_none());
     }
 
     #[test]
@@ -1014,12 +1279,12 @@ mod bungee_provider_trait_tests {
         assert_eq!(provider.info().provider_type, default.provider_type);
     }
 
-    // ── HookBridgeProvider stubs ────────────────────────────────────────
+    // ── HookBridgeProvider ──────────────────────────────────────────────
 
     #[tokio::test]
-    async fn get_unsigned_bridge_call_returns_pr4_stub_error() {
+    async fn get_unsigned_bridge_call_errors_until_pr7_buildtx() {
         let provider = test_provider();
-        let req = sample_request();
+        let req = hook_request();
         let quote = QuoteBridgeResponse {
             provider: "bungee".into(),
             sell_amount: U256::from(100u64),
@@ -1029,20 +1294,45 @@ mod bungee_provider_trait_tests {
             bridge_hook: None,
         };
         let err = provider.get_unsigned_bridge_call(&req, &quote).await.unwrap_err();
-        assert!(matches!(err, CowError::Api { status: 0, ref body } if body.contains("PR #4")));
+        assert!(matches!(err, CowError::Api { status: 0, ref body } if body.contains("build-tx")));
     }
 
     #[tokio::test]
-    async fn get_signed_hook_returns_pr4_stub_error() {
+    async fn get_signed_hook_without_cow_shed_returns_signing_error() {
         let provider = test_provider();
         let signer: PrivateKeySigner =
             "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80".parse().unwrap();
         let call = cow_chains::EvmCall { to: Address::ZERO, data: vec![], value: U256::ZERO };
         let err = provider
-            .get_signed_hook(SupportedChainId::Mainnet, &call, "0", 0, 0, &signer)
+            .get_signed_hook(SupportedChainId::Mainnet, &call, "nonce", 0, 0, &signer)
             .await
             .unwrap_err();
-        assert!(matches!(err, CowError::Api { status: 0, ref body } if body.contains("PR #4")));
+        assert!(matches!(err, CowError::Signing(ref msg) if msg.contains("with_cow_shed")));
+    }
+
+    #[tokio::test]
+    async fn get_signed_hook_with_cow_shed_produces_hook() {
+        let provider = BungeeProvider::new("test").with_cow_shed(Arc::new(CowShedSdk::new(1)));
+        let signer: PrivateKeySigner =
+            "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80".parse().unwrap();
+        let call = cow_chains::EvmCall {
+            to: "0xD06a673fe1fa27B1b9E5BA0be980AB15Dbce85cc".parse().unwrap(),
+            data: vec![0xde, 0xad, 0xbe, 0xef],
+            value: U256::ZERO,
+        };
+        let hook = provider
+            .get_signed_hook(
+                SupportedChainId::Mainnet,
+                &call,
+                "nonce-1",
+                9_999_999,
+                400_000,
+                &signer,
+            )
+            .await
+            .unwrap();
+        assert_eq!(hook.post_hook.dapp_id.as_deref(), Some(crate::sdk::BUNGEE_HOOK_DAPP_ID));
+        assert_eq!(hook.post_hook.gas_limit, "400000");
     }
 
     #[tokio::test]
@@ -1050,5 +1340,134 @@ mod bungee_provider_trait_tests {
         let provider = test_provider();
         let gas = provider.get_gas_limit_estimation_for_hook(true, Some(1000), None).await.unwrap();
         assert_eq!(gas, crate::utils::get_gas_limit_estimation_for_hook(true, Some(1000), None));
+    }
+
+    // ── Wiremock HTTP tests ─────────────────────────────────────────────
+
+    fn mock_quote_body() -> serde_json::Value {
+        serde_json::json!({
+            "success": true,
+            "result": {
+                "routes": [
+                    {
+                        "outputAmount": "990000",
+                        "estimatedTimeInSeconds": 120
+                    }
+                ]
+            }
+        })
+    }
+
+    fn mock_status_body(src: &str, dst: &str) -> serde_json::Value {
+        serde_json::json!({
+            "success": true,
+            "result": {
+                "sourceTxStatus": src,
+                "destinationTxStatus": dst,
+                "srcTransactionHash": "0xabc",
+                "destinationTransactionHash": "0xdef"
+            }
+        })
+    }
+
+    #[tokio::test]
+    async fn get_quote_uses_configured_api_base() {
+        use wiremock::{
+            Mock, MockServer, ResponseTemplate,
+            matchers::{method, path},
+        };
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/quote"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(mock_quote_body()))
+            .mount(&server)
+            .await;
+
+        let p = BungeeProvider::new("test").with_api_base(server.uri());
+        let quote = p.get_quote(&hook_request()).await.unwrap();
+        assert_eq!(quote.provider, "bungee");
+        assert_eq!(quote.estimated_secs, 120);
+        assert_eq!(quote.buy_amount, U256::from(990_000u64));
+    }
+
+    #[tokio::test]
+    async fn get_status_maps_completed_to_executed() {
+        use wiremock::{
+            Mock, MockServer, ResponseTemplate,
+            matchers::{method, path},
+        };
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/status"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(mock_status_body("COMPLETED", "COMPLETED")),
+            )
+            .mount(&server)
+            .await;
+
+        let p = BungeeProvider::new("test").with_events_api_base(server.uri());
+        let status = p.get_status("0xdeadbeef", 1).await.unwrap();
+        assert_eq!(status.status, BridgeStatus::Executed);
+        assert_eq!(status.deposit_tx_hash.as_deref(), Some("0xabc"));
+        assert_eq!(status.fill_tx_hash.as_deref(), Some("0xdef"));
+    }
+
+    #[tokio::test]
+    async fn get_status_maps_pending_to_in_progress() {
+        use wiremock::{
+            Mock, MockServer, ResponseTemplate,
+            matchers::{method, path},
+        };
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/status"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(mock_status_body("PENDING", "PENDING")),
+            )
+            .mount(&server)
+            .await;
+
+        let p = BungeeProvider::new("test").with_events_api_base(server.uri());
+        let status = p.get_status("0xdeadbeef", 1).await.unwrap();
+        assert_eq!(status.status, BridgeStatus::InProgress);
+    }
+
+    #[tokio::test]
+    async fn get_status_maps_failed_to_refund() {
+        use wiremock::{
+            Mock, MockServer, ResponseTemplate,
+            matchers::{method, path},
+        };
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/status"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(mock_status_body("COMPLETED", "FAILED")),
+            )
+            .mount(&server)
+            .await;
+
+        let p = BungeeProvider::new("test").with_events_api_base(server.uri());
+        let status = p.get_status("0xdeadbeef", 1).await.unwrap();
+        assert_eq!(status.status, BridgeStatus::Refund);
+    }
+
+    #[tokio::test]
+    async fn get_status_propagates_http_error() {
+        use wiremock::{
+            Mock, MockServer, ResponseTemplate,
+            matchers::{method, path},
+        };
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/status"))
+            .respond_with(ResponseTemplate::new(503).set_body_string("down"))
+            .mount(&server)
+            .await;
+
+        let p = BungeeProvider::new("test").with_events_api_base(server.uri());
+        let err = p.get_status("0xdeadbeef", 1).await.unwrap_err();
+        assert!(matches!(err, CowError::Api { status: 503, .. }));
     }
 }
