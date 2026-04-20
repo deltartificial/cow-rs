@@ -208,6 +208,38 @@ pub trait BridgeProvider: MaybeSendSync {
         bridging_id: &'a str,
         origin_chain_id: u64,
     ) -> BridgeStatusFuture<'a>;
+
+    /// Downcast this provider to a [`HookBridgeProvider`] trait object.
+    ///
+    /// Returns `Some(self)` if the concrete type also implements the
+    /// [`HookBridgeProvider`] sub-trait, `None` otherwise. Default
+    /// implementation returns `None`; hook-based providers (Across,
+    /// Bungee, …) override it.
+    ///
+    /// The orchestrator in [`crate::sdk::get_quote_with_bridge`] uses
+    /// this to dispatch between the hook and receiver-account branches
+    /// from a `&dyn BridgeProvider` without paying the cost (and losing
+    /// the trait bounds) of an `Any` downcast.
+    ///
+    /// Mirrors the role of the `isHookBridgeProvider` type-guard in
+    /// the `TypeScript` SDK, with the added benefit of returning the
+    /// upcast trait object directly.
+    fn as_hook_bridge_provider(&self) -> Option<&dyn HookBridgeProvider> {
+        None
+    }
+
+    /// Downcast this provider to a [`ReceiverAccountBridgeProvider`] trait object.
+    ///
+    /// Returns `Some(self)` if the concrete type also implements the
+    /// [`ReceiverAccountBridgeProvider`] sub-trait, `None` otherwise.
+    /// Default implementation returns `None`; receiver-account
+    /// providers (NEAR Intents, …) override it.
+    ///
+    /// Mirrors the role of the `isReceiverAccountBridgeProvider`
+    /// type-guard in the `TypeScript` SDK.
+    fn as_receiver_account_bridge_provider(&self) -> Option<&dyn ReceiverAccountBridgeProvider> {
+        None
+    }
 }
 
 // ── Sub-traits ────────────────────────────────────────────────────────────────

@@ -2158,84 +2158,15 @@ fn assert_is_quote_and_post_errors_on_cross_chain() {
     assert!(result.is_err());
 }
 
-// ── Stub async functions return expected errors ────────────────────────────
-
-#[tokio::test]
-async fn get_bridge_signed_hook_returns_tx_build_error() {
-    use cow_rs::bridging::sdk::get_bridge_signed_hook;
-
-    let quote = cow_rs::bridging::types::BridgeQuoteResult {
-        id: None,
-        signature: None,
-        attestation_signature: None,
-        quote_body: None,
-        is_sell: true,
-        amounts_and_costs: cow_rs::bridging::types::BridgeQuoteAmountsAndCosts {
-            before_fee: cow_rs::bridging::types::BridgeAmounts {
-                sell_amount: U256::ZERO,
-                buy_amount: U256::ZERO,
-            },
-            after_fee: cow_rs::bridging::types::BridgeAmounts {
-                sell_amount: U256::ZERO,
-                buy_amount: U256::ZERO,
-            },
-            after_slippage: cow_rs::bridging::types::BridgeAmounts {
-                sell_amount: U256::ZERO,
-                buy_amount: U256::ZERO,
-            },
-            costs: cow_rs::bridging::types::BridgeCosts {
-                bridging_fee: cow_rs::bridging::types::BridgingFee {
-                    fee_bps: 0,
-                    amount_in_sell_currency: U256::ZERO,
-                    amount_in_buy_currency: U256::ZERO,
-                },
-            },
-            slippage_bps: 0,
-        },
-        expected_fill_time_seconds: None,
-        quote_timestamp: 0,
-        fees: cow_rs::bridging::types::BridgeFees {
-            bridge_fee: U256::ZERO,
-            destination_gas_fee: U256::ZERO,
-        },
-        limits: cow_rs::bridging::types::BridgeLimits {
-            min_deposit: U256::ZERO,
-            max_deposit: U256::ZERO,
-        },
-    };
-
-    let result = get_bridge_signed_hook(&quote, &[]).await;
-    assert!(result.is_err());
-    assert!(matches!(result, Err(BridgeError::TxBuildError(_))));
-}
-
-#[tokio::test]
-async fn get_quote_with_bridge_returns_tx_build_error() {
-    use cow_rs::bridging::sdk::{GetQuoteWithBridgeParams, get_quote_with_bridge};
-
-    let params =
-        GetQuoteWithBridgeParams { swap_and_bridge_request: sample_request(), slippage_bps: 50 };
-
-    let result = get_quote_with_bridge(&params).await;
-    assert!(result.is_err());
-    assert!(matches!(result, Err(BridgeError::TxBuildError(_))));
-}
-
-#[tokio::test]
-async fn get_quote_without_bridge_returns_tx_build_error() {
-    use cow_rs::bridging::sdk::get_quote_without_bridge;
-    let result = get_quote_without_bridge(&sample_request()).await;
-    assert!(result.is_err());
-    assert!(matches!(result, Err(BridgeError::TxBuildError(_))));
-}
-
-#[tokio::test]
-async fn get_swap_quote_returns_tx_build_error() {
-    use cow_rs::bridging::sdk::get_swap_quote;
-    let result = get_swap_quote(&sample_request()).await;
-    assert!(result.is_err());
-    assert!(matches!(result, Err(BridgeError::TxBuildError(_))));
-}
+// ── Legacy stub-era smoke tests (deleted in PR #7) ─────────────────────────
+//
+// `get_quote_with_bridge` / `get_quote_without_bridge` / `get_swap_quote` no
+// longer return `TxBuildError` unconditionally — they orchestrate real
+// quoting via a `SwapQuoter`. Their happy-path / dispatch coverage lives in
+// `crates/bridging/src/sdk.rs::orchestration_tests`.
+//
+// `get_bridge_signed_hook` and `create_post_swap_order_from_quote` remain as
+// stubs until PR #8. The smoke test below exercises just that.
 
 #[tokio::test]
 async fn create_post_swap_order_from_quote_returns_tx_build_error() {
@@ -2418,25 +2349,11 @@ async fn get_intermediate_swap_result_errors_with_no_provider_tokens() {
     assert!(matches!(result, Err(BridgeError::NoIntermediateTokens)));
 }
 
-#[tokio::test]
-async fn get_quote_with_hook_bridge_returns_tx_build_error() {
-    use cow_rs::bridging::sdk::{GetQuoteWithBridgeParams, get_quote_with_hook_bridge};
-    let params =
-        GetQuoteWithBridgeParams { swap_and_bridge_request: sample_request(), slippage_bps: 50 };
-    let result = get_quote_with_hook_bridge(&params).await;
-    assert!(result.is_err());
-    assert!(matches!(result, Err(BridgeError::TxBuildError(_))));
-}
-
-#[tokio::test]
-async fn get_quote_with_receiver_account_bridge_returns_tx_build_error() {
-    use cow_rs::bridging::sdk::{GetQuoteWithBridgeParams, get_quote_with_receiver_account_bridge};
-    let params =
-        GetQuoteWithBridgeParams { swap_and_bridge_request: sample_request(), slippage_bps: 50 };
-    let result = get_quote_with_receiver_account_bridge(&params).await;
-    assert!(result.is_err());
-    assert!(matches!(result, Err(BridgeError::TxBuildError(_))));
-}
+// `get_quote_with_hook_bridge` and `get_quote_with_receiver_account_bridge`
+// now require a provider + quoter argument (PR #7). Happy-path tests live
+// in `crates/bridging/src/sdk.rs::orchestration_tests` — keeping duplicate
+// "returns error" smoke tests here would just assert API shape that the
+// type system already enforces.
 
 // ── QuoteStrategy ──────────────────────────────────────────────────────────
 
@@ -3035,69 +2952,8 @@ fn is_quote_and_post_same_chain() {
     assert!(assert_is_bridge_quote_and_post(&same).is_err());
 }
 
-// ── Stub async functions return errors ─────────────────────────────────────
-
-#[tokio::test]
-async fn get_bridge_signed_hook_returns_error() {
-    use cow_rs::bridging::{
-        sdk::get_bridge_signed_hook,
-        types::{
-            BridgeAmounts, BridgeCosts, BridgeFees, BridgeLimits, BridgeQuoteAmountsAndCosts,
-            BridgeQuoteResult, BridgingFee,
-        },
-    };
-
-    let quote = BridgeQuoteResult {
-        id: None,
-        signature: None,
-        attestation_signature: None,
-        quote_body: None,
-        is_sell: true,
-        amounts_and_costs: BridgeQuoteAmountsAndCosts {
-            before_fee: BridgeAmounts { sell_amount: U256::ZERO, buy_amount: U256::ZERO },
-            after_fee: BridgeAmounts { sell_amount: U256::ZERO, buy_amount: U256::ZERO },
-            after_slippage: BridgeAmounts { sell_amount: U256::ZERO, buy_amount: U256::ZERO },
-            costs: BridgeCosts {
-                bridging_fee: BridgingFee {
-                    fee_bps: 0,
-                    amount_in_sell_currency: U256::ZERO,
-                    amount_in_buy_currency: U256::ZERO,
-                },
-            },
-            slippage_bps: 0,
-        },
-        expected_fill_time_seconds: None,
-        quote_timestamp: 0,
-        fees: BridgeFees { bridge_fee: U256::ZERO, destination_gas_fee: U256::ZERO },
-        limits: BridgeLimits { min_deposit: U256::ZERO, max_deposit: U256::ZERO },
-    };
-    let result = get_bridge_signed_hook(&quote, &[]).await;
-    assert!(result.is_err());
-}
-
-#[tokio::test]
-async fn get_quote_with_bridge_returns_error() {
-    use cow_rs::bridging::sdk::{GetQuoteWithBridgeParams, get_quote_with_bridge};
-    let params =
-        GetQuoteWithBridgeParams { swap_and_bridge_request: sample_request(), slippage_bps: 50 };
-    let result = get_quote_with_bridge(&params).await;
-    assert!(result.is_err());
-}
-
-#[tokio::test]
-async fn get_quote_without_bridge_returns_error() {
-    use cow_rs::bridging::sdk::get_quote_without_bridge;
-    let result = get_quote_without_bridge(&sample_request()).await;
-    assert!(result.is_err());
-}
-
-#[tokio::test]
-async fn get_swap_quote_returns_error() {
-    use cow_rs::bridging::sdk::get_swap_quote;
-    let result = get_swap_quote(&sample_request()).await;
-    assert!(result.is_err());
-}
-
+// Legacy stub-era smoke tests removed — see the comment near
+// `create_post_swap_order_from_quote_returns_tx_build_error` above for context.
 // `get_intermediate_swap_result` now takes a provider and a quoter — see
 // the dedicated coverage test `get_intermediate_swap_result_errors_with_no_provider_tokens`
 // above. The old single-argument stub is no longer a meaningful smoke test.

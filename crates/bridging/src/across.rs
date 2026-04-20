@@ -1320,6 +1320,10 @@ impl BridgeProvider for AcrossBridgeProvider {
     ) -> BridgeStatusFuture<'a> {
         Box::pin(self.status_inner(bridging_id, origin_chain_id))
     }
+
+    fn as_hook_bridge_provider(&self) -> Option<&dyn HookBridgeProvider> {
+        Some(self)
+    }
 }
 
 impl HookBridgeProvider for AcrossBridgeProvider {
