@@ -498,6 +498,242 @@ async fn post_cross_chain_order_aborts_when_before_bridging_sign_errors() {
 
 #[cfg_attr(miri, ignore)]
 #[tokio::test]
+async fn post_cross_chain_order_rejects_unsupported_sell_chain() {
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("POST"))
+        .and(matchers::path("/api/v1/quote"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(quote_response_json()))
+        .mount(&server)
+        .await;
+
+    let sdk = Arc::new(make_sdk(&server));
+    let quoter = TradingSwapQuoter::new(Arc::clone(&sdk));
+    let provider = ScriptedHookProvider::new("across");
+    let bqp = build_bridge_quote_and_post(&provider, &quoter).await;
+
+    let hook_signer =
+        Arc::new(TEST_KEY.trim_start_matches("0x").parse::<PrivateKeySigner>().unwrap());
+    // Use a chain id that no `SupportedChainId` recognises.
+    let mut request = sample_request();
+    request.sell_chain_id = 0xDEAD_BEEF;
+    let ctx = PostCrossChainOrderContext {
+        request: &request,
+        hook_provider: &provider,
+        quote_and_post: &bqp,
+        trading_sdk: &sdk,
+        hook_signer: &hook_signer,
+        hook_deadline: None,
+        advanced_settings: None,
+        signing_step_manager: None,
+    };
+
+    let err = post_cross_chain_order(ctx).await.unwrap_err();
+    assert!(err.to_string().to_lowercase().contains("unsupported"), "unexpected: {err}");
+}
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn post_cross_chain_order_threads_caller_advanced_settings() {
+    use cow_rs::SwapAdvancedSettings;
+
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("POST"))
+        .and(matchers::path("/api/v1/quote"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(quote_response_json()))
+        .mount(&server)
+        .await;
+    Mock::given(matchers::method("POST"))
+        .and(matchers::path("/api/v1/orders"))
+        .respond_with(ResponseTemplate::new(201).set_body_json(order_submit_body()))
+        .mount(&server)
+        .await;
+
+    let sdk = Arc::new(make_sdk(&server));
+    let quoter = TradingSwapQuoter::new(Arc::clone(&sdk));
+    let provider = ScriptedHookProvider::new("across");
+    let bqp = build_bridge_quote_and_post(&provider, &quoter).await;
+
+    let hook_signer =
+        Arc::new(TEST_KEY.trim_start_matches("0x").parse::<PrivateKeySigner>().unwrap());
+    let settings = SwapAdvancedSettings::default()
+        .with_app_data(serde_json::json!({ "metadata": { "partnerFee": { "bps": 25 } } }))
+        .with_slippage_bps(123);
+
+    let request = sample_request();
+    let ctx = PostCrossChainOrderContext {
+        request: &request,
+        hook_provider: &provider,
+        quote_and_post: &bqp,
+        trading_sdk: &sdk,
+        hook_signer: &hook_signer,
+        hook_deadline: None,
+        advanced_settings: Some(&settings),
+        signing_step_manager: None,
+    };
+
+    let result = post_cross_chain_order(ctx).await.unwrap();
+    assert!(result.order_id.starts_with("0x"));
+}
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn post_cross_chain_order_errors_when_intermediate_tokens_empty() {
+    /// Provider whose `get_intermediate_tokens` returns empty at post time
+    /// (but non-empty during quote construction so the upstream
+    /// `BridgeQuoteAndPost` can be built).
+    struct DrainingProvider {
+        info: BridgeProviderInfo,
+        first_call: AtomicBool,
+    }
+    impl BridgeProvider for DrainingProvider {
+        fn info(&self) -> &BridgeProviderInfo {
+            &self.info
+        }
+        fn supports_route(&self, _s: u64, _b: u64) -> bool {
+            true
+        }
+        fn get_networks<'a>(&'a self) -> NetworksFuture<'a> {
+            Box::pin(async { Ok(Vec::<BridgeNetworkInfo>::new()) })
+        }
+        fn get_buy_tokens<'a>(&'a self, _p: BuyTokensParams) -> BuyTokensFuture<'a> {
+            let info = self.info.clone();
+            Box::pin(
+                async move { Ok(GetProviderBuyTokens { provider_info: info, tokens: vec![] }) },
+            )
+        }
+        fn get_intermediate_tokens<'a>(
+            &'a self,
+            _req: &'a QuoteBridgeRequest,
+        ) -> IntermediateTokensFuture<'a> {
+            // The quote phase uses a different provider (ScriptedHookProvider);
+            // this one is only invoked at post time, where we want it to
+            // return empty so resolve_intermediate_token errors.
+            let _ = self.first_call.load(Ordering::SeqCst);
+            Box::pin(async { Ok(Vec::<IntermediateTokenInfo>::new()) })
+        }
+        fn get_quote<'a>(&'a self, _req: &'a QuoteBridgeRequest) -> QuoteFuture<'a> {
+            Box::pin(async {
+                Ok(QuoteBridgeResponse {
+                    provider: "draining".into(),
+                    sell_amount: U256::from(1_000_000u64),
+                    buy_amount: U256::from(998_000u64),
+                    fee_amount: U256::from(1_500u64),
+                    estimated_secs: 42,
+                    bridge_hook: None,
+                })
+            })
+        }
+        fn get_bridging_params<'a>(
+            &'a self,
+            _c: u64,
+            _o: &'a cow_orderbook::types::Order,
+            _t: B256,
+            _s: Option<Address>,
+        ) -> BridgingParamsFuture<'a> {
+            Box::pin(async { Ok(None) })
+        }
+        fn get_explorer_url(&self, _id: &str) -> String {
+            String::new()
+        }
+        fn get_status<'a>(&'a self, _id: &'a str, _c: u64) -> BridgeStatusFuture<'a> {
+            Box::pin(async {
+                Ok(BridgeStatusResult {
+                    status: BridgeStatus::Unknown,
+                    fill_time_in_seconds: None,
+                    deposit_tx_hash: None,
+                    fill_tx_hash: None,
+                })
+            })
+        }
+        fn as_hook_bridge_provider(&self) -> Option<&dyn HookBridgeProvider> {
+            Some(self)
+        }
+    }
+    impl HookBridgeProvider for DrainingProvider {
+        fn get_unsigned_bridge_call<'a>(
+            &'a self,
+            _req: &'a QuoteBridgeRequest,
+            _quote: &'a QuoteBridgeResponse,
+        ) -> UnsignedCallFuture<'a> {
+            Box::pin(async {
+                Ok(EvmCall {
+                    to: Address::repeat_byte(0xAC),
+                    data: vec![0xde, 0xad],
+                    value: U256::ZERO,
+                })
+            })
+        }
+        fn get_gas_limit_estimation_for_hook<'a>(
+            &'a self,
+            _proxy_deployed: bool,
+            _extra_gas: Option<u64>,
+            _extra_gas_proxy_creation: Option<u64>,
+        ) -> GasEstimationFuture<'a> {
+            Box::pin(async move { Ok(500_000u64) })
+        }
+        fn get_signed_hook<'a>(
+            &'a self,
+            _chain_id: SupportedChainId,
+            _unsigned_call: &'a EvmCall,
+            _nonce: &'a str,
+            _deadline: u64,
+            hook_gas_limit: u64,
+            _signer: &'a PrivateKeySigner,
+        ) -> SignedHookFuture<'a> {
+            Box::pin(async move {
+                Ok(BridgeHook {
+                    post_hook: CowHook {
+                        call_data: "0xfeedface".into(),
+                        gas_limit: hook_gas_limit.to_string(),
+                        target: "0x0000000000000000000000000000000000000000".into(),
+                        dapp_id: Some("cow-sdk://bridging/providers/".into()),
+                    },
+                    recipient: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266".into(),
+                })
+            })
+        }
+    }
+
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("POST"))
+        .and(matchers::path("/api/v1/quote"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(quote_response_json()))
+        .mount(&server)
+        .await;
+
+    let sdk = Arc::new(make_sdk(&server));
+    let quoter = TradingSwapQuoter::new(Arc::clone(&sdk));
+    let provider =
+        DrainingProvider { info: hook_info("draining"), first_call: AtomicBool::new(true) };
+    // Build BridgeQuoteAndPost via a separate always-full provider so the
+    // quote construction succeeds, then pivot to the draining one for post.
+    let quote_provider = ScriptedHookProvider::new("draining");
+    let bqp = build_bridge_quote_and_post(&quote_provider, &quoter).await;
+
+    let hook_signer =
+        Arc::new(TEST_KEY.trim_start_matches("0x").parse::<PrivateKeySigner>().unwrap());
+    let request = sample_request();
+    let ctx = PostCrossChainOrderContext {
+        request: &request,
+        hook_provider: &provider,
+        quote_and_post: &bqp,
+        trading_sdk: &sdk,
+        hook_signer: &hook_signer,
+        hook_deadline: None,
+        advanced_settings: None,
+        signing_step_manager: None,
+    };
+
+    let err = post_cross_chain_order(ctx).await.unwrap_err();
+    assert!(
+        err.to_string().to_lowercase().contains("no intermediate tokens") ||
+            err.to_string().contains("intermediate"),
+        "unexpected: {err}"
+    );
+}
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
 async fn post_cross_chain_order_works_without_signing_step_manager() {
     let server = MockServer::start().await;
     Mock::given(matchers::method("POST"))
