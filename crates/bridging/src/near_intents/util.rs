@@ -35,37 +35,42 @@ pub const ATTESTATION_SIG_LEN: usize = 65;
 /// Convert a Defuse [`DefuseToken`] to the workspace-wide
 /// [`crate::types::IntermediateTokenInfo`].
 ///
-/// Returns `None` when:
-/// - The blockchain key maps to a chain ID the workspace doesn't know about (see
-///   [`blockchain_key_to_chain_id`]).
-/// - The token lives on a non-EVM chain (BTC / SOL) — those can't be expressed as an EVM
-///   [`Address`] without losing information. The NEAR provider's destination-side metadata for
-///   non-EVM chains is surfaced through [`NearQuote::deposit_address`] at quote time rather than
-///   through a token list.
+/// Returns `None` when the blockchain key maps to a chain ID the
+/// workspace doesn't know about (see [`blockchain_key_to_chain_id`]).
 ///
-/// Mirrors `adaptToken` from the TS SDK
-/// (`packages/bridging/src/providers/near-intents/util.ts`) with the
-/// cow-sdk#850 fix folded in: when `contract_address` is missing and
-/// the chain is an EVM chain, we substitute the canonical native
-/// sentinel ([`cow_chains::EVM_NATIVE_CURRENCY_ADDRESS`]).
+/// ## Non-EVM destinations (BTC / SOL)
+///
+/// `IntermediateTokenInfo.address` is a 20-byte EVM
+/// [`Address`]; BTC / SOL addresses don't fit. For non-EVM entries we
+/// populate `address = Address::ZERO` as a **sentinel**. The NEAR
+/// provider convention is: when the caller's `QuoteBridgeRequest`
+/// targets a non-EVM chain, `buy_token` is also `Address::ZERO`, so
+/// the two line up in `get_intermediate_tokens`. The real destination
+/// address for the bridge is carried through the quote's
+/// `depositAddress` rather than the token list.
+///
+/// ## cow-sdk#850 fix
+///
+/// When `contract_address` is missing and the chain is an EVM chain,
+/// we substitute the canonical native sentinel
+/// ([`cow_chains::EVM_NATIVE_CURRENCY_ADDRESS`]).
 #[must_use]
 pub fn adapt_token(token: &DefuseToken) -> Option<crate::types::IntermediateTokenInfo> {
     let chain_id = blockchain_key_to_chain_id(&token.blockchain)?;
 
-    // NEAR Intents' destination tokens on BTC / SOL can't be expressed
-    // as a 20-byte EVM Address; skip them here. The orchestration layer
-    // still supports bridging to those chains — the information path is
-    // `QuoteBridgeResponse` / `bridge_receiver_override`, not this
-    // intermediate-token list.
-    if is_non_evm_chain_id(chain_id) {
-        return None;
-    }
-
-    let address = match token.contract_address.as_deref() {
-        Some(raw) => raw.parse::<Address>().ok()?,
-        // #850 fallback — empty `contractAddress` on an EVM chain means
-        // the Defuse asset is the chain's native currency.
-        None => cow_chains::EVM_NATIVE_CURRENCY_ADDRESS,
+    let address = if is_non_evm_chain_id(chain_id) {
+        // BTC / SOL — we can't express the real address in 20 bytes,
+        // so we use `Address::ZERO` as a sentinel. Callers should pair
+        // it with `QuoteBridgeRequest.buy_token = Address::ZERO` for
+        // non-EVM destinations.
+        Address::ZERO
+    } else {
+        match token.contract_address.as_deref() {
+            Some(raw) => raw.parse::<Address>().ok()?,
+            // #850 fallback — empty `contractAddress` on an EVM chain
+            // means the Defuse asset is the chain's native currency.
+            None => cow_chains::EVM_NATIVE_CURRENCY_ADDRESS,
+        }
     };
 
     Some(crate::types::IntermediateTokenInfo {
@@ -448,18 +453,22 @@ mod tests {
     }
 
     #[test]
-    fn adapt_token_skips_non_evm_chains() {
+    fn adapt_token_non_evm_uses_zero_address_sentinel() {
         let mut t = sample_token();
         t.blockchain = "btc".into();
         t.contract_address = None;
         t.symbol = "BTC".into();
-        assert!(adapt_token(&t).is_none());
+        let out = adapt_token(&t).expect("non-EVM token adapts with ZERO sentinel");
+        assert_eq!(out.chain_id, 1_000_000_000);
+        assert_eq!(out.address, Address::ZERO);
 
         let mut t = sample_token();
         t.blockchain = "sol".into();
         t.contract_address = None;
         t.symbol = "SOL".into();
-        assert!(adapt_token(&t).is_none());
+        let out = adapt_token(&t).expect("SOL token adapts with ZERO sentinel");
+        assert_eq!(out.chain_id, 1_000_000_001);
+        assert_eq!(out.address, Address::ZERO);
     }
 
     #[test]
@@ -470,7 +479,7 @@ mod tests {
     }
 
     #[test]
-    fn adapt_tokens_filters_non_evm_and_unknown() {
+    fn adapt_tokens_drops_unknown_chains_but_keeps_non_evm() {
         let mut btc = sample_token();
         btc.blockchain = "btc".into();
         btc.contract_address = None;
@@ -479,7 +488,8 @@ mod tests {
         unknown.blockchain = "future".into();
 
         let out = adapt_tokens(&[sample_token(), btc, unknown]);
-        assert_eq!(out.len(), 1, "only the EVM USDC should survive");
+        // EVM USDC + BTC sentinel survive; only the "future" key is dropped.
+        assert_eq!(out.len(), 2);
     }
 
     // ── canonicalise_value ───────────────────────────────────────────────

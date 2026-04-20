@@ -5,7 +5,8 @@
     clippy::missing_const_for_fn,
     clippy::unwrap_used,
     clippy::expect_used,
-    clippy::too_many_lines
+    clippy::too_many_lines,
+    clippy::disallowed_types
 )]
 //! Wiremock-backed integration tests for the [`NearIntentsBridgeProvider`].
 //!
@@ -451,15 +452,11 @@ async fn get_bridging_params_returns_none() {
 
 #[cfg_attr(miri, ignore)]
 #[tokio::test]
-async fn get_bridge_receiver_override_returns_descriptive_error() {
-    use cow_bridging::{
-        QuoteBridgeResponse, near_intents::types::NearQuote,
-        provider::ReceiverAccountBridgeProvider,
-    };
+async fn get_bridge_receiver_override_misses_on_unquoted_request() {
+    // `get_quote` has not been called for this request shape, so the
+    // cache is empty — the override must surface a clear error.
+    use cow_bridging::{QuoteBridgeResponse, provider::ReceiverAccountBridgeProvider};
     let provider = NearIntentsBridgeProvider::default();
-    // Round-trip a minimal QuoteBridgeRequest / Response through the
-    // receiver-override method; it should surface the PR-#11-cache
-    // placeholder error.
     let req = bridge_request_eth_to_btc();
     let response = QuoteBridgeResponse {
         provider: "near-intents".into(),
@@ -469,22 +466,96 @@ async fn get_bridge_receiver_override_returns_descriptive_error() {
         estimated_secs: 0,
         bridge_hook: None,
     };
-    let _ = NearQuote {
-        amount_in: String::new(),
-        amount_in_formatted: String::new(),
-        amount_in_usd: String::new(),
-        min_amount_in: String::new(),
-        amount_out: String::new(),
-        amount_out_formatted: String::new(),
-        amount_out_usd: String::new(),
-        min_amount_out: String::new(),
-        time_estimate: 0,
-        deadline: String::new(),
-        time_when_inactive: String::new(),
-        deposit_address: String::new(),
-    };
     let err = provider.get_bridge_receiver_override(&req, &response).await.unwrap_err();
-    assert!(err.to_string().contains("cache not yet wired"), "unexpected: {err}");
+    assert!(err.to_string().contains("not in cache"), "unexpected: {err}");
+}
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn get_bridge_receiver_override_returns_cached_deposit_address_after_quote() {
+    // Full quote → override round-trip. `get_quote` caches the
+    // deposit address under the request-shape key;
+    // `get_bridge_receiver_override` reads it back.
+    use cow_bridging::{
+        BridgeProvider, QuoteBridgeResponse, provider::ReceiverAccountBridgeProvider,
+    };
+
+    let deposit_address: Address = "0xdead000000000000000000000000000000000000".parse().unwrap();
+    let quote_body = quote_response_fixture("0xdead000000000000000000000000000000000000");
+    let (signature_hex, attestator_addr) = sign_attestation_for_quote(&quote_body, deposit_address);
+
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("POST"))
+        .and(matchers::path("/v0/quote"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(quote_body))
+        .mount(&server)
+        .await;
+    Mock::given(matchers::method("POST"))
+        .and(matchers::path("/v0/attestation"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "signature": signature_hex,
+            "version":   1,
+        })))
+        .mount(&server)
+        .await;
+
+    let provider = NearIntentsBridgeProvider::new(NearIntentsProviderOptions {
+        base_url: Some(server.uri()),
+        attestator_address: attestator_addr,
+        ..Default::default()
+    });
+
+    let req = bridge_request_eth_to_btc();
+    // Populate the cache.
+    provider.get_quote(&req).await.unwrap();
+
+    // Now the override must return the cached deposit address.
+    let response = QuoteBridgeResponse {
+        provider: "near-intents".into(),
+        sell_amount: U256::from(1u64),
+        buy_amount: U256::from(1u64),
+        fee_amount: U256::from(0u64),
+        estimated_secs: 0,
+        bridge_hook: None,
+    };
+    let recovered = provider.get_bridge_receiver_override(&req, &response).await.unwrap();
+    assert_eq!(recovered, "0xdead000000000000000000000000000000000000");
+}
+
+#[test]
+fn deposit_cache_key_is_stable_for_the_same_request() {
+    use cow_bridging::near_intents::NearDepositCacheKey;
+    let req = bridge_request_eth_to_btc();
+    let k1 = NearDepositCacheKey::from_request(&req);
+    let k2 = NearDepositCacheKey::from_request(&req);
+    assert_eq!(k1, k2);
+}
+
+#[test]
+fn deposit_cache_key_differs_for_different_amounts() {
+    use cow_bridging::near_intents::NearDepositCacheKey;
+    let r1 = bridge_request_eth_to_btc();
+    let mut r2 = r1.clone();
+    r2.sell_amount = U256::from(2_000_000u64);
+    assert_ne!(NearDepositCacheKey::from_request(&r1), NearDepositCacheKey::from_request(&r2));
+}
+
+#[test]
+fn deposit_cache_handle_is_shared_across_clones() {
+    use cow_bridging::near_intents::NearDepositCacheKey;
+    let provider = NearIntentsBridgeProvider::default();
+    let cloned = provider.clone();
+    // Insert via the original's handle, read via the clone's handle.
+    let req = bridge_request_eth_to_btc();
+    let key = NearDepositCacheKey::from_request(&req);
+    {
+        let cache = provider.deposit_cache_handle();
+        let mut guard = cache.lock().unwrap();
+        guard.insert(key.clone(), "0xabc".into());
+    }
+    let cloned_cache = cloned.deposit_cache_handle();
+    let guard = cloned_cache.lock().unwrap();
+    assert_eq!(guard.get(&key).map(String::as_str), Some("0xabc"));
 }
 
 #[cfg_attr(miri, ignore)]
