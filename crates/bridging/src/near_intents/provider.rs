@@ -24,13 +24,16 @@
 //! non-negotiable integrity check that stops a compromised relayer
 //! from redirecting funds.
 
-use std::str::FromStr;
+#[allow(clippy::disallowed_types, reason = "cache lock — never held across await points")]
+use std::sync::Mutex;
+use std::{str::FromStr, sync::Arc};
 
-use alloy_primitives::{Address, B256};
+use alloy_primitives::{Address, B256, U256};
 use cow_chains::SupportedChainId;
 use cow_errors::CowError;
 use cow_orderbook::types::Order;
 use cow_primitives::ATTESTATOR_ADDRESS;
+use foldhash::HashMap;
 
 use crate::{
     provider::{
@@ -61,6 +64,57 @@ use super::{
 /// Default quote validity (15 minutes) — used when the caller doesn't
 /// override it.
 pub const NEAR_INTENTS_DEFAULT_VALIDITY_SECS: u64 = 15 * 60;
+
+/// Identifier for a single quote-request in the deposit-address cache.
+///
+/// The cache maps `(request-shape)` → `depositAddress` so a later
+/// [`ReceiverAccountBridgeProvider::get_bridge_receiver_override`]
+/// call can retrieve the address the `get_quote` call allocated. Six
+/// request fields uniquely identify a quote as far as the orchestrator
+/// is concerned; two quotes on the same `(sell_token, buy_token,
+/// amount, chains, account)` would allocate the same deposit address
+/// anyway, so collapsing them under one key is safe.
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub struct NearDepositCacheKey {
+    /// Source chain id.
+    pub sell_chain: u64,
+    /// Destination chain id.
+    pub buy_chain: u64,
+    /// Source-side token (on `sell_chain`).
+    pub sell_token: Address,
+    /// Destination-side token (on `buy_chain`).
+    pub buy_token: Address,
+    /// Account initiating the bridge.
+    pub account: Address,
+    /// Amount in atoms.
+    pub sell_amount: U256,
+}
+
+impl NearDepositCacheKey {
+    /// Build a cache key from a [`QuoteBridgeRequest`].
+    #[must_use]
+    pub const fn from_request(req: &QuoteBridgeRequest) -> Self {
+        Self {
+            sell_chain: req.sell_chain_id,
+            buy_chain: req.buy_chain_id,
+            sell_token: req.sell_token,
+            buy_token: req.buy_token,
+            account: req.account,
+            sell_amount: req.sell_amount,
+        }
+    }
+}
+
+/// Thread-safe handle to the in-memory deposit-address cache.
+///
+/// `Arc<Mutex<…>>`-based rather than a dashmap because the hot paths
+/// are single-insert / single-lookup, latency-insensitive, and we
+/// never hold the lock across an `await`.
+#[allow(
+    clippy::disallowed_types,
+    reason = "std::sync::Mutex is fine here — never held across await"
+)]
+pub type NearDepositCache = Arc<Mutex<HashMap<NearDepositCacheKey, String>>>;
 
 // ── Options ──────────────────────────────────────────────────────────────
 
@@ -96,11 +150,19 @@ impl Default for NearIntentsProviderOptions {
 /// NEAR Intents bridge provider.
 ///
 /// Cheap to clone — wraps a shared [`NearIntentsApi`] under the hood.
+///
+/// Keeps an in-memory deposit-address cache keyed by the
+/// [`QuoteBridgeRequest`]. `get_quote` inserts the cached
+/// `depositAddress` after the attestation passes;
+/// `get_bridge_receiver_override` reads from it. Two clones of the
+/// same provider share the same cache (`Arc<Mutex<…>>`), so the
+/// orchestrator's clone-on-dispatch pattern works out of the box.
 #[derive(Clone, Debug)]
 pub struct NearIntentsBridgeProvider {
     info: BridgeProviderInfo,
     api: NearIntentsApi,
     options: NearIntentsProviderOptions,
+    deposit_cache: NearDepositCache,
 }
 
 impl NearIntentsBridgeProvider {
@@ -116,7 +178,19 @@ impl NearIntentsBridgeProvider {
         if let Some(url) = &options.base_url {
             api = api.with_base_url(url.clone());
         }
-        Self { info: default_info(), api, options }
+        #[allow(clippy::disallowed_types, reason = "std::sync::Mutex intentional — see type alias")]
+        let deposit_cache = Arc::new(Mutex::new(HashMap::default()));
+        Self { info: default_info(), api, options, deposit_cache }
+    }
+
+    /// Return a clone of the shared deposit-address cache handle.
+    ///
+    /// Tests and advanced callers can use this to pre-seed or inspect
+    /// the cache — the production flow populates it automatically
+    /// from [`BridgeProvider::get_quote`].
+    #[must_use]
+    pub fn deposit_cache_handle(&self) -> NearDepositCache {
+        Arc::clone(&self.deposit_cache)
     }
 
     /// Return a reference to the underlying HTTP client — primarily
@@ -258,6 +332,8 @@ impl BridgeProvider for NearIntentsBridgeProvider {
         let api = self.api.clone();
         let validity_secs = self.options.validity_secs;
         let attestator = self.options.attestator_address;
+        let deposit_cache = Arc::clone(&self.deposit_cache);
+        let cache_key = NearDepositCacheKey::from_request(req);
 
         Box::pin(async move {
             if req.kind != cow_types::OrderKind::Sell {
@@ -325,6 +401,15 @@ impl BridgeProvider for NearIntentsBridgeProvider {
                     "NEAR Intents attestation mismatch — expected {attestator:#x}, got \
                      {recovered:#x}",
                 )));
+            }
+
+            // Attestation passed — cache the deposit address under the
+            // request-shape key so `get_bridge_receiver_override` can
+            // retrieve it later in the same quote session.
+            {
+                let mut cache =
+                    deposit_cache.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+                cache.insert(cache_key, response.quote.deposit_address.clone());
             }
 
             // Convert the NEAR response to a minimal QuoteBridgeResponse.
@@ -395,27 +480,26 @@ impl BridgeProvider for NearIntentsBridgeProvider {
 impl ReceiverAccountBridgeProvider for NearIntentsBridgeProvider {
     fn get_bridge_receiver_override<'a>(
         &'a self,
-        _quote_request: &'a QuoteBridgeRequest,
+        quote_request: &'a QuoteBridgeRequest,
         _quote_result: &'a QuoteBridgeResponse,
     ) -> ReceiverOverrideFuture<'a> {
-        // The TS SDK stores the `depositAddress` from `get_quote` in a
-        // per-quote cache keyed by quote-hash and looks it up here.
-        // In this Rust port we return an empty override and document
-        // that callers must pass the deposit address through their
-        // own state: the receiver-account override is ultimately used
-        // by the orchestrator in `get_quote_with_receiver_account_bridge`,
-        // which has access to the full `QuoteBridgeResponse` plus any
-        // out-of-band deposit-address the caller threaded through.
-        //
-        // A follow-up PR can add an in-memory cache on the provider
-        // instance once we settle on a shared eviction policy across
-        // Across / Bungee / NEAR.
-        Box::pin(async {
-            Err(CowError::Config(
-                "NEAR Intents receiver override requires the caller to provide the \
-                 `depositAddress` from the quote response (cache not yet wired — PR #11)"
-                    .into(),
-            ))
+        // Look up the deposit address the matching `get_quote` call
+        // cached under the request-shape key. If the caller never
+        // invoked `get_quote` for this request, the cache misses and
+        // we return a descriptive error — the orchestrator's contract
+        // is that `get_quote` → `get_bridge_receiver_override` is
+        // always paired.
+        let cache = Arc::clone(&self.deposit_cache);
+        let key = NearDepositCacheKey::from_request(quote_request);
+        Box::pin(async move {
+            let guard = cache.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            guard.get(&key).cloned().ok_or_else(|| {
+                CowError::Config(
+                    "NEAR Intents receiver override not in cache — call \
+                     `get_quote` first with the same request"
+                        .into(),
+                )
+            })
         })
     }
 }
