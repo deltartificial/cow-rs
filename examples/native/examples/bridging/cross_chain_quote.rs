@@ -57,7 +57,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         buy_chain_id: buy_chain.as_u64(),
         sell_token: usdc_mainnet,
         sell_token_decimals: 6,
-        buy_token: usdc_arbitrum,
+        buy_token: usdc_arbitrum.into(),
         buy_token_decimals: 6,
         sell_amount: U256::from(1_000_000_000u64), // 1000 USDC
         account,

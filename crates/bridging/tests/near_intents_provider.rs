@@ -170,7 +170,7 @@ fn bridge_request_eth_to_btc() -> QuoteBridgeRequest {
         buy_chain_id: 1_000_000_000, // Bitcoin
         sell_token: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48".parse().unwrap(),
         sell_token_decimals: 6,
-        buy_token: Address::ZERO,
+        buy_token: cow_bridging::TokenAddress::Raw(String::new()),
         buy_token_decimals: 8,
         sell_amount: U256::from(1_000_000u64),
         account: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266".parse().unwrap(),
@@ -410,7 +410,7 @@ async fn get_intermediate_tokens_returns_source_tokens_when_target_present() {
     let mut req = bridge_request_eth_to_btc();
     // Both source and target on mainnet → USDC is on mainnet → ok.
     req.buy_chain_id = 1;
-    req.buy_token = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48".parse().unwrap();
+    req.buy_token = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48".parse::<Address>().unwrap().into();
     let tokens = provider.get_intermediate_tokens(&req).await.unwrap();
     assert_eq!(tokens.len(), 1);
     assert_eq!(tokens[0].symbol, "USDC");
@@ -432,7 +432,7 @@ async fn get_intermediate_tokens_empty_when_target_missing() {
 
     let mut req = bridge_request_eth_to_btc();
     req.buy_chain_id = 42_161; // Arbitrum — no token in fixture there
-    req.buy_token = "0x1111111111111111111111111111111111111111".parse().unwrap();
+    req.buy_token = "0x1111111111111111111111111111111111111111".parse::<Address>().unwrap().into();
     let tokens = provider.get_intermediate_tokens(&req).await.unwrap();
     assert!(tokens.is_empty());
 }

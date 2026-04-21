@@ -24,9 +24,8 @@
 //!   3. Shows how to call `get_quote` and retrieve the deposit address later via
 //!      `get_bridge_receiver_override`.
 //!
-//! Non-EVM destinations use `Address::ZERO` as a sentinel on the
-//! `QuoteBridgeRequest.buy_token` — the real Solana recipient rides
-//! through `bridge_recipient`.
+//! Non-EVM destinations set `buy_token: TokenAddress::Raw(..)` — the
+//! real Solana recipient still rides through `bridge_recipient`.
 //!
 //! ```sh
 //! cargo run --example bridging_near_sol
@@ -35,7 +34,7 @@
 //! The example is self-contained and does **not** hit the network unless
 //! you point it at a wiremock / staging URL via `NEAR_INTENTS_BASE_URL`.
 
-use alloy_primitives::{Address, U256, address};
+use alloy_primitives::{U256, address};
 use cow_bridging::{
     BridgeProvider, QuoteBridgeRequest,
     near_intents::{NearIntentsBridgeProvider, NearIntentsProviderOptions},
@@ -54,7 +53,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         buy_chain_id: 1_000_000_001, // Solana (workspace AdditionalTargetChainId)
         sell_token: usdc_mainnet,
         sell_token_decimals: 6,
-        buy_token: Address::ZERO, // non-EVM → ZERO sentinel
+        // Solana native SOL has no token contract — use the empty raw
+        // variant. For SPL tokens pass the base58 mint, e.g.
+        // `TokenAddress::Raw("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v".into())`.
+        buy_token: cow_bridging::TokenAddress::Raw(String::new()),
         buy_token_decimals: 9,
         sell_amount: U256::from(100_000_000u64), // 100 USDC
         account,

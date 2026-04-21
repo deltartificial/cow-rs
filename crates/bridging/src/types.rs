@@ -131,6 +131,97 @@ impl BridgeStatusResult {
     }
 }
 
+// ── Token address ─────────────────────────────────────────────────────────────
+
+/// Address of a token, either on an EVM chain (20-byte Ethereum-style
+/// address) or on a non-EVM chain (raw string — e.g. a Solana mint,
+/// Bitcoin bech32 address, or the chain-specific native-coin sentinel
+/// used by the NEAR Intents API).
+///
+/// EVM callers can keep passing an `alloy_primitives::Address` thanks
+/// to the `From<Address> for TokenAddress` impl; non-EVM callers use
+/// `TokenAddress::Raw("...".into())` explicitly.
+///
+/// The serde encoding is externally-tagged (`{"kind": "Evm", "value":
+/// "0x..."}`) so the TS SDK can discriminate the two variants.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(tag = "kind", content = "value")]
+pub enum TokenAddress {
+    /// EVM address (20 bytes).
+    Evm(Address),
+    /// Raw, non-EVM identifier — a Solana mint, a Bitcoin address, or
+    /// any chain-specific string the bridge provider needs to round-
+    /// trip back to its API.
+    Raw(String),
+}
+
+impl TokenAddress {
+    /// Return the inner [`Address`] if this is an EVM variant.
+    #[must_use]
+    pub const fn as_evm(&self) -> Option<&Address> {
+        match self {
+            Self::Evm(a) => Some(a),
+            Self::Raw(_) => None,
+        }
+    }
+
+    /// Return the inner [`Address`] *by value* if this is an EVM
+    /// variant — convenience for callers that want to pass it into
+    /// EVM-only APIs without juggling references.
+    #[must_use]
+    pub const fn to_evm(&self) -> Option<Address> {
+        match self {
+            Self::Evm(a) => Some(*a),
+            Self::Raw(_) => None,
+        }
+    }
+
+    /// Return the inner raw string if this is a non-EVM variant.
+    #[must_use]
+    pub const fn as_raw(&self) -> Option<&str> {
+        match self {
+            Self::Evm(_) => None,
+            Self::Raw(s) => Some(s.as_str()),
+        }
+    }
+
+    /// Returns `true` if this is an [`Evm`](Self::Evm) variant.
+    #[must_use]
+    pub const fn is_evm(&self) -> bool {
+        matches!(self, Self::Evm(_))
+    }
+
+    /// Returns `true` if this is a [`Raw`](Self::Raw) variant.
+    #[must_use]
+    pub const fn is_raw(&self) -> bool {
+        matches!(self, Self::Raw(_))
+    }
+}
+
+impl From<Address> for TokenAddress {
+    fn from(value: Address) -> Self {
+        Self::Evm(value)
+    }
+}
+
+impl From<&Address> for TokenAddress {
+    fn from(value: &Address) -> Self {
+        Self::Evm(*value)
+    }
+}
+
+impl PartialEq<Address> for TokenAddress {
+    fn eq(&self, other: &Address) -> bool {
+        matches!(self, Self::Evm(a) if a == other)
+    }
+}
+
+impl PartialEq<TokenAddress> for Address {
+    fn eq(&self, other: &TokenAddress) -> bool {
+        other == self
+    }
+}
+
 // ── Quote request / response ──────────────────────────────────────────────────
 
 /// Request for a cross-chain bridge quote.
@@ -145,7 +236,7 @@ pub struct QuoteBridgeRequest {
     /// Token decimals on the source chain.
     pub sell_token_decimals: u8,
     /// Token address on the destination chain.
-    pub buy_token: Address,
+    pub buy_token: TokenAddress,
     /// Token decimals on the destination chain.
     pub buy_token_decimals: u8,
     /// Amount of `sell_token` to bridge (in atoms).
@@ -398,8 +489,10 @@ pub struct MultiQuoteResult {
 pub struct IntermediateTokenInfo {
     /// EIP-155 chain ID this token lives on.
     pub chain_id: u64,
-    /// ERC-20 token address on `chain_id`.
-    pub address: Address,
+    /// Token address on `chain_id` — an EVM address for ERC-20 tokens,
+    /// or a raw non-EVM identifier (Solana mint, Bitcoin native
+    /// sentinel, etc.) for non-EVM destinations.
+    pub address: TokenAddress,
     /// Token decimals.
     pub decimals: u8,
     /// Token symbol (e.g. `"USDC"`).
@@ -908,7 +1001,7 @@ mod tests {
     fn intermediate_token_info_roundtrips_through_serde() {
         let token = IntermediateTokenInfo {
             chain_id: 1,
-            address: Address::repeat_byte(0x11),
+            address: Address::repeat_byte(0x11).into(),
             decimals: 6,
             symbol: "USDC".into(),
             name: "USD Coin".into(),
@@ -917,6 +1010,30 @@ mod tests {
         let json = serde_json::to_string(&token).unwrap();
         let decoded: IntermediateTokenInfo = serde_json::from_str(&json).unwrap();
         assert_eq!(token, decoded);
+    }
+
+    #[test]
+    fn token_address_evm_and_raw_roundtrip_through_serde() {
+        let evm = TokenAddress::Evm(Address::repeat_byte(0xaa));
+        let raw = TokenAddress::Raw("bc1qexample000000000000000000000000000000".into());
+        let evm_json = serde_json::to_string(&evm).unwrap();
+        let raw_json = serde_json::to_string(&raw).unwrap();
+        assert!(evm_json.contains("\"kind\":\"Evm\""));
+        assert!(raw_json.contains("\"kind\":\"Raw\""));
+        let evm_decoded: TokenAddress = serde_json::from_str(&evm_json).unwrap();
+        let raw_decoded: TokenAddress = serde_json::from_str(&raw_json).unwrap();
+        assert_eq!(evm, evm_decoded);
+        assert_eq!(raw, raw_decoded);
+    }
+
+    #[test]
+    fn token_address_partial_eq_with_evm_address() {
+        let a = Address::repeat_byte(0x11);
+        let token: TokenAddress = a.into();
+        assert!(token == a);
+        assert!(a == token);
+        let raw = TokenAddress::Raw("anything".into());
+        assert!(raw != a);
     }
 
     #[test]
@@ -946,7 +1063,7 @@ mod tests {
         };
         let token = IntermediateTokenInfo {
             chain_id: 1,
-            address: Address::ZERO,
+            address: Address::ZERO.into(),
             decimals: 18,
             symbol: "WETH".into(),
             name: "Wrapped Ether".into(),

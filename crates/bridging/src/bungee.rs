@@ -728,7 +728,7 @@ fn bungee_popular_tokens(chain_id: u64) -> Vec<IntermediateTokenInfo> {
 
     let make = |symbol: &str, name: &str, addr: &str, decimals: u8| IntermediateTokenInfo {
         chain_id,
-        address: addr.parse().map_or(Address::ZERO, |a| a),
+        address: addr.parse::<Address>().map_or(Address::ZERO, |a| a).into(),
         decimals,
         symbol: symbol.into(),
         name: name.into(),
@@ -1010,13 +1010,18 @@ impl BungeeProvider {
         let slippage_pct = req.slippage_bps as f64 / 100.0;
         let slippage_str = format!("{slippage_pct:.1}");
 
+        // Bungee only supports EVM destinations.
+        let buy_token = req.buy_token.to_evm().ok_or_else(|| {
+            CowError::Config("Bungee requires an EVM buy_token; got TokenAddress::Raw".into())
+        })?;
+
         let url = reqwest::Url::parse_with_params(
             &format!("{}/quote", self.api_base),
             &[
                 ("fromChainId", req.sell_chain_id.to_string()),
                 ("toChainId", req.buy_chain_id.to_string()),
                 ("fromTokenAddress", format!("{:#x}", req.sell_token)),
-                ("toTokenAddress", format!("{:#x}", req.buy_token)),
+                ("toTokenAddress", format!("{buy_token:#x}")),
                 ("fromAmount", req.sell_amount.to_string()),
                 ("userAddress", format!("{:#x}", req.account)),
                 ("slippageTolerance", slippage_str),
@@ -1144,7 +1149,7 @@ mod bungee_provider_trait_tests {
             buy_chain_id: 10,
             sell_token: Address::ZERO,
             sell_token_decimals: 18,
-            buy_token: Address::ZERO,
+            buy_token: Address::ZERO.into(),
             buy_token_decimals: 18,
             sell_amount: U256::from(100u64),
             account: Address::ZERO,

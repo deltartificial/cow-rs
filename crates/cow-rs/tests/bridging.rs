@@ -73,7 +73,7 @@ fn sample_request() -> QuoteBridgeRequest {
         buy_chain_id: 100,
         sell_token: address!("1111111111111111111111111111111111111111"),
         sell_token_decimals: 18,
-        buy_token: address!("2222222222222222222222222222222222222222"),
+        buy_token: address!("2222222222222222222222222222222222222222").into(),
         buy_token_decimals: 18,
         sell_amount: U256::from(1_000_000_u64),
         account: address!("3333333333333333333333333333333333333333"),

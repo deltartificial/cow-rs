@@ -82,8 +82,10 @@ pub struct NearDepositCacheKey {
     pub buy_chain: u64,
     /// Source-side token (on `sell_chain`).
     pub sell_token: Address,
-    /// Destination-side token (on `buy_chain`).
-    pub buy_token: Address,
+    /// Destination-side token (on `buy_chain`) — may be EVM or a raw
+    /// non-EVM identifier, matching the shape of
+    /// [`QuoteBridgeRequest.buy_token`](crate::types::QuoteBridgeRequest::buy_token).
+    pub buy_token: crate::types::TokenAddress,
     /// Account initiating the bridge.
     pub account: Address,
     /// Amount in atoms.
@@ -93,12 +95,12 @@ pub struct NearDepositCacheKey {
 impl NearDepositCacheKey {
     /// Build a cache key from a [`QuoteBridgeRequest`].
     #[must_use]
-    pub const fn from_request(req: &QuoteBridgeRequest) -> Self {
+    pub fn from_request(req: &QuoteBridgeRequest) -> Self {
         Self {
             sell_chain: req.sell_chain_id,
             buy_chain: req.buy_chain_id,
             sell_token: req.sell_token,
-            buy_token: req.buy_token,
+            buy_token: req.buy_token.clone(),
             account: req.account,
             sell_amount: req.sell_amount,
         }
@@ -358,7 +360,7 @@ impl BridgeProvider for NearIntentsBridgeProvider {
     ) -> IntermediateTokensFuture<'a> {
         let sell_chain = request.sell_chain_id;
         let buy_chain = request.buy_chain_id;
-        let buy_token = request.buy_token;
+        let buy_token = request.buy_token.clone();
         let api = self.api.clone();
 
         Box::pin(async move {
@@ -407,7 +409,10 @@ impl BridgeProvider for NearIntentsBridgeProvider {
                 slippage_tolerance: req.bridge_slippage_bps.map_or(req.slippage_bps, |bps| bps),
                 origin_asset: format!("nep141:{:#x}", req.sell_token),
                 deposit_type: NearDepositType::OriginChain,
-                destination_asset: format!("nep141:{:#x}", req.buy_token),
+                destination_asset: match &req.buy_token {
+                    crate::types::TokenAddress::Evm(addr) => format!("nep141:{addr:#x}"),
+                    crate::types::TokenAddress::Raw(s) => format!("nep141:{s}"),
+                },
                 amount: req.sell_amount.to_string(),
                 refund_to: format!("{:#x}", req.account),
                 refund_type: NearRefundType::OriginChain,

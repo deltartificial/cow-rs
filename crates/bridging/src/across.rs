@@ -951,8 +951,11 @@ pub fn create_across_deposit_call(
     calldata.extend_from_slice(&left_pad_address(receiver));
     // inputToken (sellToken)
     calldata.extend_from_slice(&left_pad_address(params.request.sell_token));
-    // outputToken (buyToken)
-    calldata.extend_from_slice(&left_pad_address(params.request.buy_token));
+    // outputToken (buyToken) — Across only supports EVM destinations.
+    let buy_token = params.request.buy_token.to_evm().ok_or_else(|| {
+        BridgeError::TxBuildError("Across requires an EVM buy_token; got TokenAddress::Raw".into())
+    })?;
+    calldata.extend_from_slice(&left_pad_address(buy_token));
     // inputAmount (sellAmount)
     calldata.extend_from_slice(&pad_u256(params.request.sell_amount));
     // outputAmount: sell_amount minus fee (simplified; TS uses math contract)
@@ -1204,7 +1207,14 @@ fn token_symbol_to_info(symbol: &str, address: Address, chain_id: u64) -> Interm
         "WBTC" => (8u8, "Wrapped BTC".to_owned()),
         _ => (18u8, upper.clone()),
     };
-    IntermediateTokenInfo { chain_id, address, decimals, symbol: upper, name, logo_url: None }
+    IntermediateTokenInfo {
+        chain_id,
+        address: address.into(),
+        decimals,
+        symbol: upper,
+        name,
+        logo_url: None,
+    }
 }
 
 fn tokens_for_chain(chain_id: u64) -> Vec<IntermediateTokenInfo> {
@@ -1415,7 +1425,10 @@ mod provider_tests {
             buy_chain_id: SupportedChainId::ArbitrumOne.as_u64(),
             sell_token: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48".parse().unwrap(),
             sell_token_decimals: 6,
-            buy_token: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831".parse().unwrap(),
+            buy_token: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831"
+                .parse::<Address>()
+                .unwrap()
+                .into(),
             buy_token_decimals: 6,
             sell_amount: U256::from(1_000_000u64),
             account: Address::ZERO,

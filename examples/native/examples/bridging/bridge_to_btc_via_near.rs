@@ -27,7 +27,7 @@
 //! cargo run --example bridging_near_btc
 //! ```
 
-use alloy_primitives::{Address, U256, address};
+use alloy_primitives::{U256, address};
 use cow_bridging::{
     BridgeProvider, QuoteBridgeRequest,
     near_intents::{NearIntentsBridgeProvider, NearIntentsProviderOptions},
@@ -45,7 +45,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         buy_chain_id: 1_000_000_000, // Bitcoin (workspace AdditionalTargetChainId)
         sell_token: usdc_mainnet,
         sell_token_decimals: 6,
-        buy_token: Address::ZERO, // non-EVM → ZERO sentinel
+        // Bitcoin has no token contract — use the empty raw variant.
+        buy_token: cow_bridging::TokenAddress::Raw(String::new()),
         buy_token_decimals: 8,
         sell_amount: U256::from(500_000_000u64), // 500 USDC
         account,

@@ -82,7 +82,7 @@ pub use types::{
     BridgingFee, BungeeBridge, BungeeBridgeName, BungeeEvent, BungeeEventStatus,
     BungeeTxDataBytesIndex, BuyTokensParams, CrossChainOrder, DecodedBungeeAmounts,
     DecodedBungeeTxData, GetProviderBuyTokens, IntermediateTokenInfo, MultiQuoteResult,
-    QuoteBridgeRequest, QuoteBridgeResponse,
+    QuoteBridgeRequest, QuoteBridgeResponse, TokenAddress,
 };
 
 pub use utils::{
