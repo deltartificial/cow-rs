@@ -117,3 +117,15 @@ path = "examples/erc20/calldata.rs"
 [[example]]
 name = "bridging_quote"
 path = "examples/bridging/cross_chain_quote.rs"
+
+[[example]]
+name = "bridging_cross_chain_post"
+path = "examples/bridging/cross_chain_post.rs"
+
+[[example]]
+name = "bridging_near_sol"
+path = "examples/bridging/bridge_to_sol_via_near.rs"
+
+[[example]]
+name = "bridging_near_btc"
+path = "examples/bridging/bridge_to_btc_via_near.rs"
