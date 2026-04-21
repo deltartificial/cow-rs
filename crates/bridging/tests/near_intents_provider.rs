@@ -542,7 +542,7 @@ fn deposit_cache_key_differs_for_different_amounts() {
 
 #[test]
 fn deposit_cache_handle_is_shared_across_clones() {
-    use cow_bridging::near_intents::NearDepositCacheKey;
+    use cow_bridging::near_intents::{NearDepositCacheEntry, NearDepositCacheKey};
     let provider = NearIntentsBridgeProvider::default();
     let cloned = provider.clone();
     // Insert via the original's handle, read via the clone's handle.
@@ -551,11 +551,17 @@ fn deposit_cache_handle_is_shared_across_clones() {
     {
         let cache = provider.deposit_cache_handle();
         let mut guard = cache.lock().unwrap();
-        guard.insert(key.clone(), "0xabc".into());
+        guard.insert(
+            key.clone(),
+            NearDepositCacheEntry {
+                address: "0xabc".into(),
+                expires_at: std::time::Instant::now() + std::time::Duration::from_secs(60),
+            },
+        );
     }
     let cloned_cache = cloned.deposit_cache_handle();
     let guard = cloned_cache.lock().unwrap();
-    assert_eq!(guard.get(&key).map(String::as_str), Some("0xabc"));
+    assert_eq!(guard.get(&key).map(|e| e.address.as_str()), Some("0xabc"));
 }
 
 #[cfg_attr(miri, ignore)]
@@ -632,4 +638,91 @@ async fn get_quote_rejects_malformed_deposit_address() {
     });
     let err = provider.get_quote(&bridge_request_eth_to_btc()).await.unwrap_err();
     assert!(err.to_string().to_lowercase().contains("deposit address"));
+}
+
+// ── TTL eviction ─────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn receiver_override_evicts_expired_cache_entries_lazily() {
+    use cow_bridging::{
+        ReceiverAccountBridgeProvider,
+        near_intents::{NearDepositCacheEntry, NearDepositCacheKey},
+    };
+    let provider = NearIntentsBridgeProvider::default();
+    let req = bridge_request_eth_to_btc();
+    let key = NearDepositCacheKey::from_request(&req);
+    // Insert a pre-expired entry — the lazy sweep on lookup must
+    // evict it and surface the "not in cache" error instead of the
+    // stale address.
+    {
+        let cache = provider.deposit_cache_handle();
+        let mut guard = cache.lock().unwrap();
+        guard.insert(
+            key,
+            NearDepositCacheEntry {
+                address: "0xdead".into(),
+                expires_at: std::time::Instant::now() - std::time::Duration::from_secs(1),
+            },
+        );
+    }
+    let dummy_response = cow_bridging::QuoteBridgeResponse {
+        provider: "near-intents".into(),
+        sell_amount: U256::from(0u64),
+        buy_amount: U256::from(0u64),
+        fee_amount: U256::from(0u64),
+        estimated_secs: 0,
+        bridge_hook: None,
+    };
+    let err = provider.get_bridge_receiver_override(&req, &dummy_response).await.unwrap_err();
+    assert!(err.to_string().to_lowercase().contains("not in cache"));
+    // And the expired entry should be gone after the failed lookup.
+    let cache = provider.deposit_cache_handle();
+    assert!(cache.lock().unwrap().is_empty());
+}
+
+#[test]
+fn cleanup_expired_cache_entries_returns_eviction_count() {
+    use cow_bridging::near_intents::{NearDepositCacheEntry, NearDepositCacheKey};
+    let provider = NearIntentsBridgeProvider::default();
+    let req_a = bridge_request_eth_to_btc();
+    let mut req_b = req_a.clone();
+    req_b.sell_amount = U256::from(999u64);
+    let key_a = NearDepositCacheKey::from_request(&req_a);
+    let key_b = NearDepositCacheKey::from_request(&req_b);
+    {
+        let cache = provider.deposit_cache_handle();
+        let mut guard = cache.lock().unwrap();
+        // One expired, one fresh.
+        guard.insert(
+            key_a,
+            NearDepositCacheEntry {
+                address: "0xexpired".into(),
+                expires_at: std::time::Instant::now() - std::time::Duration::from_secs(5),
+            },
+        );
+        guard.insert(
+            key_b.clone(),
+            NearDepositCacheEntry {
+                address: "0xfresh".into(),
+                expires_at: std::time::Instant::now() + std::time::Duration::from_secs(60),
+            },
+        );
+    }
+    let removed = provider.cleanup_expired_cache_entries();
+    assert_eq!(removed, 1);
+    let cache = provider.deposit_cache_handle();
+    let guard = cache.lock().unwrap();
+    assert_eq!(guard.len(), 1);
+    assert_eq!(guard.get(&key_b).map(|e| e.address.as_str()), Some("0xfresh"));
+}
+
+#[test]
+fn cache_ttl_option_defaults_to_validity_secs() {
+    let opts = NearIntentsProviderOptions::default();
+    assert_eq!(
+        opts.cache_ttl,
+        std::time::Duration::from_secs(
+            cow_bridging::near_intents::NEAR_INTENTS_DEFAULT_VALIDITY_SECS,
+        ),
+    );
 }

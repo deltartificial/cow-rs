@@ -28,10 +28,10 @@ pub mod types;
 pub mod util;
 
 pub use provider::{
-    NEAR_INTENTS_DEFAULT_VALIDITY_SECS, NearDepositCache, NearDepositCacheKey,
-    NearIntentsBridgeProvider, NearIntentsProviderOptions, chain_id_to_supported,
-    default_near_intents_info, get_token_by_address_and_chain_id, map_near_status_to_cow,
-    near_intents_supported_chains,
+    NEAR_INTENTS_DEFAULT_VALIDITY_SECS, NearDepositCache, NearDepositCacheEntry,
+    NearDepositCacheKey, NearIntentsBridgeProvider, NearIntentsProviderOptions,
+    chain_id_to_supported, default_near_intents_info, get_token_by_address_and_chain_id,
+    map_near_status_to_cow, near_intents_supported_chains,
 };
 
 pub use api::NearIntentsApi;
