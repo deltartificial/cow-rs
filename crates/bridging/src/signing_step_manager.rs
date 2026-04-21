@@ -242,6 +242,125 @@ impl SigningStepManager {
         self
     }
 
+    // ── Sync-wrapping convenience helpers ─────────────────────────────
+    //
+    // The `with_before_*_sign` / `with_after_*_sign` builders above take
+    // async callbacks, which is overkill for the common case (log a
+    // line, update a progress bar, push to a channel). The `_sync`
+    // variants accept a synchronous `FnOnce`-style closure and wrap it
+    // in a resolved `async move { f(); Ok(()) }` future internally.
+    //
+    // Prefer the sync variants unless you genuinely need to await
+    // something inside the callback.
+
+    /// Synchronous-sugar for [`Self::with_before_bridging_sign`].
+    ///
+    /// The closure runs to completion on every fire; its return value is
+    /// discarded. Use the async variant if you need to abort the post
+    /// flow from the callback.
+    #[must_use]
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn with_before_bridging_sign_sync<F>(self, f: F) -> Self
+    where
+        F: Fn() + Send + Sync + 'static,
+    {
+        self.with_before_bridging_sign(move || {
+            f();
+            Box::pin(async { Ok(()) })
+        })
+    }
+
+    /// Synchronous-sugar for [`Self::with_before_bridging_sign`] (WASM).
+    #[must_use]
+    #[cfg(target_arch = "wasm32")]
+    pub fn with_before_bridging_sign_sync<F>(self, f: F) -> Self
+    where
+        F: Fn() + 'static,
+    {
+        self.with_before_bridging_sign(move || {
+            f();
+            Box::pin(async { Ok(()) })
+        })
+    }
+
+    /// Synchronous-sugar for [`Self::with_after_bridging_sign`].
+    #[must_use]
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn with_after_bridging_sign_sync<F>(self, f: F) -> Self
+    where
+        F: Fn() + Send + Sync + 'static,
+    {
+        self.with_after_bridging_sign(move || {
+            f();
+            Box::pin(async { Ok(()) })
+        })
+    }
+
+    /// Synchronous-sugar for [`Self::with_after_bridging_sign`] (WASM).
+    #[must_use]
+    #[cfg(target_arch = "wasm32")]
+    pub fn with_after_bridging_sign_sync<F>(self, f: F) -> Self
+    where
+        F: Fn() + 'static,
+    {
+        self.with_after_bridging_sign(move || {
+            f();
+            Box::pin(async { Ok(()) })
+        })
+    }
+
+    /// Synchronous-sugar for [`Self::with_before_order_sign`].
+    #[must_use]
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn with_before_order_sign_sync<F>(self, f: F) -> Self
+    where
+        F: Fn() + Send + Sync + 'static,
+    {
+        self.with_before_order_sign(move || {
+            f();
+            Box::pin(async { Ok(()) })
+        })
+    }
+
+    /// Synchronous-sugar for [`Self::with_before_order_sign`] (WASM).
+    #[must_use]
+    #[cfg(target_arch = "wasm32")]
+    pub fn with_before_order_sign_sync<F>(self, f: F) -> Self
+    where
+        F: Fn() + 'static,
+    {
+        self.with_before_order_sign(move || {
+            f();
+            Box::pin(async { Ok(()) })
+        })
+    }
+
+    /// Synchronous-sugar for [`Self::with_after_order_sign`].
+    #[must_use]
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn with_after_order_sign_sync<F>(self, f: F) -> Self
+    where
+        F: Fn() + Send + Sync + 'static,
+    {
+        self.with_after_order_sign(move || {
+            f();
+            Box::pin(async { Ok(()) })
+        })
+    }
+
+    /// Synchronous-sugar for [`Self::with_after_order_sign`] (WASM).
+    #[must_use]
+    #[cfg(target_arch = "wasm32")]
+    pub fn with_after_order_sign_sync<F>(self, f: F) -> Self
+    where
+        F: Fn() + 'static,
+    {
+        self.with_after_order_sign(move || {
+            f();
+            Box::pin(async { Ok(()) })
+        })
+    }
+
     /// Invoke `before_bridging_sign` if present, propagating any error.
     ///
     /// # Errors
@@ -455,5 +574,84 @@ mod tests {
 
         assert_eq!(bridge_count.load(Ordering::SeqCst), 1);
         assert_eq!(order_count.load(Ordering::SeqCst), 1);
+    }
+
+    // ── Sync-wrapping helpers ────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn sync_helpers_fire_in_registered_order() {
+        #[allow(clippy::disallowed_types, reason = "test-only recorder")]
+        let order = Arc::new(Mutex::new(Vec::<&'static str>::new()));
+        let o1 = Arc::clone(&order);
+        let o2 = Arc::clone(&order);
+        let o3 = Arc::clone(&order);
+        let o4 = Arc::clone(&order);
+
+        let mgr = SigningStepManager::new()
+            .with_before_bridging_sign_sync(move || {
+                o1.lock().unwrap().push("before_bridging_sign");
+            })
+            .with_after_bridging_sign_sync(move || {
+                o2.lock().unwrap().push("after_bridging_sign");
+            })
+            .with_before_order_sign_sync(move || {
+                o3.lock().unwrap().push("before_order_sign");
+            })
+            .with_after_order_sign_sync(move || {
+                o4.lock().unwrap().push("after_order_sign");
+            });
+
+        mgr.fire_before_bridging_sign().await.unwrap();
+        mgr.fire_after_bridging_sign().await.unwrap();
+        mgr.fire_before_order_sign().await.unwrap();
+        mgr.fire_after_order_sign().await.unwrap();
+
+        let recorded: Vec<&str> = order.lock().unwrap().clone();
+        assert_eq!(
+            recorded,
+            vec![
+                "before_bridging_sign",
+                "after_bridging_sign",
+                "before_order_sign",
+                "after_order_sign",
+            ],
+        );
+    }
+
+    #[tokio::test]
+    async fn sync_helpers_always_return_ok() {
+        let mgr = SigningStepManager::new()
+            .with_before_bridging_sign_sync(|| {})
+            .with_after_bridging_sign_sync(|| {})
+            .with_before_order_sign_sync(|| {})
+            .with_after_order_sign_sync(|| {});
+
+        // Sync variant has no way to abort; each fire must succeed.
+        assert!(mgr.fire_before_bridging_sign().await.is_ok());
+        assert!(mgr.fire_after_bridging_sign().await.is_ok());
+        assert!(mgr.fire_before_order_sign().await.is_ok());
+        assert!(mgr.fire_after_order_sign().await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn sync_and_async_helpers_compose() {
+        // Build a manager that mixes sync + async callbacks and check
+        // they fire in the right order, with the async one's error
+        // still propagating.
+        let sync_fired = Arc::new(AtomicU8::new(0));
+        let sf = Arc::clone(&sync_fired);
+        let mgr = SigningStepManager::new()
+            .with_before_bridging_sign_sync(move || {
+                sf.fetch_add(1, Ordering::SeqCst);
+            })
+            .with_after_bridging_sign(|| {
+                Box::pin(async move { Err(CowError::AppData("stop after bridging".into())) })
+            });
+
+        mgr.fire_before_bridging_sign().await.unwrap();
+        assert_eq!(sync_fired.load(Ordering::SeqCst), 1);
+
+        let err = mgr.fire_after_bridging_sign().await.unwrap_err();
+        assert!(err.to_string().contains("stop after bridging"));
     }
 }
