@@ -2165,78 +2165,11 @@ fn assert_is_quote_and_post_errors_on_cross_chain() {
 // quoting via a `SwapQuoter`. Their happy-path / dispatch coverage lives in
 // `crates/bridging/src/sdk.rs::orchestration_tests`.
 //
-// `get_bridge_signed_hook` and `create_post_swap_order_from_quote` remain as
-// stubs until PR #8. The smoke test below exercises just that.
-
-#[tokio::test]
-async fn create_post_swap_order_from_quote_returns_tx_build_error() {
-    use cow_rs::bridging::sdk::{BridgeQuoteAndPost, create_post_swap_order_from_quote};
-
-    let quote = BridgeQuoteAndPost {
-        swap: QuoteBridgeResponse {
-            provider: "mock".to_owned(),
-            sell_amount: U256::ZERO,
-            buy_amount: U256::ZERO,
-            fee_amount: U256::ZERO,
-            estimated_secs: 0,
-            bridge_hook: None,
-        },
-        bridge: cow_rs::bridging::types::BridgeQuoteResults {
-            provider_info: cow_rs::bridging::types::BridgeProviderInfo {
-                name: "test".to_owned(),
-                logo_url: String::new(),
-                dapp_id: String::new(),
-                website: String::new(),
-                provider_type: cow_rs::bridging::types::BridgeProviderType::HookBridgeProvider,
-            },
-            quote: cow_rs::bridging::types::BridgeQuoteResult {
-                id: None,
-                signature: None,
-                attestation_signature: None,
-                quote_body: None,
-                is_sell: true,
-                amounts_and_costs: cow_rs::bridging::types::BridgeQuoteAmountsAndCosts {
-                    before_fee: cow_rs::bridging::types::BridgeAmounts {
-                        sell_amount: U256::ZERO,
-                        buy_amount: U256::ZERO,
-                    },
-                    after_fee: cow_rs::bridging::types::BridgeAmounts {
-                        sell_amount: U256::ZERO,
-                        buy_amount: U256::ZERO,
-                    },
-                    after_slippage: cow_rs::bridging::types::BridgeAmounts {
-                        sell_amount: U256::ZERO,
-                        buy_amount: U256::ZERO,
-                    },
-                    costs: cow_rs::bridging::types::BridgeCosts {
-                        bridging_fee: cow_rs::bridging::types::BridgingFee {
-                            fee_bps: 0,
-                            amount_in_sell_currency: U256::ZERO,
-                            amount_in_buy_currency: U256::ZERO,
-                        },
-                    },
-                    slippage_bps: 0,
-                },
-                expected_fill_time_seconds: None,
-                quote_timestamp: 0,
-                fees: cow_rs::bridging::types::BridgeFees {
-                    bridge_fee: U256::ZERO,
-                    destination_gas_fee: U256::ZERO,
-                },
-                limits: cow_rs::bridging::types::BridgeLimits {
-                    min_deposit: U256::ZERO,
-                    max_deposit: U256::ZERO,
-                },
-            },
-            bridge_call_details: None,
-            bridge_receiver_override: None,
-        },
-    };
-
-    let result = create_post_swap_order_from_quote(&quote).await;
-    assert!(result.is_err());
-    assert!(matches!(result, Err(BridgeError::TxBuildError(_))));
-}
+// `get_bridge_signed_hook` remains as a stub until the downstream
+// orchestration is rewritten to route through
+// `cow_rs::cross_chain_post::post_cross_chain_order` (which was the
+// v0.3.0 replacement for the since-removed
+// `create_post_swap_order_from_quote` stub).
 
 #[tokio::test]
 async fn get_intermediate_swap_result_errors_with_no_provider_tokens() {
@@ -2952,8 +2885,8 @@ fn is_quote_and_post_same_chain() {
     assert!(assert_is_bridge_quote_and_post(&same).is_err());
 }
 
-// Legacy stub-era smoke tests removed — see the comment near
-// `create_post_swap_order_from_quote_returns_tx_build_error` above for context.
+// Legacy stub-era smoke tests removed — see the bridging-stub comment
+// block near the top of this file for context.
 // `get_intermediate_swap_result` now takes a provider and a quoter — see
 // the dedicated coverage test `get_intermediate_swap_result_errors_with_no_provider_tokens`
 // above. The old single-argument stub is no longer a meaningful smoke test.
