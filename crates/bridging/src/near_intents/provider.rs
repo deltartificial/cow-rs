@@ -105,7 +105,29 @@ impl NearDepositCacheKey {
     }
 }
 
-/// Thread-safe handle to the in-memory deposit-address cache.
+/// A single deposit-address cache entry with its expiration marker.
+///
+/// The cache sheds expired entries lazily on every
+/// [`NearIntentsBridgeProvider::get_bridge_receiver_override`] call.
+/// Callers that want an eager sweep can use
+/// [`NearIntentsBridgeProvider::cleanup_expired_cache_entries`].
+#[derive(Debug, Clone)]
+pub struct NearDepositCacheEntry {
+    /// The `depositAddress` string returned by the NEAR API for the
+    /// matching `get_quote` call.
+    pub address: String,
+    /// Wall-clock timestamp at which this entry is no longer usable.
+    ///
+    /// On WASM (`target_arch = "wasm32"`) this field is a placeholder
+    /// [`std::time::Instant`] that gets treated as "never expires" by
+    /// the cleanup logic because `Instant::now()` isn't monotonic on
+    /// wasm. The cache still bounds its growth by relying on browser
+    /// session lifetimes.
+    pub expires_at: std::time::Instant,
+}
+
+/// Thread-safe handle to the in-memory deposit-address cache with
+/// TTL eviction.
 ///
 /// `Arc<Mutex<…>>`-based rather than a dashmap because the hot paths
 /// are single-insert / single-lookup, latency-insensitive, and we
@@ -114,7 +136,7 @@ impl NearDepositCacheKey {
     clippy::disallowed_types,
     reason = "std::sync::Mutex is fine here — never held across await"
 )]
-pub type NearDepositCache = Arc<Mutex<HashMap<NearDepositCacheKey, String>>>;
+pub type NearDepositCache = Arc<Mutex<HashMap<NearDepositCacheKey, NearDepositCacheEntry>>>;
 
 // ── Options ──────────────────────────────────────────────────────────────
 
@@ -132,6 +154,14 @@ pub struct NearIntentsProviderOptions {
     /// Quote validity in seconds (defaults to
     /// [`NEAR_INTENTS_DEFAULT_VALIDITY_SECS`]).
     pub validity_secs: u64,
+    /// TTL for deposit-address cache entries. Expired entries are
+    /// shed lazily on every `get_bridge_receiver_override` call (and
+    /// eagerly via [`NearIntentsBridgeProvider::cleanup_expired_cache_entries`]).
+    ///
+    /// Defaults to `validity_secs` (so cache entries expire at the
+    /// same time as the backing quote). Pass a shorter duration to
+    /// shed the cache sooner in long-running processes.
+    pub cache_ttl: std::time::Duration,
 }
 
 impl Default for NearIntentsProviderOptions {
@@ -141,6 +171,7 @@ impl Default for NearIntentsProviderOptions {
             base_url: None,
             attestator_address: ATTESTATOR_ADDRESS,
             validity_secs: NEAR_INTENTS_DEFAULT_VALIDITY_SECS,
+            cache_ttl: std::time::Duration::from_secs(NEAR_INTENTS_DEFAULT_VALIDITY_SECS),
         }
     }
 }
@@ -191,6 +222,23 @@ impl NearIntentsBridgeProvider {
     #[must_use]
     pub fn deposit_cache_handle(&self) -> NearDepositCache {
         Arc::clone(&self.deposit_cache)
+    }
+
+    /// Eagerly drop every expired cache entry and return how many were
+    /// removed.
+    ///
+    /// The lazy path in [`ReceiverAccountBridgeProvider::get_bridge_receiver_override`]
+    /// already sheds expired entries, so calling this is only useful in
+    /// long-running processes that want to reclaim memory between
+    /// bursts of `get_quote` calls.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn cleanup_expired_cache_entries(&self) -> usize {
+        let now = std::time::Instant::now();
+        let mut guard =
+            self.deposit_cache.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let before = guard.len();
+        guard.retain(|_, entry| entry.expires_at > now);
+        before - guard.len()
     }
 
     /// Return a reference to the underlying HTTP client — primarily
@@ -333,6 +381,7 @@ impl BridgeProvider for NearIntentsBridgeProvider {
         let validity_secs = self.options.validity_secs;
         let attestator = self.options.attestator_address;
         let deposit_cache = Arc::clone(&self.deposit_cache);
+        let cache_ttl = self.options.cache_ttl;
         let cache_key = NearDepositCacheKey::from_request(req);
 
         Box::pin(async move {
@@ -409,7 +458,16 @@ impl BridgeProvider for NearIntentsBridgeProvider {
             {
                 let mut cache =
                     deposit_cache.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-                cache.insert(cache_key, response.quote.deposit_address.clone());
+                let expires_at = std::time::Instant::now()
+                    .checked_add(cache_ttl)
+                    .unwrap_or_else(std::time::Instant::now);
+                cache.insert(
+                    cache_key,
+                    NearDepositCacheEntry {
+                        address: response.quote.deposit_address.clone(),
+                        expires_at,
+                    },
+                );
             }
 
             // Convert the NEAR response to a minimal QuoteBridgeResponse.
@@ -484,19 +542,19 @@ impl ReceiverAccountBridgeProvider for NearIntentsBridgeProvider {
         _quote_result: &'a QuoteBridgeResponse,
     ) -> ReceiverOverrideFuture<'a> {
         // Look up the deposit address the matching `get_quote` call
-        // cached under the request-shape key. If the caller never
-        // invoked `get_quote` for this request, the cache misses and
-        // we return a descriptive error — the orchestrator's contract
-        // is that `get_quote` → `get_bridge_receiver_override` is
-        // always paired.
+        // cached under the request-shape key. Lazy-sheds expired
+        // entries before the lookup so stale entries never leak to
+        // the caller.
         let cache = Arc::clone(&self.deposit_cache);
         let key = NearDepositCacheKey::from_request(quote_request);
         Box::pin(async move {
-            let guard = cache.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-            guard.get(&key).cloned().ok_or_else(|| {
+            let now = std::time::Instant::now();
+            let mut guard = cache.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            guard.retain(|_, entry| entry.expires_at > now);
+            guard.get(&key).map(|e| e.address.clone()).ok_or_else(|| {
                 CowError::Config(
                     "NEAR Intents receiver override not in cache — call \
-                     `get_quote` first with the same request"
+                     `get_quote` first with the same request (or quote expired)"
                         .into(),
                 )
             })
