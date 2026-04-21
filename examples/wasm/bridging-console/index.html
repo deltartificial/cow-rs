@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>cow-rs Bridging Console</title>
+  <style>
+    :root {
+      --bg: #0d1117; --bg2: #161b22; --fg: #c9d1d9; --muted: #8b949e;
+      --accent: #58a6ff; --green: #3fb950; --border: #30363d;
+      --btn: #21262d; --btn-hover: #30363d; --cow-purple: #9b6dff;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, 'Segoe UI', monospace;
+      background: var(--bg); color: var(--fg);
+      padding: 1.5rem; max-width: 960px; margin: 0 auto;
+    }
+    .header { text-align: center; margin-bottom: 1.2rem; border-bottom: 1px solid var(--border); padding-bottom: 0.8rem; }
+    .header h1 { font-size: 1.6rem; }
+    .header h1 .cow { color: var(--green); }
+    .header h1 .br { color: var(--cow-purple); }
+    .header p { color: var(--muted); font-size: 0.85rem; margin-top: 0.3rem; }
+    .section {
+      border: 1px solid var(--border); border-radius: 8px;
+      padding: 1rem; margin-bottom: 1rem; background: var(--bg2);
+    }
+    .section h2 { font-size: 0.95rem; color: var(--accent); margin-bottom: 0.6rem; }
+    button {
+      background: var(--btn); color: var(--fg); border: 1px solid var(--border);
+      padding: 0.45rem 0.9rem; border-radius: 6px; cursor: pointer;
+      font-size: 0.82rem; margin: 0.2rem 0.2rem 0.2rem 0;
+    }
+    button:hover { background: var(--btn-hover); }
+    input {
+      background: var(--btn); color: var(--fg); border: 1px solid var(--border);
+      padding: 0.45rem 0.6rem; border-radius: 6px; font-size: 0.82rem;
+      font-family: monospace; width: 100%; margin-bottom: 0.4rem;
+    }
+    pre {
+      background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+      padding: 0.6rem; font-size: 0.75rem; overflow-x: auto;
+      white-space: pre-wrap; word-break: break-all; color: var(--muted);
+    }
+    .footer { text-align: center; color: var(--muted); font-size: 0.75rem; margin-top: 1rem; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1><span class="cow">cow-rs</span> <span class="br">Bridging Console</span></h1>
+    <p>In-browser NEAR Intents bridging helpers — runs 100% in WebAssembly</p>
+  </div>
+
+  <div class="section">
+    <h2>Provider info</h2>
+    <button id="btn-info">Load NEAR Intents metadata</button>
+    <button id="btn-chains">Supported chains</button>
+    <pre id="out-info">Click a button to query.</pre>
+  </div>
+
+  <div class="section">
+    <h2>Canonical quote hash</h2>
+    <p style="color: var(--muted); font-size: 0.78rem; margin-bottom: 0.5rem;">
+      Computes the Rust <code>hash_quote_payload</code> of a fixed sample quote, with an optional amount override.
+      Byte-diff this against the TS SDK output to guarantee parity.
+    </p>
+    <input id="in-amount" placeholder="amount (defaults to 1000000)" />
+    <button id="btn-hash">Compute hash</button>
+    <pre id="out-hash">—</pre>
+  </div>
+
+  <div class="section">
+    <h2>Verify NEAR attestation</h2>
+    <p style="color: var(--muted); font-size: 0.78rem; margin-bottom: 0.5rem;">
+      Feeds <code>(deposit_address, quote_hash, signature)</code> to <code>recover_attestation</code>.
+      Compare the recovered signer with <code>ATTESTATOR_ADDRESS = 0x0073DD100b51C555E41B2a452E5933ef76F42790</code>.
+    </p>
+    <input id="in-deposit" placeholder="deposit address (0x-prefixed, 20 bytes)" />
+    <input id="in-quote-hash" placeholder="quote hash (0x-prefixed, 32 bytes)" />
+    <input id="in-signature" placeholder="signature (0x-prefixed, 65 bytes)" />
+    <button id="btn-verify">Recover signer</button>
+    <pre id="out-verify">—</pre>
+  </div>
+
+  <div class="footer">Built with cow-rs · WebAssembly · <a href="https://github.com/deltartificial/cow-rs" style="color: var(--accent);">source</a></div>
+
+  <script type="module">
+    import init, { BridgingConsole } from './pkg/cow_rs_bridging_console.js';
+
+    const out = (id, v) => { document.getElementById(id).textContent = typeof v === 'string' ? v : JSON.stringify(v, null, 2); };
+    const pretty = (s) => { try { return JSON.stringify(JSON.parse(s), null, 2); } catch { return s; } };
+
+    async function main() {
+      await init();
+      const c = new BridgingConsole();
+
+      document.getElementById('btn-info').onclick = () => out('out-info', pretty(c.nearIntentsInfo()));
+      document.getElementById('btn-chains').onclick = () => out('out-info', pretty(c.supportedChains()));
+
+      document.getElementById('btn-hash').onclick = () => {
+        const amt = document.getElementById('in-amount').value.trim() || undefined;
+        out('out-hash', pretty(c.canonicalQuoteHash(amt)));
+      };
+
+      document.getElementById('btn-verify').onclick = () => {
+        const d = document.getElementById('in-deposit').value.trim();
+        const h = document.getElementById('in-quote-hash').value.trim();
+        const s = document.getElementById('in-signature').value.trim();
+        out('out-verify', pretty(c.verifyNearAttestation(d, h, s)));
+      };
+    }
+    main();
+  </script>
+</body>
+</html>
