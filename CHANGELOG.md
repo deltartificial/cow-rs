@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.0] - 2026-04-21
+
+### Features
+
+- _(bridging)_ [**breaking**] Enrich BridgeProvider trait with info/networks/status (#56) ([`959383b`](https://github.com/deltartificial/cow-rs/commit/959383b8a14dcbaf70795f4ed67c78540630dc33))
+- _(bridging)_ Split HookBridgeProvider and ReceiverAccountBridgeProvider (#57) ([`ca98714`](https://github.com/deltartificial/cow-rs/commit/ca987141c40e11c683fe66ee33e5d6668d239f0a))
+- _(cow-shed)_ Add EIP-712 sign_hook for CoWShed hook bundles (#58) ([`6bda283`](https://github.com/deltartificial/cow-rs/commit/6bda2831c441e9cbbb8bf25267b1d0e810d4f187))
+- _(bridging)_ Add AcrossBridgeProvider implementing hook sub-trait (#59) ([`6a65d76`](https://github.com/deltartificial/cow-rs/commit/6a65d7688aaac6f8510d27b5b741579dc2a24cf3))
+- _(bridging)_ Upgrade BungeeProvider to enriched trait (#60) ([`7068b25`](https://github.com/deltartificial/cow-rs/commit/7068b252474d15cc81732d940ef54abe72e255e2))
+- _(bridging)_ Implement get_intermediate_swap_result with cow-sdk#852 metadata fix (#61) ([`7193623`](https://github.com/deltartificial/cow-rs/commit/7193623c8d2fbb344b322612f63aa9a936be4497))
+- _(bridging)_ Implement get_quote_with_bridge with SwapQuoter for TradingSdk (#62) ([`740e43f`](https://github.com/deltartificial/cow-rs/commit/740e43fee5ebe68143936eb24d59cea0132d1d00))
+- _(bridging)_ [**breaking**] Real get_bridge_signed_hook + SigningStepManager + post_cross_chain_order (#63) ([`a619ed7`](https://github.com/deltartificial/cow-rs/commit/a619ed75e3733b403ac73b95d3eff3957dc475d5))
+- _(bridging)_ NearIntentsApi HTTP client + wire types (#65) ([`150a33f`](https://github.com/deltartificial/cow-rs/commit/150a33f27e39feaff7a30af2cec95332ba50e81a))
+- _(bridging)_ Add NearIntentsBridgeProvider with attestation verification (#66) ([`b0315b4`](https://github.com/deltartificial/cow-rs/commit/b0315b4bd033df5f610bcb014cd0935c8ed679ed))
+- _(bridging)_ Add deposit-address cache + enable non-EVM destinations via ZERO sentinel (#68) ([`6c54ca1`](https://github.com/deltartificial/cow-rs/commit/6c54ca13fb1a7dee7bf33e6ce3d2704cefc5b188))
+- _(examples)_ Add 3 bridging examples (cross-chain post + NEAR SOL/BTC) (#69) ([`4bba62d`](https://github.com/deltartificial/cow-rs/commit/4bba62d85aa541d4271428865fd300d01900bdca))
+
+### Testing
+
+- _(bridging)_ Cover post_cross_chain_order error paths and advanced settings (#64) ([`d792212`](https://github.com/deltartificial/cow-rs/commit/d792212c40fb5afdd0ba2caafde91fdbce9e62e3))
+- _(bridging)_ Raise near_intents provider coverage to 100% lines (#67) ([`cdd2654`](https://github.com/deltartificial/cow-rs/commit/cdd2654baff2e4614f9cdc5766275ae391f68730))
+
 ## [0.2.0] - 2026-04-19
 
 ### Bug Fixes

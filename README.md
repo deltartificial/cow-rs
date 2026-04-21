@@ -54,6 +54,9 @@ from Rust:
 - Typed HTTP clients for the orderbook and subgraph APIs.
 - EIP-712 signing with no opaque dependencies on JavaScript toolchains.
 - Composable primitives for advanced order types and custom settlement hooks.
+- **Cross-chain bridging** via Across, Bungee, and NEAR Intents — including
+  non-EVM destinations (BTC / SOL) with attestor-signed quotes and full
+  `cow-shed` post-hook signing.
 
 ## Supported Chains
 
@@ -78,7 +81,7 @@ layered crate under one entry point:
 
 ```toml
 [dependencies]
-cow-rs = "0.1"
+cow-rs = "0.3"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 alloy-primitives = "1"
 ```
@@ -89,11 +92,11 @@ to the orderbook:
 
 ```toml
 [dependencies]
-cow-chains = "0.1"
-cow-orderbook = "0.1"
-cow-signing = "0.1"
-cow-trading = "0.1"
-cow-types = "0.1"
+cow-chains = "0.3"
+cow-orderbook = "0.3"
+cow-signing = "0.3"
+cow-trading = "0.3"
+cow-types = "0.3"
 ```
 
 See [Workspace Crates](#workspace-crates) for the full list.
@@ -214,23 +217,29 @@ cargo run -p examples-native --example get_quote
 cargo run -p examples-native --example twap
 cargo run -p examples-native --example stop_loss
 cargo run -p examples-native --example order_status
+
+# Cross-chain bridging (v0.3+):
+cargo run -p examples-native --example bridging_quote
+cargo run -p examples-native --example bridging_cross_chain_post
+cargo run -p examples-native --example bridging_near_sol
+cargo run -p examples-native --example bridging_near_btc
 ```
 
-| Folder         | What it shows                                     |
-| -------------- | ------------------------------------------------- |
-| `orders/`      | quote, swap, limit, signing, status, cancellation |
-| `composable/`  | TWAP and stop-loss conditional orders             |
-| `config/`      | picking a chain and reading its constants         |
-| `onchain/`     | reading balances and allowances via `eth_call`    |
-| `subgraph/`    | historical data queries                           |
-| `permit/`      | EIP-2612 approve-by-signature                     |
-| `cow_shed/`    | pre- and post-trade hooks                         |
-| `flash_loans/` | borrowing inside a settlement                     |
-| `bridging/`    | cross-chain intents                               |
-| `weiroll/`     | batched call scripting                            |
-| `erc20/`       | calldata encoding helpers                         |
-| `app_data/`    | building and hashing order metadata               |
-| `ethflow/`     | trading native ETH                                |
+| Folder         | What it shows                                                                 |
+| -------------- | ----------------------------------------------------------------------------- |
+| `orders/`      | quote, swap, limit, signing, status, cancellation                             |
+| `composable/`  | TWAP and stop-loss conditional orders                                         |
+| `config/`      | picking a chain and reading its constants                                     |
+| `onchain/`     | reading balances and allowances via `eth_call`                                |
+| `subgraph/`    | historical data queries                                                       |
+| `permit/`      | EIP-2612 approve-by-signature                                                 |
+| `cow_shed/`    | pre- and post-trade hooks                                                     |
+| `flash_loans/` | borrowing inside a settlement                                                 |
+| `bridging/`    | cross-chain intents: EVM↔EVM (Across / Bungee) + EVM↔BTC / SOL (NEAR Intents) |
+| `weiroll/`     | batched call scripting                                                        |
+| `erc20/`       | calldata encoding helpers                                                     |
+| `app_data/`    | building and hashing order metadata                                           |
+| `ethflow/`     | trading native ETH                                                            |
 
 A separate WebAssembly example lives in [`examples/wasm`](./examples/wasm).
 
@@ -244,7 +253,7 @@ A separate WebAssembly example lives in [`examples/wasm`](./examples/wasm).
 Enable WASM builds with:
 
 ```toml
-cow-rs = { version = "0.1", default-features = false, features = ["wasm"] }
+cow-rs = { version = "0.3", default-features = false, features = ["wasm"] }
 ```
 
 ## WebAssembly
