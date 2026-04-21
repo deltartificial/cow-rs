@@ -1789,4 +1789,46 @@ mod provider_tests {
         assert_eq!(hook.post_hook.gas_limit, "500000");
         assert!(hook.recipient.starts_with("0x"));
     }
+
+    fn sample_fees() -> AcrossSuggestedFeesResponse {
+        serde_json::from_value(serde_json::json!({
+            "total_relay_fee":     { "pct": "100000000000000000", "total": "500" },
+            "relayer_capital_fee": { "pct": "50000000000000000",  "total": "250" },
+            "relayer_gas_fee":     { "pct": "30000000000000000",  "total": "150" },
+            "lp_fee":              { "pct": "20000000000000000",  "total": "100" },
+            "timestamp":             "1700000000",
+            "is_amount_too_low":     false,
+            "quote_block":           "18000000",
+            "spoke_pool_address":    "0x5c7BCd6E7De5423a257D81B442095A1a6ced35C5",
+            "exclusive_relayer":     "0x0000000000000000000000000000000000000000",
+            "exclusivity_deadline":  "0",
+            "estimated_fill_time_sec": "120",
+            "fill_deadline":         "1700000300",
+            "limits": {
+                "min_deposit":                "1",
+                "max_deposit":                "999999999999",
+                "max_deposit_instant":        "999999999999",
+                "max_deposit_short_delay":    "999999999999",
+                "recommended_deposit_instant":"999999999"
+            }
+        }))
+        .expect("sample fees deserialises")
+    }
+
+    #[test]
+    fn create_across_deposit_call_rejects_raw_buy_token() {
+        // Across requires an EVM buy_token; a `Raw` variant must be
+        // rejected before any calldata encoding happens.
+        let mut req = sample_request();
+        req.buy_token = crate::types::TokenAddress::Raw("bc1qtarget".into());
+        let params = AcrossDepositCallParams {
+            request: req,
+            suggested_fees: sample_fees(),
+            cow_shed_account: Address::ZERO,
+        };
+        let err = create_across_deposit_call(&params).unwrap_err();
+        let msg = err.to_string();
+        assert!(matches!(err, BridgeError::TxBuildError(_)));
+        assert!(msg.contains("EVM buy_token"), "unexpected err: {err}");
+    }
 }

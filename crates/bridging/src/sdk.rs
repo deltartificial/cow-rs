@@ -2322,6 +2322,45 @@ mod orchestration_tests {
         assert!(matches!(err, BridgeError::TxBuildError(_)));
     }
 
+    #[tokio::test]
+    async fn get_quote_without_bridge_rejects_raw_buy_token() {
+        // Same-chain swaps are EVM-only by construction — a Raw
+        // buy_token must be rejected at the type-extraction boundary.
+        let quoter =
+            FixedQuoter { outcome: sample_outcome(), captured: std::sync::OnceLock::new() };
+        let mut req = sample_request(OrderKind::Sell);
+        req.buy_token = crate::types::TokenAddress::Raw("bc1qanything".into());
+        let err = get_quote_without_bridge(&req, &quoter).await.unwrap_err();
+        let msg = err.to_string();
+        assert!(matches!(err, BridgeError::TxBuildError(_)));
+        assert!(msg.contains("EVM buy_token"), "unexpected err: {err}");
+    }
+
+    #[tokio::test]
+    async fn get_swap_quote_rejects_raw_buy_token() {
+        let quoter =
+            FixedQuoter { outcome: sample_outcome(), captured: std::sync::OnceLock::new() };
+        let mut req = sample_request(OrderKind::Sell);
+        req.buy_token = crate::types::TokenAddress::Raw("SPL_MINT".into());
+        let err = get_swap_quote(&req, &quoter).await.unwrap_err();
+        assert!(matches!(err, BridgeError::TxBuildError(_)));
+    }
+
+    #[test]
+    fn get_cache_key_serialises_evm_and_raw_buy_tokens_differently() {
+        let mut evm_req = sample_request(OrderKind::Sell);
+        evm_req.buy_token = Address::repeat_byte(0x22).into();
+        let evm_key = get_cache_key(&evm_req);
+        assert!(evm_key.contains("0x22"));
+        assert!(!evm_key.contains("raw:"));
+
+        let mut raw_req = sample_request(OrderKind::Sell);
+        raw_req.buy_token = crate::types::TokenAddress::Raw("sol_mint_pubkey".into());
+        let raw_key = get_cache_key(&raw_req);
+        assert!(raw_key.contains("raw:sol_mint_pubkey"));
+        assert_ne!(evm_key, raw_key);
+    }
+
     // ── Hook branch error paths ──────────────────────────────────────────
 
     #[tokio::test]

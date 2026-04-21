@@ -1037,6 +1037,32 @@ mod tests {
     }
 
     #[test]
+    fn token_address_extractors_and_discriminants() {
+        let a = Address::repeat_byte(0x77);
+        let evm: TokenAddress = a.into();
+        let raw = TokenAddress::Raw("abc".into());
+
+        assert_eq!(evm.to_evm(), Some(a));
+        assert_eq!(evm.as_evm(), Some(&a));
+        assert_eq!(evm.as_raw(), None);
+        assert!(evm.is_evm());
+        assert!(!evm.is_raw());
+
+        assert_eq!(raw.to_evm(), None);
+        assert_eq!(raw.as_evm(), None);
+        assert_eq!(raw.as_raw(), Some("abc"));
+        assert!(!raw.is_evm());
+        assert!(raw.is_raw());
+    }
+
+    #[test]
+    fn token_address_from_ref_address() {
+        let a = Address::repeat_byte(0x55);
+        let token: TokenAddress = (&a).into();
+        assert_eq!(token.to_evm(), Some(a));
+    }
+
+    #[test]
     fn buy_tokens_params_optional_sell_token() {
         let with_filter = BuyTokensParams {
             sell_chain_id: 1,

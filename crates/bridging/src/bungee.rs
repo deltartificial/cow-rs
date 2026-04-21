@@ -1479,4 +1479,17 @@ mod bungee_provider_trait_tests {
         let err = p.get_status("0xdeadbeef", 1).await.unwrap_err();
         assert!(matches!(err, CowError::Api { status: 503, .. }));
     }
+
+    #[tokio::test]
+    async fn get_quote_rejects_raw_buy_token() {
+        // Bungee only supports EVM destinations — a `Raw` buy_token must
+        // be rejected at the URL-construction boundary before any HTTP
+        // call happens.
+        let mut req = sample_request();
+        req.buy_token = crate::types::TokenAddress::Raw("native-btc".into());
+        let p = BungeeProvider::new("test");
+        let err = p.get_quote(&req).await.unwrap_err();
+        let msg = err.to_string().to_lowercase();
+        assert!(msg.contains("evm") && msg.contains("buy_token"), "unexpected err: {err}");
+    }
 }
