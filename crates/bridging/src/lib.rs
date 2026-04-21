@@ -59,10 +59,10 @@ pub use sdk::{
     DEFAULT_PROVIDER_TIMEOUT_MS, DEFAULT_TOTAL_TIMEOUT_MS, GetCrossChainOrderParams,
     GetQuoteWithBridgeParams, HOOK_DAPP_BRIDGE_PROVIDER_PREFIX, NEAR_INTENTS_HOOK_DAPP_ID,
     QuoteAndPost, QuoteStrategy, assert_is_bridge_quote_and_post, assert_is_quote_and_post,
-    create_post_swap_order_from_quote, create_strategies, get_bridge_signed_hook, get_cache_key,
-    get_cross_chain_order, get_intermediate_swap_result, get_quote_with_bridge,
-    get_quote_with_hook_bridge, get_quote_with_receiver_account_bridge, get_quote_without_bridge,
-    get_swap_quote, is_bridge_quote_and_post, is_quote_and_post, safe_call_best_quote_callback,
+    create_strategies, get_bridge_signed_hook, get_cache_key, get_cross_chain_order,
+    get_intermediate_swap_result, get_quote_with_bridge, get_quote_with_hook_bridge,
+    get_quote_with_receiver_account_bridge, get_quote_without_bridge, get_swap_quote,
+    is_bridge_quote_and_post, is_quote_and_post, safe_call_best_quote_callback,
     safe_call_progressive_callback,
 };
 

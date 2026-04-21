@@ -634,30 +634,6 @@ pub async fn get_swap_quote(
     })
 }
 
-/// Build an order from a completed bridge quote.
-///
-/// In the `TypeScript` SDK, this is `createPostSwapOrderFromQuote` which returns
-/// a closure that re-fetches the bridge quote with the real signer, then posts
-/// via `postSwapOrderFromQuoteTrading`.
-///
-/// # Errors
-///
-/// Always returns [`BridgeError::TxBuildError`] until the trading/signing SDKs
-/// are ported.
-pub async fn create_post_swap_order_from_quote(
-    _quote: &BridgeQuoteAndPost,
-) -> Result<(), BridgeError> {
-    // TODO: Requires TradingSdk + OrderBookApi + signer.
-    // Flow:
-    //   1. Optionally re-fetch bridge quote with real signer
-    //   2. Update trade parameters (receiver, appData)
-    //   3. Call postSwapOrderFromQuoteTrading
-    Err(BridgeError::TxBuildError(
-        "create_post_swap_order_from_quote requires TradingSdk + OrderBookApi (not yet ported)"
-            .to_owned(),
-    ))
-}
-
 /// Quote the intermediate swap step of a cross-chain bridge flow.
 ///
 /// Given a bridge request and a [`BridgeProvider`], this:
