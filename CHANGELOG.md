@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.0] - 2026-04-22
+
+### Documentation
+
+- Bump README install snippets to 0.4 (#78) ([`06b1ca2`](https://github.com/deltartificial/cow-rs/commit/06b1ca296d7f635cc9c003cc748bad031e4594b2))
+
+### Refactor
+
+- _(bridging)_ [**breaking**] Add TokenAddress enum for non-EVM destinations (#79) ([`effd1cd`](https://github.com/deltartificial/cow-rs/commit/effd1cdac4d27e0ef2f6cad11fd10d977fcba6de))
+
 ## [0.4.0] - 2026-04-21
 
 ### Features
@@ -9,6 +19,10 @@ All notable changes to this project will be documented in this file.
 - _(bridging)_ Add SigningStepManager sync helpers (#72) ([`fc659d7`](https://github.com/deltartificial/cow-rs/commit/fc659d7e2487077cd6d864c58fdb4cfaecdc6830))
 - _(bridging)_ TTL eviction on NearDepositCache (#74) ([`823c8db`](https://github.com/deltartificial/cow-rs/commit/823c8db7d613380d3591c3a401d0309148c0bd48))
 - _(examples)_ Add WASM bridging console (#76) ([`88fe63d`](https://github.com/deltartificial/cow-rs/commit/88fe63dbb91ffcc141077d73b5cf03cada47dd3b))
+
+### Miscellaneous
+
+- _(release)_ Bump workspace to v0.4.0 (#77) ([`0e7cf59`](https://github.com/deltartificial/cow-rs/commit/0e7cf59d9af5d63d68a3cc8e8e6b3c945e3ad52e))
 
 ### Refactor
 
