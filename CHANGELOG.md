@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.0] - 2026-04-21
+
+### Features
+
+- _(bridging)_ Add SigningStepManager sync helpers (#72) ([`fc659d7`](https://github.com/deltartificial/cow-rs/commit/fc659d7e2487077cd6d864c58fdb4cfaecdc6830))
+- _(bridging)_ TTL eviction on NearDepositCache (#74) ([`823c8db`](https://github.com/deltartificial/cow-rs/commit/823c8db7d613380d3591c3a401d0309148c0bd48))
+- _(examples)_ Add WASM bridging console (#76) ([`88fe63d`](https://github.com/deltartificial/cow-rs/commit/88fe63dbb91ffcc141077d73b5cf03cada47dd3b))
+
+### Refactor
+
+- _(bridging)_ [**breaking**] Drop deprecated create_post_swap_order_from_quote stub (#71) ([`e6e5240`](https://github.com/deltartificial/cow-rs/commit/e6e5240c92eea00265312e7d0d406236c323bf10))
+
+### Testing
+
+- _(chains)_ Assert Plasma chain_id + well-known EVM ids match TS SDK (#73) ([`fce5049`](https://github.com/deltartificial/cow-rs/commit/fce5049d2c963284a2b40382b1fd2eb186a5009f))
+- _(bridging)_ NEAR attestation conformance vectors (#75) ([`cbc82a3`](https://github.com/deltartificial/cow-rs/commit/cbc82a3725962d93f634d88509ac2f29037f964e))
+
 ## [0.3.0] - 2026-04-21
 
 ### Features
@@ -18,6 +35,10 @@ All notable changes to this project will be documented in this file.
 - _(bridging)_ Add NearIntentsBridgeProvider with attestation verification (#66) ([`b0315b4`](https://github.com/deltartificial/cow-rs/commit/b0315b4bd033df5f610bcb014cd0935c8ed679ed))
 - _(bridging)_ Add deposit-address cache + enable non-EVM destinations via ZERO sentinel (#68) ([`6c54ca1`](https://github.com/deltartificial/cow-rs/commit/6c54ca13fb1a7dee7bf33e6ce3d2704cefc5b188))
 - _(examples)_ Add 3 bridging examples (cross-chain post + NEAR SOL/BTC) (#69) ([`4bba62d`](https://github.com/deltartificial/cow-rs/commit/4bba62d85aa541d4271428865fd300d01900bdca))
+
+### Miscellaneous
+
+- _(release)_ Bump workspace to v0.3.0 (#70) ([`ffdea90`](https://github.com/deltartificial/cow-rs/commit/ffdea90ed1dc159df5c98c75de56489d367f8169))
 
 ### Testing
 
@@ -44,6 +65,7 @@ All notable changes to this project will be documented in this file.
 ### Miscellaneous
 
 - _(release)_ Publish workspace 0.1.2 to crates.io (#53) ([`4e79ff4`](https://github.com/deltartificial/cow-rs/commit/4e79ff405efe38775cf46c7494aad7b8a4d49b8c))
+- _(release)_ Bump workspace to v0.2.0 (#55) ([`3003670`](https://github.com/deltartificial/cow-rs/commit/3003670a58f695fc84cd4ef8d34de251aaa2559a))
 
 ### Refactor
 
