@@ -143,7 +143,7 @@ fn request() -> QuoteBridgeRequest {
         buy_chain_id: 1_000_000_000, // Bitcoin
         sell_token: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48".parse().unwrap(),
         sell_token_decimals: 6,
-        buy_token: Address::ZERO,
+        buy_token: cow_bridging::TokenAddress::Raw(String::new()),
         buy_token_decimals: 8,
         sell_amount: U256::from(1_000_000u64),
         account: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266".parse().unwrap(),

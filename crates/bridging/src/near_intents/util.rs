@@ -40,14 +40,13 @@ pub const ATTESTATION_SIG_LEN: usize = 65;
 ///
 /// ## Non-EVM destinations (BTC / SOL)
 ///
-/// `IntermediateTokenInfo.address` is a 20-byte EVM
-/// [`Address`]; BTC / SOL addresses don't fit. For non-EVM entries we
-/// populate `address = Address::ZERO` as a **sentinel**. The NEAR
-/// provider convention is: when the caller's `QuoteBridgeRequest`
-/// targets a non-EVM chain, `buy_token` is also `Address::ZERO`, so
-/// the two line up in `get_intermediate_tokens`. The real destination
-/// address for the bridge is carried through the quote's
-/// `depositAddress` rather than the token list.
+/// `IntermediateTokenInfo.address` is a [`crate::types::TokenAddress`]
+/// — an enum that carries either an EVM [`Address`] or a raw string.
+/// For non-EVM entries we emit `TokenAddress::Raw(token.contract_address)`
+/// (or `Raw("")` when `contract_address` is missing, e.g. native BTC).
+/// Callers should pair this with a matching `TokenAddress::Raw(..)` on
+/// the `QuoteBridgeRequest.buy_token`. The real destination address
+/// for the bridge is still carried through the quote's `depositAddress`.
 ///
 /// ## cow-sdk#850 fix
 ///
@@ -58,19 +57,19 @@ pub const ATTESTATION_SIG_LEN: usize = 65;
 pub fn adapt_token(token: &DefuseToken) -> Option<crate::types::IntermediateTokenInfo> {
     let chain_id = blockchain_key_to_chain_id(&token.blockchain)?;
 
-    let address = if is_non_evm_chain_id(chain_id) {
-        // BTC / SOL — we can't express the real address in 20 bytes,
-        // so we use `Address::ZERO` as a sentinel. Callers should pair
-        // it with `QuoteBridgeRequest.buy_token = Address::ZERO` for
-        // non-EVM destinations.
-        Address::ZERO
+    let address: crate::types::TokenAddress = if is_non_evm_chain_id(chain_id) {
+        // BTC / SOL — preserve whatever NEAR returned as the raw
+        // identifier (empty string for native BTC, SPL mint for
+        // Solana). Callers get the byte-exact string the API emitted.
+        crate::types::TokenAddress::Raw(token.contract_address.clone().unwrap_or_default())
     } else {
-        match token.contract_address.as_deref() {
+        let evm: Address = match token.contract_address.as_deref() {
             Some(raw) => raw.parse::<Address>().ok()?,
             // #850 fallback — empty `contractAddress` on an EVM chain
             // means the Defuse asset is the chain's native currency.
             None => cow_chains::EVM_NATIVE_CURRENCY_ADDRESS,
-        }
+        };
+        evm.into()
     };
 
     Some(crate::types::IntermediateTokenInfo {
@@ -453,22 +452,26 @@ mod tests {
     }
 
     #[test]
-    fn adapt_token_non_evm_uses_zero_address_sentinel() {
+    fn adapt_token_non_evm_emits_raw_variant() {
+        use crate::types::TokenAddress;
         let mut t = sample_token();
         t.blockchain = "btc".into();
         t.contract_address = None;
         t.symbol = "BTC".into();
-        let out = adapt_token(&t).expect("non-EVM token adapts with ZERO sentinel");
+        let out = adapt_token(&t).expect("non-EVM token adapts to Raw variant");
         assert_eq!(out.chain_id, 1_000_000_000);
-        assert_eq!(out.address, Address::ZERO);
+        assert!(matches!(out.address, TokenAddress::Raw(ref s) if s.is_empty()));
 
         let mut t = sample_token();
         t.blockchain = "sol".into();
-        t.contract_address = None;
-        t.symbol = "SOL".into();
-        let out = adapt_token(&t).expect("SOL token adapts with ZERO sentinel");
+        t.contract_address = Some("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v".into());
+        t.symbol = "USDC-SOL".into();
+        let out = adapt_token(&t).expect("SOL SPL token adapts to Raw variant");
         assert_eq!(out.chain_id, 1_000_000_001);
-        assert_eq!(out.address, Address::ZERO);
+        assert!(matches!(
+            out.address,
+            TokenAddress::Raw(ref s) if s == "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+        ));
     }
 
     #[test]

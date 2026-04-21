@@ -160,11 +160,17 @@ pub async fn post_cross_chain_order(
         SwapAdvancedSettings::default().with_app_data(app_data_value)
     };
 
+    // The intermediate hop runs on the source (EVM) chain — force-extract
+    // the EVM variant (non-EVM here would mean the bridge provider is
+    // routing the user in a way this post-flow doesn't support).
+    let intermediate_evm = intermediate.address.to_evm().ok_or_else(|| {
+        CowError::Config("intermediate token must be an EVM address for post flow".into())
+    })?;
     let trade_params = TradeParameters {
         kind: OrderKind::Sell,
         sell_token: ctx.request.sell_token,
         sell_token_decimals: ctx.request.sell_token_decimals,
-        buy_token: intermediate.address,
+        buy_token: intermediate_evm,
         buy_token_decimals: intermediate.decimals,
         amount: ctx.request.sell_amount,
         slippage_bps: Some(ctx.request.slippage_bps),
@@ -219,8 +225,10 @@ async fn resolve_intermediate_token(
     if candidates.is_empty() {
         return Err(CowError::Config("no intermediate tokens available at post time".into()));
     }
+    // Intermediate hops happen on the source (EVM) chain — skip any
+    // non-EVM candidates defensively.
     let candidate_addrs: Vec<alloy_primitives::Address> =
-        candidates.iter().map(|t| t.address).collect();
+        candidates.iter().filter_map(|t| t.address.to_evm()).collect();
     let chosen = determine_intermediate_token(
         request.sell_chain_id,
         request.sell_token,

@@ -527,7 +527,7 @@ mod tests {
             buy_chain_id: 10,
             sell_token: Address::ZERO,
             sell_token_decimals: 18,
-            buy_token: Address::ZERO,
+            buy_token: Address::ZERO.into(),
             buy_token_decimals: 18,
             sell_amount: U256::from(1u64),
             account: Address::ZERO,

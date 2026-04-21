@@ -70,7 +70,7 @@ fn hook_info(dapp_id: &str) -> BridgeProviderInfo {
 fn usdc_intermediate() -> IntermediateTokenInfo {
     IntermediateTokenInfo {
         chain_id: 1,
-        address: USDC_INTERMEDIATE.parse().unwrap(),
+        address: USDC_INTERMEDIATE.parse::<alloy_primitives::Address>().unwrap().into(),
         decimals: 6,
         symbol: "USDC".into(),
         name: "USD Coin".into(),
@@ -84,7 +84,7 @@ fn sample_request() -> QuoteBridgeRequest {
         buy_chain_id: 42_161,
         sell_token: SELL_TOKEN.parse().unwrap(),
         sell_token_decimals: 18,
-        buy_token: BUY_TOKEN.parse().unwrap(),
+        buy_token: BUY_TOKEN.parse::<alloy_primitives::Address>().unwrap().into(),
         buy_token_decimals: 6,
         sell_amount: U256::from(1_000_000u64),
         account: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266".parse().unwrap(),

@@ -569,12 +569,17 @@ pub async fn get_quote_without_bridge(
     request: &QuoteBridgeRequest,
     quoter: &dyn SwapQuoter,
 ) -> Result<QuoteAndPost, BridgeError> {
+    let buy_token_evm = request.buy_token.to_evm().ok_or_else(|| {
+        BridgeError::TxBuildError(
+            "same-chain swaps require an EVM buy_token; got TokenAddress::Raw".into(),
+        )
+    })?;
     let params = crate::swap_quoter::SwapQuoteParams {
         owner: request.account,
         chain_id: request.sell_chain_id,
         sell_token: request.sell_token,
         sell_token_decimals: request.sell_token_decimals,
-        buy_token: request.buy_token,
+        buy_token: buy_token_evm,
         buy_token_decimals: request.buy_token_decimals,
         amount: request.sell_amount,
         kind: request.kind,
@@ -609,12 +614,15 @@ pub async fn get_swap_quote(
     request: &QuoteBridgeRequest,
     quoter: &dyn SwapQuoter,
 ) -> Result<QuoteBridgeResponse, BridgeError> {
+    let buy_token_evm = request.buy_token.to_evm().ok_or_else(|| {
+        BridgeError::TxBuildError("intermediate swap quote requires an EVM buy_token".into())
+    })?;
     let params = crate::swap_quoter::SwapQuoteParams {
         owner: request.account,
         chain_id: request.sell_chain_id,
         sell_token: request.sell_token,
         sell_token_decimals: request.sell_token_decimals,
-        buy_token: request.buy_token,
+        buy_token: buy_token_evm,
         buy_token_decimals: request.buy_token_decimals,
         amount: request.sell_amount,
         kind: request.kind,
@@ -678,9 +686,10 @@ pub async fn get_intermediate_swap_result(
         return Err(BridgeError::NoIntermediateTokens);
     }
 
-    // 2. Pick the best candidate.
+    // 2. Pick the best candidate. Intermediate hops always live on the
+    // source chain (EVM), so filter out non-EVM candidates defensively.
     let candidate_addrs: Vec<alloy_primitives::Address> =
-        candidates.iter().map(|t| t.address).collect();
+        candidates.iter().filter_map(|t| t.address.to_evm()).collect();
     let intermediate = determine_intermediate_token(
         request.sell_chain_id,
         request.sell_token,
@@ -692,6 +701,9 @@ pub async fn get_intermediate_swap_result(
         candidates.iter().find(|t| t.address == intermediate).cloned().ok_or_else(|| {
             BridgeError::TxBuildError("intermediate token not in candidates".into())
         })?;
+    let intermediate_evm = intermediate_info.address.to_evm().ok_or_else(|| {
+        BridgeError::TxBuildError("intermediate token must be EVM on the source chain".into())
+    })?;
 
     // 3. Build the app-data JSON with caller metadata preserved (#852 fix).
     let app_data_json = build_intermediate_app_data_json(advanced_settings_metadata, provider);
@@ -702,7 +714,7 @@ pub async fn get_intermediate_swap_result(
         chain_id: request.sell_chain_id,
         sell_token: request.sell_token,
         sell_token_decimals: request.sell_token_decimals,
-        buy_token: intermediate_info.address,
+        buy_token: intermediate_evm,
         buy_token_decimals: intermediate_info.decimals,
         amount: request.sell_amount,
         kind: request.kind,
@@ -992,9 +1004,13 @@ pub async fn fetch_multi_quote(
 /// where token addresses are hex-encoded with a `0x` prefix.
 #[must_use]
 pub fn get_cache_key(request: &QuoteBridgeRequest) -> String {
+    let buy_token = match &request.buy_token {
+        crate::types::TokenAddress::Evm(addr) => format!("{addr:#x}"),
+        crate::types::TokenAddress::Raw(s) => format!("raw:{s}"),
+    };
     format!(
-        "{}-{}-{:#x}-{:#x}",
-        request.sell_chain_id, request.buy_chain_id, request.sell_token, request.buy_token,
+        "{}-{}-{:#x}-{}",
+        request.sell_chain_id, request.buy_chain_id, request.sell_token, buy_token,
     )
 }
 
@@ -1493,7 +1509,10 @@ mod intermediate_swap_tests {
     fn usdc_token() -> IntermediateTokenInfo {
         IntermediateTokenInfo {
             chain_id: 1,
-            address: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48".parse().unwrap(),
+            address: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+                .parse::<Address>()
+                .unwrap()
+                .into(),
             decimals: 6,
             symbol: "USDC".into(),
             name: "USD Coin".into(),
@@ -1507,7 +1526,7 @@ mod intermediate_swap_tests {
             buy_chain_id: 42_161,
             sell_token: Address::repeat_byte(0x11),
             sell_token_decimals: 18,
-            buy_token: Address::repeat_byte(0x22),
+            buy_token: Address::repeat_byte(0x22).into(),
             buy_token_decimals: 6,
             sell_amount: U256::from(1_000_000u64),
             account: Address::repeat_byte(0x33),
@@ -1670,7 +1689,7 @@ mod intermediate_swap_tests {
         let req = sample_request();
         let same = |chain| IntermediateTokenInfo {
             chain_id: chain,
-            address: req.sell_token,
+            address: req.sell_token.into(),
             decimals: 18,
             symbol: "SELL".into(),
             name: "Sell Token".into(),
@@ -1830,7 +1849,10 @@ mod orchestration_tests {
     fn usdc() -> IntermediateTokenInfo {
         IntermediateTokenInfo {
             chain_id: 1,
-            address: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48".parse().unwrap(),
+            address: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+                .parse::<Address>()
+                .unwrap()
+                .into(),
             decimals: 6,
             symbol: "USDC".into(),
             name: "USD Coin".into(),
@@ -1844,7 +1866,7 @@ mod orchestration_tests {
             buy_chain_id: 42_161,
             sell_token: Address::repeat_byte(0x11),
             sell_token_decimals: 18,
-            buy_token: Address::repeat_byte(0x22),
+            buy_token: Address::repeat_byte(0x22).into(),
             buy_token_decimals: 6,
             sell_amount: U256::from(1_000_000u64),
             account: Address::repeat_byte(0x33),
@@ -2298,6 +2320,45 @@ mod orchestration_tests {
         }
         let err = get_swap_quote(&sample_request(OrderKind::Sell), &Failing).await.unwrap_err();
         assert!(matches!(err, BridgeError::TxBuildError(_)));
+    }
+
+    #[tokio::test]
+    async fn get_quote_without_bridge_rejects_raw_buy_token() {
+        // Same-chain swaps are EVM-only by construction — a Raw
+        // buy_token must be rejected at the type-extraction boundary.
+        let quoter =
+            FixedQuoter { outcome: sample_outcome(), captured: std::sync::OnceLock::new() };
+        let mut req = sample_request(OrderKind::Sell);
+        req.buy_token = crate::types::TokenAddress::Raw("bc1qanything".into());
+        let err = get_quote_without_bridge(&req, &quoter).await.unwrap_err();
+        let msg = err.to_string();
+        assert!(matches!(err, BridgeError::TxBuildError(_)));
+        assert!(msg.contains("EVM buy_token"), "unexpected err: {err}");
+    }
+
+    #[tokio::test]
+    async fn get_swap_quote_rejects_raw_buy_token() {
+        let quoter =
+            FixedQuoter { outcome: sample_outcome(), captured: std::sync::OnceLock::new() };
+        let mut req = sample_request(OrderKind::Sell);
+        req.buy_token = crate::types::TokenAddress::Raw("SPL_MINT".into());
+        let err = get_swap_quote(&req, &quoter).await.unwrap_err();
+        assert!(matches!(err, BridgeError::TxBuildError(_)));
+    }
+
+    #[test]
+    fn get_cache_key_serialises_evm_and_raw_buy_tokens_differently() {
+        let mut evm_req = sample_request(OrderKind::Sell);
+        evm_req.buy_token = Address::repeat_byte(0x22).into();
+        let evm_key = get_cache_key(&evm_req);
+        assert!(evm_key.contains("0x22"));
+        assert!(!evm_key.contains("raw:"));
+
+        let mut raw_req = sample_request(OrderKind::Sell);
+        raw_req.buy_token = crate::types::TokenAddress::Raw("sol_mint_pubkey".into());
+        let raw_key = get_cache_key(&raw_req);
+        assert!(raw_key.contains("raw:sol_mint_pubkey"));
+        assert_ne!(evm_key, raw_key);
     }
 
     // ── Hook branch error paths ──────────────────────────────────────────
