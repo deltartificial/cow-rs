@@ -2456,6 +2456,8 @@ mod orchestration_tests {
         }
 
         let provider = FailingGasProvider { info: hook_info(), tokens: vec![usdc()] };
+        exercise_bridge_surface(&provider).await;
+        exercise_hook_bridge_surface(&provider).await;
         let quoter =
             FixedQuoter { outcome: sample_outcome(), captured: std::sync::OnceLock::new() };
         let err = get_quote_with_bridge(&hook_params_with_metadata(None), &provider, &quoter)
@@ -2559,6 +2561,8 @@ mod orchestration_tests {
         }
 
         let provider = FailingUnsignedCall { info: hook_info(), tokens: vec![usdc()] };
+        exercise_bridge_surface(&provider).await;
+        exercise_hook_bridge_surface(&provider).await;
         let quoter =
             FixedQuoter { outcome: sample_outcome(), captured: std::sync::OnceLock::new() };
         let err = get_quote_with_bridge(&hook_params_with_metadata(None), &provider, &quoter)
@@ -2650,6 +2654,7 @@ mod orchestration_tests {
         }
 
         let provider = FailingReceiverOverride { info: receiver_info(), tokens: vec![usdc()] };
+        exercise_bridge_surface(&provider).await;
         let quoter =
             FixedQuoter { outcome: sample_outcome(), captured: std::sync::OnceLock::new() };
         let err = get_quote_with_bridge(&hook_params_with_metadata(None), &provider, &quoter)
@@ -2997,6 +3002,8 @@ mod orchestration_tests {
         }
 
         let provider = QuoteFailing { info: hook_info() };
+        exercise_bridge_surface(&provider).await;
+        exercise_hook_bridge_surface(&provider).await;
         let signer = make_signer();
         let err = get_bridge_signed_hook(
             &provider,
@@ -3072,5 +3079,380 @@ mod orchestration_tests {
 
         get_quote_with_hook_bridge(&provider, &params, &quoter).await.unwrap();
         assert_eq!(*provider.captured_deadline.get().unwrap(), u64::from(u32::MAX));
+    }
+
+    // ── Trait-surface coverage for module-level mocks ────────────────────
+    //
+    // The dispatcher tests only call the methods that the happy or
+    // failure path needs; the remaining trait methods stay uncovered
+    // otherwise. Each helper below exercises the full surface of one
+    // mock so every impl row is hit.
+
+    async fn exercise_bridge_surface(provider: &dyn BridgeProvider) {
+        assert_eq!(provider.name(), provider.info().name);
+        _ = provider.supports_route(1, 2);
+        _ = provider.get_networks().await;
+        _ = provider
+            .get_buy_tokens(BuyTokensParams {
+                sell_chain_id: 1,
+                buy_chain_id: 10,
+                sell_token_address: None,
+            })
+            .await;
+        _ = provider.get_intermediate_tokens(&sample_request(OrderKind::Sell)).await;
+        _ = provider.get_quote(&sample_request(OrderKind::Sell)).await;
+        let order = cow_orderbook::api::mock_get_order(&format!("0x{}", "aa".repeat(56)));
+        _ = provider.get_bridging_params(1, &order, B256::ZERO, None).await;
+        _ = provider.get_explorer_url("bridging-id");
+        _ = provider.get_status("bridging-id", 1).await;
+    }
+
+    async fn exercise_hook_bridge_surface(provider: &dyn HookBridgeProvider) {
+        let req = sample_request(OrderKind::Sell);
+        let quote = sample_bridge_response("surface");
+        _ = provider.get_unsigned_bridge_call(&req, &quote).await;
+        _ = provider.get_gas_limit_estimation_for_hook(true, Some(0), Some(0)).await;
+        let signer = make_signer();
+        let call = build_unsigned_call();
+        _ = provider
+            .get_signed_hook(cow_chains::SupportedChainId::Mainnet, &call, "nonce", 0, 0, &signer)
+            .await;
+    }
+
+    #[tokio::test]
+    async fn mock_hook_provider_surface_is_callable() {
+        let provider = MockHookProvider {
+            info: hook_info(),
+            tokens: vec![usdc()],
+            bridge_response: sample_bridge_response("mock-hook"),
+            unsigned_call: build_unsigned_call(),
+            gas_limit: 500_000,
+        };
+        exercise_bridge_surface(&provider).await;
+        assert!(provider.as_hook_bridge_provider().is_some());
+        assert!(provider.as_receiver_account_bridge_provider().is_none());
+        // Hit the placeholder `get_signed_hook` branch so its error path is covered.
+        let signer = make_signer();
+        let call = build_unsigned_call();
+        let err = HookBridgeProvider::get_signed_hook(
+            &provider,
+            cow_chains::SupportedChainId::Mainnet,
+            &call,
+            "nonce",
+            0,
+            0,
+            &signer,
+        )
+        .await
+        .unwrap_err();
+        assert!(matches!(err, cow_errors::CowError::Signing(_)));
+    }
+
+    #[tokio::test]
+    async fn mock_receiver_provider_surface_is_callable() {
+        let provider = MockReceiverProvider {
+            info: receiver_info(),
+            tokens: vec![usdc()],
+            bridge_response: sample_bridge_response("mock-receiver"),
+            deposit_address: "0xDEA00DEA00DEA00DEA00DEA00DEA00DEA00DEA000".into(),
+        };
+        exercise_bridge_surface(&provider).await;
+        assert!(provider.as_receiver_account_bridge_provider().is_some());
+        assert!(provider.as_hook_bridge_provider().is_none());
+    }
+
+    #[tokio::test]
+    async fn mock_unknown_provider_surface_is_callable() {
+        let provider = MockUnknownProvider { info: hook_info() };
+        exercise_bridge_surface(&provider).await;
+        assert!(provider.as_hook_bridge_provider().is_none());
+        assert!(provider.as_receiver_account_bridge_provider().is_none());
+    }
+
+    #[tokio::test]
+    async fn signing_capture_provider_surface_is_callable() {
+        let provider = SigningCaptureProvider {
+            info: hook_info(),
+            tokens: vec![usdc()],
+            bridge_response: sample_bridge_response("sig-surface"),
+            unsigned_call: build_unsigned_call(),
+            captured_nonce: std::sync::OnceLock::new(),
+            captured_deadline: std::sync::OnceLock::new(),
+            captured_gas: std::sync::OnceLock::new(),
+        };
+        exercise_bridge_surface(&provider).await;
+        assert!(provider.as_hook_bridge_provider().is_some());
+    }
+
+    // ── Miscellaneous uncovered paths ────────────────────────────────────
+
+    #[test]
+    fn get_quote_with_bridge_params_debug_is_concise() {
+        let params = hook_params_with_metadata(Some(serde_json::json!({"k": "v"})));
+        let dbg = format!("{params:?}");
+        assert!(dbg.starts_with("GetQuoteWithBridgeParams"));
+        assert!(dbg.contains("slippage_bps"));
+        // The signer field must render as a boolean, not dump the key.
+        let signer = std::sync::Arc::new(make_signer());
+        let mut with_signer = hook_params_with_metadata(None);
+        with_signer.quote_signer = Some(signer);
+        let dbg_signed = format!("{with_signer:?}");
+        assert!(dbg_signed.contains("quote_signer: true"));
+    }
+
+    #[cfg(feature = "native")]
+    #[tokio::test]
+    async fn create_bridge_request_timeout_reports_prefix_and_duration() {
+        let err = create_bridge_request_timeout(1, "TestProvider").await;
+        let msg = err.to_string();
+        assert!(msg.contains("TestProvider"));
+        assert!(msg.contains("1ms"));
+    }
+
+    #[cfg(feature = "native")]
+    #[tokio::test]
+    async fn fetch_multi_quote_runs_each_provider_and_sorts() {
+        let mut sdk = BridgingSdk::new();
+        sdk.add_provider(MockHookProvider {
+            info: hook_info(),
+            tokens: vec![usdc()],
+            bridge_response: QuoteBridgeResponse {
+                provider: "mock-hook".into(),
+                sell_amount: U256::from(1_000u64),
+                buy_amount: U256::from(900u64),
+                fee_amount: U256::from(10u64),
+                estimated_secs: 0,
+                bridge_hook: None,
+            },
+            unsigned_call: build_unsigned_call(),
+            gas_limit: 500_000,
+        });
+        sdk.add_provider(MockReceiverProvider {
+            info: receiver_info(),
+            tokens: vec![usdc()],
+            bridge_response: QuoteBridgeResponse {
+                provider: "mock-receiver".into(),
+                sell_amount: U256::from(1_000u64),
+                buy_amount: U256::from(950u64),
+                fee_amount: U256::ZERO,
+                estimated_secs: 0,
+                bridge_hook: None,
+            },
+            deposit_address: "0x0".into(),
+        });
+        let results = fetch_multi_quote(&sdk, &sample_request(OrderKind::Sell), Some(20_000)).await;
+        assert_eq!(results.len(), 2);
+        // Best first — receiver has higher buy amount.
+        assert_eq!(results[0].provider_dapp_id, "mock-receiver");
+        assert_eq!(results[1].provider_dapp_id, "mock-hook");
+    }
+
+    #[cfg(feature = "native")]
+    #[tokio::test]
+    async fn fetch_multi_quote_captures_provider_errors() {
+        struct AlwaysFails {
+            info: BridgeProviderInfo,
+        }
+        impl BridgeProvider for AlwaysFails {
+            fn info(&self) -> &BridgeProviderInfo {
+                &self.info
+            }
+            fn supports_route(&self, _: u64, _: u64) -> bool {
+                true
+            }
+            fn get_networks<'a>(&'a self) -> NetworksFuture<'a> {
+                Box::pin(async { Ok(Vec::new()) })
+            }
+            fn get_buy_tokens<'a>(&'a self, _: BuyTokensParams) -> BuyTokensFuture<'a> {
+                let info = self.info.clone();
+                Box::pin(
+                    async move { Ok(GetProviderBuyTokens { provider_info: info, tokens: vec![] }) },
+                )
+            }
+            fn get_intermediate_tokens<'a>(
+                &'a self,
+                _: &'a QuoteBridgeRequest,
+            ) -> IntermediateTokensFuture<'a> {
+                Box::pin(async { Ok(Vec::new()) })
+            }
+            fn get_quote<'a>(&'a self, _: &'a QuoteBridgeRequest) -> QuoteFuture<'a> {
+                Box::pin(async {
+                    Err(cow_errors::CowError::Api { status: 500, body: "nope".into() })
+                })
+            }
+            fn get_bridging_params<'a>(
+                &'a self,
+                _: u64,
+                _: &'a cow_orderbook::types::Order,
+                _: B256,
+                _: Option<Address>,
+            ) -> BridgingParamsFuture<'a> {
+                Box::pin(async { Ok(None) })
+            }
+            fn get_explorer_url(&self, _: &str) -> String {
+                String::new()
+            }
+            fn get_status<'a>(&'a self, _: &'a str, _: u64) -> BridgeStatusFuture<'a> {
+                Box::pin(async { Ok(BridgeStatusResult::new(BridgeStatus::Unknown)) })
+            }
+        }
+
+        let provider_for_surface = AlwaysFails { info: hook_info() };
+        exercise_bridge_surface(&provider_for_surface).await;
+        let mut sdk = BridgingSdk::new();
+        sdk.add_provider(AlwaysFails { info: hook_info() });
+        let results = fetch_multi_quote(&sdk, &sample_request(OrderKind::Sell), None).await;
+        assert_eq!(results.len(), 1);
+        assert!(results[0].quote.is_none());
+        assert!(results[0].error.as_deref().is_some_and(|e| e.contains("500")));
+    }
+
+    #[cfg(feature = "native")]
+    #[tokio::test]
+    async fn execute_provider_quotes_reports_timeout_for_all_providers() {
+        /// Provider whose quote never resolves — forces the global timeout branch.
+        struct Slow {
+            info: BridgeProviderInfo,
+        }
+        impl BridgeProvider for Slow {
+            fn info(&self) -> &BridgeProviderInfo {
+                &self.info
+            }
+            fn supports_route(&self, _: u64, _: u64) -> bool {
+                true
+            }
+            fn get_networks<'a>(&'a self) -> NetworksFuture<'a> {
+                Box::pin(async { Ok(Vec::new()) })
+            }
+            fn get_buy_tokens<'a>(&'a self, _: BuyTokensParams) -> BuyTokensFuture<'a> {
+                let info = self.info.clone();
+                Box::pin(
+                    async move { Ok(GetProviderBuyTokens { provider_info: info, tokens: vec![] }) },
+                )
+            }
+            fn get_intermediate_tokens<'a>(
+                &'a self,
+                _: &'a QuoteBridgeRequest,
+            ) -> IntermediateTokensFuture<'a> {
+                Box::pin(async { Ok(Vec::new()) })
+            }
+            fn get_quote<'a>(&'a self, _: &'a QuoteBridgeRequest) -> QuoteFuture<'a> {
+                Box::pin(async {
+                    // Sleep far longer than the test's budget.
+                    tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+                    Ok(QuoteBridgeResponse {
+                        provider: "slow".into(),
+                        sell_amount: U256::ZERO,
+                        buy_amount: U256::ZERO,
+                        fee_amount: U256::ZERO,
+                        estimated_secs: 0,
+                        bridge_hook: None,
+                    })
+                })
+            }
+            fn get_bridging_params<'a>(
+                &'a self,
+                _: u64,
+                _: &'a cow_orderbook::types::Order,
+                _: B256,
+                _: Option<Address>,
+            ) -> BridgingParamsFuture<'a> {
+                Box::pin(async { Ok(None) })
+            }
+            fn get_explorer_url(&self, _: &str) -> String {
+                String::new()
+            }
+            fn get_status<'a>(&'a self, _: &'a str, _: u64) -> BridgeStatusFuture<'a> {
+                Box::pin(async { Ok(BridgeStatusResult::new(BridgeStatus::Unknown)) })
+            }
+        }
+
+        // Exercise the non-`get_quote` surface (which intentionally sleeps).
+        let slow_for_surface = Slow { info: hook_info() };
+        _ = slow_for_surface.info();
+        _ = slow_for_surface.supports_route(1, 2);
+        _ = slow_for_surface.get_networks().await;
+        _ = slow_for_surface
+            .get_buy_tokens(BuyTokensParams {
+                sell_chain_id: 1,
+                buy_chain_id: 10,
+                sell_token_address: None,
+            })
+            .await;
+        _ = slow_for_surface.get_intermediate_tokens(&sample_request(OrderKind::Sell)).await;
+        let order = cow_orderbook::api::mock_get_order(&format!("0x{}", "aa".repeat(56)));
+        _ = slow_for_surface.get_bridging_params(1, &order, B256::ZERO, None).await;
+        _ = slow_for_surface.get_explorer_url("id");
+        _ = slow_for_surface.get_status("id", 1).await;
+
+        let mut sdk = BridgingSdk::new();
+        sdk.add_provider(Slow { info: hook_info() });
+        let results = execute_provider_quotes(&sdk, &sample_request(OrderKind::Sell), 5).await;
+        assert_eq!(results.len(), 1);
+        let err = results[0].error.as_deref().unwrap_or_default();
+        assert!(err.contains("Multi-quote timeout"), "unexpected err: {err}");
+    }
+
+    #[test]
+    fn safe_call_best_quote_callback_swallows_panic() {
+        let result = MultiQuoteResult { provider_dapp_id: "cb".into(), quote: None, error: None };
+        // None callback is a no-op (taken branch) — then panicking callback.
+        safe_call_best_quote_callback::<fn(&MultiQuoteResult)>(None, &result);
+        safe_call_best_quote_callback(Some(|_r: &MultiQuoteResult| panic!("boom")), &result);
+    }
+
+    #[test]
+    fn safe_call_progressive_callback_swallows_panic() {
+        let result = MultiQuoteResult { provider_dapp_id: "cb".into(), quote: None, error: None };
+        safe_call_progressive_callback::<fn(&MultiQuoteResult)>(None, &result);
+        safe_call_progressive_callback(Some(|_r: &MultiQuoteResult| panic!("boom")), &result);
+    }
+
+    #[tokio::test]
+    async fn get_quote_with_hook_bridge_errors_on_unsupported_chain_id() {
+        // Use a chain id that `SupportedChainId::try_from` can't resolve.
+        let provider = MockHookProvider {
+            info: hook_info(),
+            tokens: vec![usdc()],
+            bridge_response: sample_bridge_response("mock-hook"),
+            unsigned_call: build_unsigned_call(),
+            gas_limit: 500_000,
+        };
+        let quoter =
+            FixedQuoter { outcome: sample_outcome(), captured: std::sync::OnceLock::new() };
+        let mut req = sample_request(OrderKind::Sell);
+        req.sell_chain_id = 999_999;
+        let signer = std::sync::Arc::new(make_signer());
+        let params = GetQuoteWithBridgeParams {
+            swap_and_bridge_request: req,
+            slippage_bps: 50,
+            advanced_settings_metadata: None,
+            quote_signer: Some(signer),
+            hook_deadline: Some(1_234),
+        };
+        let err = get_quote_with_hook_bridge(&provider, &params, &quoter).await.unwrap_err();
+        if let BridgeError::TxBuildError(msg) = err {
+            assert!(msg.contains("unsupported sell_chain_id"), "unexpected err: {msg}",);
+        } else {
+            panic!("expected TxBuildError, got {err:?}");
+        }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::tests_outside_test_module, reason = "inner module pattern")]
+mod miscellaneous_coverage_tests {
+    use alloy_primitives::Address;
+
+    #[test]
+    fn test_helpers_expose_wallet_and_address() {
+        use super::test_helpers::{get_wallet, test_address};
+
+        let wallet = get_wallet();
+        // The wallet and the test address derive from the same key.
+        assert_eq!(alloy_signer::Signer::address(&wallet), test_address());
+        // Hardhat account #0.
+        let expected: Address = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266".parse().unwrap();
+        assert_eq!(test_address(), expected);
     }
 }
