@@ -1492,4 +1492,115 @@ mod bungee_provider_trait_tests {
         let msg = err.to_string().to_lowercase();
         assert!(msg.contains("evm") && msg.contains("buy_token"), "unexpected err: {err}");
     }
+
+    #[test]
+    fn as_hook_bridge_provider_returns_self() {
+        let p = test_provider();
+        assert!(p.as_hook_bridge_provider().is_some());
+    }
+
+    #[tokio::test]
+    async fn get_buy_tokens_covers_every_chain_table() {
+        let p = test_provider();
+        for chain in [
+            SupportedChainId::Polygon.as_u64(),
+            SupportedChainId::ArbitrumOne.as_u64(),
+            SupportedChainId::Base.as_u64(),
+            10, // Optimism
+            SupportedChainId::Avalanche.as_u64(),
+            SupportedChainId::GnosisChain.as_u64(),
+        ] {
+            let tokens = p
+                .get_buy_tokens(BuyTokensParams {
+                    sell_chain_id: 1,
+                    buy_chain_id: chain,
+                    sell_token_address: None,
+                })
+                .await
+                .unwrap();
+            assert!(!tokens.tokens.is_empty(), "chain {chain} must carry curated tokens");
+            assert!(tokens.tokens.iter().any(|t| t.symbol == "USDC"), "chain {chain} missing USDC");
+        }
+    }
+
+    #[tokio::test]
+    async fn get_quote_propagates_http_error() {
+        use wiremock::{
+            Mock, MockServer, ResponseTemplate,
+            matchers::{method, path},
+        };
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/quote"))
+            .respond_with(ResponseTemplate::new(502).set_body_string("bad gateway"))
+            .mount(&server)
+            .await;
+
+        let p = BungeeProvider::new("test").with_api_base(server.uri());
+        let err = p.get_quote(&hook_request()).await.unwrap_err();
+        assert!(matches!(err, CowError::Api { status: 502, .. }));
+    }
+
+    #[tokio::test]
+    async fn get_quote_errors_when_no_routes_in_response() {
+        use wiremock::{
+            Mock, MockServer, ResponseTemplate,
+            matchers::{method, path},
+        };
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/quote"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(
+                    serde_json::json!({ "success": true, "result": { "routes": [] } }),
+                ),
+            )
+            .mount(&server)
+            .await;
+
+        let p = BungeeProvider::new("test").with_api_base(server.uri());
+        let err = p.get_quote(&hook_request()).await.unwrap_err();
+        assert!(matches!(err, CowError::Parse { field: "bungee_routes", .. }));
+    }
+
+    #[tokio::test]
+    async fn get_status_errors_when_result_field_missing() {
+        use wiremock::{
+            Mock, MockServer, ResponseTemplate,
+            matchers::{method, path},
+        };
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/status"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(serde_json::json!({ "success": true })),
+            )
+            .mount(&server)
+            .await;
+
+        let p = BungeeProvider::new("test").with_events_api_base(server.uri());
+        let err = p.get_status("0xdeadbeef", 1).await.unwrap_err();
+        assert!(matches!(err, CowError::Parse { field: "bungee_status", .. }));
+    }
+
+    #[tokio::test]
+    async fn get_status_maps_unrecognised_state_to_unknown() {
+        use wiremock::{
+            Mock, MockServer, ResponseTemplate,
+            matchers::{method, path},
+        };
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/status"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(mock_status_body("SOME_WEIRD_STATE", "ANOTHER_WEIRD_STATE")),
+            )
+            .mount(&server)
+            .await;
+
+        let p = BungeeProvider::new("test").with_events_api_base(server.uri());
+        let status = p.get_status("0xdeadbeef", 1).await.unwrap();
+        assert_eq!(status.status, BridgeStatus::Unknown);
+    }
 }
