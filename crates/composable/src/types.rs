@@ -2270,3 +2270,84 @@ pub fn create_test_conditional_order(
         static_input: test.static_input,
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::tests_outside_test_module, reason = "inner module pattern")]
+mod post_definition_tests {
+    use super::*;
+
+    // ── BlockInfo ───────────────────────────────────────────────────────
+
+    #[test]
+    fn block_info_constructor_sets_fields() {
+        let b = BlockInfo::new(42, 1_700_000_000);
+        assert_eq!(b.block_number, 42);
+        assert_eq!(b.block_timestamp, 1_700_000_000);
+    }
+
+    #[test]
+    fn block_info_display_contains_number_and_timestamp() {
+        let b = BlockInfo::new(123, 456);
+        let rendered = format!("{b}");
+        assert!(rendered.contains("#123"));
+        assert!(rendered.contains("456"));
+    }
+
+    // ── IsValidResult ───────────────────────────────────────────────────
+
+    #[test]
+    fn is_valid_result_constructors_and_predicates() {
+        let ok = IsValidResult::valid();
+        assert!(ok.is_valid());
+        assert_eq!(ok.reason(), None);
+
+        let bad = IsValidResult::invalid("price too low");
+        assert!(!bad.is_valid());
+        assert_eq!(bad.reason(), Some("price too low"));
+    }
+
+    #[test]
+    fn is_valid_result_display_renders_both_variants() {
+        assert_eq!(format!("{}", IsValidResult::valid()), "valid");
+        let rendered = format!("{}", IsValidResult::invalid("bad strike"));
+        assert!(rendered.starts_with("invalid"));
+        assert!(rendered.contains("bad strike"));
+    }
+
+    // ── TestConditionalOrderParams / create_test_conditional_order ─────
+
+    #[test]
+    fn test_conditional_order_params_default_resolves_constants() {
+        let defaults = TestConditionalOrderParams::default();
+        // The default handler must parse to a non-zero address, and the salt
+        // must parse to a non-zero B256 — guarding against a regression
+        // where the fallback branches kick in silently.
+        assert_ne!(defaults.handler, Address::ZERO);
+        assert_ne!(defaults.salt, B256::ZERO);
+        assert!(defaults.static_input.is_empty());
+        assert!(defaults.is_single_order);
+    }
+
+    #[test]
+    fn create_test_conditional_order_uses_defaults_when_none() {
+        let params = create_test_conditional_order(None);
+        let defaults = TestConditionalOrderParams::default();
+        assert_eq!(params.handler, defaults.handler);
+        assert_eq!(params.salt, defaults.salt);
+        assert_eq!(params.static_input, defaults.static_input);
+    }
+
+    #[test]
+    fn create_test_conditional_order_accepts_overrides() {
+        let overrides = TestConditionalOrderParams {
+            handler: Address::repeat_byte(0xAB),
+            salt: B256::repeat_byte(0xCD),
+            static_input: vec![1, 2, 3, 4],
+            is_single_order: false,
+        };
+        let params = create_test_conditional_order(Some(overrides.clone()));
+        assert_eq!(params.handler, overrides.handler);
+        assert_eq!(params.salt, overrides.salt);
+        assert_eq!(params.static_input, overrides.static_input);
+    }
+}

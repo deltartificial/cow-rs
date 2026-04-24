@@ -682,6 +682,23 @@ mod tests {
     }
 
     #[test]
+    fn decode_proofs_from_json_rejects_non_hex_handler() {
+        // A structurally valid watchtower entry whose `handler` is not a
+        // valid hex address — hits the handler parse-error branch.
+        let json = serde_json::json!([{
+            "proof": [],
+            "params": {
+                "handler": "not-a-hex-address",
+                "salt": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                "staticInput": "0x"
+            }
+        }])
+        .to_string();
+        let err = Multiplexer::decode_proofs_from_json(&json).unwrap_err();
+        assert!(matches!(err, CowError::AppData(_)));
+    }
+
+    #[test]
     fn multiplexer_root_single_order() {
         let mut mux = Multiplexer::new(ProofLocation::Private);
         mux.add(make_params(1));

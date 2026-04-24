@@ -268,4 +268,75 @@ mod tests {
         // so we test the other Display variants through the Unknown variant
         assert_eq!(kind.as_str(), "unknown");
     }
+
+    // ── Display coverage for the typed variants ───────────────────────────
+
+    fn sample_twap() -> TwapOrder {
+        use alloy_primitives::U256;
+
+        use crate::types::TwapData;
+        let data = TwapData::sell(
+            Address::repeat_byte(0x11),
+            Address::repeat_byte(0x22),
+            U256::from(1_000u64),
+            4,
+            3_600,
+        )
+        .with_buy_amount(U256::from(800u64));
+        TwapOrder::new(data)
+    }
+
+    fn sample_stop_loss() -> StopLossOrder {
+        use alloy_primitives::U256;
+
+        use crate::stop_loss::StopLossData;
+        StopLossOrder::new(StopLossData {
+            sell_token: Address::repeat_byte(0x01),
+            buy_token: Address::repeat_byte(0x02),
+            sell_amount: U256::from(1_000u64),
+            buy_amount: U256::from(900u64),
+            app_data: B256::ZERO,
+            receiver: Address::ZERO,
+            is_sell_order: true,
+            is_partially_fillable: false,
+            valid_to: 9_999_999,
+            strike_price: U256::from(1_000_000_000_000_000_000u64),
+            sell_token_price_oracle: Address::repeat_byte(0x03),
+            buy_token_price_oracle: Address::repeat_byte(0x04),
+            token_amount_in_eth: false,
+        })
+    }
+
+    fn sample_gat() -> GatOrder {
+        use alloy_primitives::U256;
+
+        use crate::{gat::GatData, types::GpV2OrderStruct};
+        let order = GpV2OrderStruct {
+            sell_token: Address::repeat_byte(0x01),
+            buy_token: Address::repeat_byte(0x02),
+            receiver: Address::ZERO,
+            sell_amount: U256::from(1_000u64),
+            buy_amount: U256::from(900u64),
+            valid_to: 9_999_999,
+            app_data: B256::ZERO,
+            fee_amount: U256::ZERO,
+            kind: B256::ZERO,
+            partially_fillable: false,
+            sell_token_balance: B256::ZERO,
+            buy_token_balance: B256::ZERO,
+        };
+        GatOrder::new(GatData { order, start_time: 1_000_000, tx_deadline: 2_000_000 })
+    }
+
+    #[test]
+    fn conditional_order_kind_display_typed_variants() {
+        // Each arm of the Display match must be exercised — previous tests
+        // only hit the `Unknown` arm.
+        assert!(ConditionalOrderKind::Twap(sample_twap()).to_string().starts_with("twap("));
+        assert_eq!(ConditionalOrderKind::StopLoss(sample_stop_loss()).to_string(), "stop-loss");
+        assert_eq!(
+            ConditionalOrderKind::GoodAfterTime(sample_gat()).to_string(),
+            "good-after-time",
+        );
+    }
 }
