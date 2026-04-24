@@ -271,7 +271,7 @@ pub fn generate_order_id(chain_id: u64, order: &UnsignedOrder, owner: Address) -
 ///
 /// let domain = get_domain(1);
 /// assert_eq!(domain.chain_id, 1);
-/// assert_eq!(domain.name, "Gnosis Protocol v2");
+/// assert_eq!(domain.name, "Gnosis Protocol");
 /// ```
 #[must_use]
 pub const fn get_domain(chain_id: u64) -> super::types::OrderDomain {
@@ -478,7 +478,7 @@ mod tests {
     fn get_domain_returns_correct_chain() {
         let d = get_domain(42);
         assert_eq!(d.chain_id, 42);
-        assert_eq!(d.name, "Gnosis Protocol v2");
+        assert_eq!(d.name, "Gnosis Protocol");
         assert_eq!(d.version, "v2");
     }
 

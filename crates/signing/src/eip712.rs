@@ -59,14 +59,19 @@ fn domain_type_hash() -> B256 {
     keccak256(b"EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)")
 }
 
-/// EIP-712 type hash for `GPv2Order.Data`.
+/// EIP-712 type hash for the `Order` struct used by `CoW` Protocol.
+///
+/// The canonical `TypeScript` SDK and the `GPv2Settlement` contract both
+/// encode the primary type under the name `Order` (not `GPv2Order.Data`),
+/// so the hashed type string must start with `Order(`. The resulting
+/// digest is the same value exported as [`ORDER_TYPE_HASH`].
 ///
 /// # Returns
 ///
-/// The `keccak256` hash of the `GPv2Order.Data` type string.
+/// The `keccak256` hash of the `Order` type string.
 fn order_type_hash() -> B256 {
     keccak256(
-        b"GPv2Order.Data(\
+        b"Order(\
         address sellToken,\
         address buyToken,\
         address receiver,\
@@ -155,7 +160,7 @@ fn abi_bool(v: bool) -> [u8; 32] {
 /// The 32-byte EIP-712 domain separator hash.
 #[must_use]
 pub fn domain_separator(chain_id: u64) -> B256 {
-    let name_hash = keccak256(b"Gnosis Protocol v2");
+    let name_hash = keccak256(b"Gnosis Protocol");
     let version_hash = keccak256(b"v2");
 
     let mut buf = [0u8; 5 * 32];
@@ -267,7 +272,7 @@ pub fn signing_digest(domain_sep: B256, o_hash: B256) -> B256 {
 pub const fn build_order_typed_data(order: UnsignedOrder, chain_id: u64) -> OrderTypedData {
     OrderTypedData {
         domain: OrderDomain {
-            name: "Gnosis Protocol v2",
+            name: "Gnosis Protocol",
             version: "v2",
             chain_id,
             verifying_contract: SETTLEMENT_CONTRACT,
@@ -769,7 +774,7 @@ mod tests {
         let typed = build_order_typed_data(order.clone(), 1);
         assert_eq!(typed.primary_type, "GPv2Order.Data");
         assert_eq!(typed.domain.chain_id, 1);
-        assert_eq!(typed.domain.name, "Gnosis Protocol v2");
+        assert_eq!(typed.domain.name, "Gnosis Protocol");
         assert_eq!(typed.order.sell_token, order.sell_token);
     }
 
