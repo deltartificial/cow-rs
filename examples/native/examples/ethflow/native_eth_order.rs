@@ -74,7 +74,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // ── Encode calldata ──────────────────────────────────────────────────────
     //
-    // `createOrder((address,address,uint256,uint256,bytes32,uint256,uint32,bool),int64)`
+    // `createOrder((address,address,uint256,uint256,bytes32,uint256,uint32,bool,int64))`
     // Fixed-size payload: 4-byte selector + 9 × 32-byte words = 292 bytes.
     let calldata = encode_eth_flow_create_order(&order);
     println!("Encoded calldata: {} bytes", calldata.len());

@@ -79,7 +79,7 @@ pub struct EthFlowOrderData {
 pub struct EthFlowTransaction {
     /// `EthFlow` contract address to call.
     pub to: Address,
-    /// ABI-encoded `createOrder(EthFlowOrder, int64)` calldata.
+    /// ABI-encoded `createOrder(EthFlowOrder)` calldata.
     pub data: Vec<u8>,
     /// ETH value to attach (= `sell_amount`).
     pub value: U256,
@@ -124,7 +124,7 @@ fn abi_i64(v: i64) -> [u8; 32] {
 /// Encode the `EthFlow.createOrder(order, quoteId)` calldata.
 ///
 /// Function signature:
-/// `createOrder((address,address,uint256,uint256,bytes32,uint256,uint32,bool),int64)`
+/// `createOrder((address,address,uint256,uint256,bytes32,uint256,uint32,bool,int64))`
 ///
 /// Total payload: selector (4) + 9 × 32-byte words = 292 bytes.
 ///
@@ -158,7 +158,11 @@ fn abi_i64(v: i64) -> [u8; 32] {
 /// ```
 #[must_use]
 pub fn encode_eth_flow_create_order(order: &EthFlowOrderData) -> Vec<u8> {
-    let sig = b"createOrder((address,address,uint256,uint256,bytes32,uint256,uint32,bool),int64)";
+    // The EthFlow contract declares `createOrder` with a single `EthFlowOrder`
+    // struct argument; `quoteId` is the last field of the struct, not a
+    // separate function parameter. The byte layout of the trailing 9 × 32
+    // static words is identical either way — only the selector differs.
+    let sig = b"createOrder((address,address,uint256,uint256,bytes32,uint256,uint32,bool,int64))";
     let sel = selector(sig);
 
     let mut buf = Vec::with_capacity(292);

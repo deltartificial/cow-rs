@@ -17,7 +17,7 @@
       "description": "EIP-712 domain separator for chain 1 (mainnet)",
       "input": { "chain_id": 1 },
       "expected": {
-        "domain_separator": "0x5fedd2508a367423da19469f0e1e4a9f2d64264669cfda85ae327672131d3325"
+        "domain_separator": "0xc078f884a2676e1345748b1feace7b0abee5d00ecadb6e574dcdd109a63e8943"
       }
     },
     {
@@ -26,7 +26,7 @@
       "description": "EIP-712 domain separator for chain 100 (gnosis)",
       "input": { "chain_id": 100 },
       "expected": {
-        "domain_separator": "0x506c66c78d51d42f78a6180645a869b0e56a6ad9f9806e9cb1ace7ee9b9dce89"
+        "domain_separator": "0x8f05589c4b810bc2f706854508d66d447cd971f8354a4bb0b3471ceb0a466bc7"
       }
     },
     {
