@@ -605,3 +605,333 @@ pub async fn wasm_post_swap_order(
     });
     serde_json::to_string(&json).map_err(to_js_err)
 }
+
+// ── Tests ────────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+#[allow(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    reason = "test code; panic on unexpected state is acceptable"
+)]
+mod tests {
+    //! Native unit tests for the happy paths of the WASM bindings.
+    //!
+    //! Error paths route through [`to_js_err`], which calls
+    //! `JsValue::from_str`. Outside of a WASM runtime this aborts the process
+    //! (wasm-bindgen has no native fallback for constructing `JsValue`), so
+    //! only success paths can be exercised here. The JS-callback helper
+    //! ([`wasm_sign_order_with_browser_wallet`]) and the network-bound async
+    //! helpers (`getQuote`, `sendOrder`, …) likewise cannot run natively and
+    //! are covered only in a browser / wasm-pack environment.
+
+    use super::*;
+
+    // ── Fixtures ─────────────────────────────────────────────────────────
+
+    const ALICE_ADDR: &str = "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045";
+    const BOB_ADDR: &str = "0x1111111111111111111111111111111111111111";
+    const DEADBEEF_ADDR: &str = "0xdeadbeef00000000000000000000000000000000";
+    // Well-known test private key (Anvil account #0).
+    const PK_HEX: &str = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
+    const APP_DATA_HEX: &str = "0x0000000000000000000000000000000000000000000000000000000000000000";
+
+    fn sample_order_json() -> String {
+        serde_json::json!({
+            "sellToken": ALICE_ADDR,
+            "buyToken": BOB_ADDR,
+            "receiver": DEADBEEF_ADDR,
+            "sellAmount": "1000000000000000000",
+            "buyAmount": "2000000",
+            "validTo": 4_294_967_000u64,
+            "appData": APP_DATA_HEX,
+            "feeAmount": "1000",
+            "kind": "sell",
+            "partiallyFillable": false,
+            "sellTokenBalance": "erc20",
+            "buyTokenBalance": "erc20",
+        })
+        .to_string()
+    }
+
+    // ── parse_order ──────────────────────────────────────────────────────
+
+    #[test]
+    fn parse_order_with_all_fields() {
+        let order = parse_order(&sample_order_json()).expect("valid order parses");
+        assert_eq!(order.kind, OrderKind::Sell);
+        assert!(!order.partially_fillable);
+        assert_eq!(order.sell_token_balance, TokenBalance::Erc20);
+        assert_eq!(order.buy_token_balance, TokenBalance::Erc20);
+        assert_eq!(order.valid_to, 4_294_967_000);
+        assert_eq!(order.fee_amount, "1000".parse::<alloy_primitives::U256>().unwrap());
+    }
+
+    #[test]
+    fn parse_order_defaults_when_optional_fields_missing() {
+        // All required-or-fallback-via-to_js_err fields present
+        // (sellToken, buyToken, sellAmount, buyAmount, receiver, feeAmount).
+        // The defaulted fields use `Option::unwrap_or_else` and do not route
+        // through `to_js_err`, so native tests can exercise them.
+        let json = serde_json::json!({
+            "sellToken": ALICE_ADDR,
+            "buyToken": BOB_ADDR,
+            "receiver": DEADBEEF_ADDR,
+            "sellAmount": "1",
+            "buyAmount": "1",
+            "feeAmount": "0",
+        })
+        .to_string();
+        let order = parse_order(&json).expect("minimal JSON parses");
+        assert_eq!(order.kind, OrderKind::Sell);
+        assert_eq!(order.sell_token_balance, TokenBalance::Erc20);
+        assert_eq!(order.buy_token_balance, TokenBalance::Erc20);
+        assert_eq!(order.valid_to, 0);
+        assert!(!order.partially_fillable);
+        assert_eq!(order.app_data, alloy_primitives::B256::ZERO);
+    }
+
+    #[test]
+    fn parse_order_buy_kind_and_external_internal_balances() {
+        let json = serde_json::json!({
+            "sellToken": ALICE_ADDR,
+            "buyToken": BOB_ADDR,
+            "receiver": DEADBEEF_ADDR,
+            "sellAmount": "1",
+            "buyAmount": "1",
+            "feeAmount": "0",
+            "kind": "buy",
+            "sellTokenBalance": "external",
+            "buyTokenBalance": "internal",
+            "partiallyFillable": true,
+        })
+        .to_string();
+        let order = parse_order(&json).expect("buy-kind JSON parses");
+        assert_eq!(order.kind, OrderKind::Buy);
+        assert_eq!(order.sell_token_balance, TokenBalance::External);
+        assert_eq!(order.buy_token_balance, TokenBalance::Internal);
+        assert!(order.partially_fillable);
+    }
+
+    #[test]
+    fn parse_order_unknown_enum_values_fall_back_to_defaults() {
+        let json = serde_json::json!({
+            "sellToken": ALICE_ADDR,
+            "buyToken": BOB_ADDR,
+            "receiver": DEADBEEF_ADDR,
+            "sellAmount": "1",
+            "buyAmount": "1",
+            "feeAmount": "0",
+            "kind": "nonsense",
+            "sellTokenBalance": "nonsense",
+            "buyTokenBalance": "nonsense",
+        })
+        .to_string();
+        let order = parse_order(&json).expect("unknown enum arms default");
+        assert_eq!(order.kind, OrderKind::Sell);
+        assert_eq!(order.sell_token_balance, TokenBalance::Erc20);
+        assert_eq!(order.buy_token_balance, TokenBalance::Erc20);
+    }
+
+    // ── hex_b256 ─────────────────────────────────────────────────────────
+
+    #[test]
+    fn hex_b256_produces_0x_prefixed_64_chars() {
+        let out = hex_b256(alloy_primitives::B256::ZERO);
+        assert_eq!(out.len(), 66);
+        assert!(out.starts_with("0x"));
+        assert!(out[2..].chars().all(|c| c == '0'));
+    }
+
+    // ── Domain separator / order hash / digest ───────────────────────────
+
+    #[test]
+    fn domain_separator_is_deterministic() {
+        let a = wasm_domain_separator(1);
+        let b = wasm_domain_separator(1);
+        assert_eq!(a, b);
+        assert!(a.starts_with("0x"));
+        assert_eq!(a.len(), 66);
+    }
+
+    #[test]
+    fn domain_separator_differs_per_chain() {
+        assert_ne!(wasm_domain_separator(1), wasm_domain_separator(100));
+    }
+
+    #[test]
+    fn order_hash_matches_expected_shape() {
+        let out = wasm_order_hash(&sample_order_json()).expect("order hash");
+        assert!(out.starts_with("0x"));
+        assert_eq!(out.len(), 66);
+    }
+
+    #[test]
+    fn signing_digest_computes_and_is_stable() {
+        let domain = wasm_domain_separator(1);
+        let hash = wasm_order_hash(&sample_order_json()).expect("order hash");
+        let digest_a = wasm_signing_digest(&domain, &hash).expect("digest");
+        let digest_b = wasm_signing_digest(&domain, &hash).expect("digest");
+        assert_eq!(digest_a, digest_b);
+        assert_eq!(digest_a.len(), 66);
+    }
+
+    #[test]
+    fn signing_digest_changes_with_inputs() {
+        let hash = wasm_order_hash(&sample_order_json()).expect("order hash");
+        let d1 = wasm_signing_digest(&wasm_domain_separator(1), &hash).expect("digest 1");
+        let d100 = wasm_signing_digest(&wasm_domain_separator(100), &hash).expect("digest 100");
+        assert_ne!(d1, d100);
+    }
+
+    // ── Order UID ────────────────────────────────────────────────────────
+
+    #[test]
+    fn compute_order_uid_matches_56_byte_shape() {
+        let uid = wasm_compute_order_uid(1, &sample_order_json(), ALICE_ADDR).expect("uid");
+        // 56 bytes = 112 hex chars + "0x"
+        assert!(uid.starts_with("0x"));
+        assert_eq!(uid.len(), 2 + 112);
+    }
+
+    #[test]
+    fn compute_order_uid_differs_per_owner() {
+        let uid_alice =
+            wasm_compute_order_uid(1, &sample_order_json(), ALICE_ADDR).expect("alice uid");
+        let uid_bob = wasm_compute_order_uid(1, &sample_order_json(), BOB_ADDR).expect("bob uid");
+        assert_ne!(uid_alice, uid_bob);
+    }
+
+    // ── Sign order (local private key) ───────────────────────────────────
+
+    #[tokio::test]
+    async fn sign_order_eip712_returns_signature_json() {
+        let out = wasm_sign_order(&sample_order_json(), 1, PK_HEX, "eip712")
+            .await
+            .expect("eip712 signing succeeds");
+        let v: serde_json::Value = serde_json::from_str(&out).expect("valid JSON");
+        assert_eq!(v["signingScheme"], "eip712");
+        let sig = v["signature"].as_str().expect("signature string");
+        assert!(sig.starts_with("0x"));
+    }
+
+    #[tokio::test]
+    async fn sign_order_ethsign_returns_signature_json() {
+        let out = wasm_sign_order(&sample_order_json(), 1, PK_HEX, "ethsign")
+            .await
+            .expect("ethsign signing succeeds");
+        let v: serde_json::Value = serde_json::from_str(&out).expect("valid JSON");
+        assert_eq!(v["signingScheme"], "ethsign");
+    }
+
+    #[tokio::test]
+    async fn sign_order_unknown_scheme_defaults_to_eip712() {
+        let out = wasm_sign_order(&sample_order_json(), 1, PK_HEX, "bogus")
+            .await
+            .expect("unknown scheme defaults");
+        let v: serde_json::Value = serde_json::from_str(&out).expect("valid JSON");
+        assert_eq!(v["signingScheme"], "eip712");
+    }
+
+    // ── App-Data wrappers ────────────────────────────────────────────────
+
+    fn sample_app_data_doc_json() -> String {
+        serde_json::json!({
+            "appCode": "test",
+            "metadata": {},
+            "version": "1.5.0",
+        })
+        .to_string()
+    }
+
+    #[test]
+    fn appdata_hex_returns_32_byte_hex() {
+        let out = wasm_appdata_hex(&sample_app_data_doc_json()).expect("hash");
+        assert!(out.starts_with("0x"));
+        assert_eq!(out.len(), 66);
+    }
+
+    #[test]
+    fn stringify_deterministic_emits_canonical_json() {
+        let s = wasm_stringify_deterministic(&sample_app_data_doc_json())
+            .expect("deterministic serialisation");
+        assert!(s.contains("\"appCode\":\"test\""));
+        assert!(s.contains("\"version\":\"1.5.0\""));
+    }
+
+    #[test]
+    fn get_app_data_info_contains_expected_keys() {
+        let out = wasm_get_app_data_info(&sample_app_data_doc_json()).expect("info");
+        let v: serde_json::Value = serde_json::from_str(&out).expect("valid JSON");
+        assert!(v.get("cid").is_some());
+        assert!(v.get("appDataContent").is_some());
+        assert!(v.get("appDataHex").is_some());
+    }
+
+    #[test]
+    fn validate_app_data_doc_returns_success_envelope() {
+        let out = wasm_validate_app_data_doc(&sample_app_data_doc_json()).expect("validation");
+        let v: serde_json::Value = serde_json::from_str(&out).expect("valid JSON");
+        assert!(v.get("success").is_some());
+        assert!(v.get("errors").is_some());
+    }
+
+    // ── CID conversions ──────────────────────────────────────────────────
+
+    #[test]
+    fn cid_round_trip() {
+        let hex = "0x11223344556677889900aabbccddeeff11223344556677889900aabbccddeeff";
+        let cid = wasm_appdata_hex_to_cid(hex).expect("cid");
+        let recovered = wasm_cid_to_appdata_hex(&cid).expect("recovered hex");
+        assert_eq!(recovered.to_ascii_lowercase(), hex.to_ascii_lowercase());
+    }
+
+    // ── Configuration lookups ────────────────────────────────────────────
+
+    #[test]
+    fn settlement_contract_for_known_chain() {
+        let out = wasm_settlement_contract(1).expect("settlement address");
+        assert!(out.starts_with("0x"));
+        assert_eq!(out.len(), 42);
+    }
+
+    #[test]
+    fn vault_relayer_for_known_chain() {
+        let out = wasm_vault_relayer(1).expect("vault relayer");
+        assert!(out.starts_with("0x"));
+        assert_eq!(out.len(), 42);
+    }
+
+    #[test]
+    fn api_base_url_prod_and_staging_and_fallback() {
+        let prod = wasm_api_base_url(1, "prod").expect("prod url");
+        let staging = wasm_api_base_url(1, "staging").expect("staging url");
+        assert!(prod.contains("api.cow.fi"));
+        assert!(staging.contains("barn.api.cow.fi"));
+        // Unknown env falls back to prod (default match arm).
+        let fallback = wasm_api_base_url(1, "unknown").expect("fallback url");
+        assert_eq!(prod, fallback);
+    }
+
+    #[test]
+    fn supported_chain_ids_contains_mainnet() {
+        let out = wasm_supported_chain_ids();
+        let ids: Vec<u64> = serde_json::from_str(&out).expect("valid JSON array");
+        assert!(ids.contains(&1), "mainnet must be in supported chain IDs");
+        assert!(!ids.is_empty());
+    }
+
+    // ── parse_chain_env ──────────────────────────────────────────────────
+
+    #[test]
+    fn parse_chain_env_prod_and_staging() {
+        let (chain_p, env_p) = parse_chain_env(1, "prod").expect("prod ok");
+        let (chain_s, env_s) = parse_chain_env(1, "staging").expect("staging ok");
+        let (_, env_default) = parse_chain_env(1, "anything-else").expect("default ok");
+        assert_eq!(chain_p, chain_s);
+        assert!(matches!(env_p, cow_chains::Env::Prod));
+        assert!(matches!(env_s, cow_chains::Env::Staging));
+        assert!(matches!(env_default, cow_chains::Env::Prod));
+    }
+}
