@@ -38,8 +38,11 @@ fn sample_order() -> EthFlowOrderData {
 }
 
 fn expected_selector() -> [u8; 4] {
+    // `quoteId` is the last field of the `EthFlowOrder` struct, not a separate
+    // function parameter — the on-chain contract declares
+    // `createOrder(EthFlowOrder order)`.
     let h = keccak256(
-        b"createOrder((address,address,uint256,uint256,bytes32,uint256,uint32,bool),int64)",
+        b"createOrder((address,address,uint256,uint256,bytes32,uint256,uint32,bool,int64))",
     );
     [h[0], h[1], h[2], h[3]]
 }
