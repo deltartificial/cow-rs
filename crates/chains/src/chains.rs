@@ -1722,6 +1722,8 @@ mod tests {
         assert!(!info.is_evm());
         assert!(info.is_non_evm());
         assert!(info.as_non_evm().is_some());
+        // Covers the `NonEvm(_) => None` arm of `as_evm`.
+        assert!(info.as_evm().is_none());
     }
 
     #[test]
@@ -1729,6 +1731,22 @@ mod tests {
         let info = supported_chain_info(SupportedChainId::Mainnet);
         let currency = info.native_currency();
         assert_eq!(currency.decimals, 18);
+    }
+
+    #[test]
+    fn chain_info_native_currency_non_evm() {
+        // Covers the `NonEvm(info)` arm of `native_currency`.
+        let info = additional_target_chain_info(AdditionalTargetChainId::Bitcoin);
+        let currency = info.native_currency();
+        assert_eq!(currency.symbol, "BTC");
+    }
+
+    #[test]
+    fn chain_info_is_under_development_evm() {
+        // Covers the `Evm(info)` arm of `is_under_development` on a known
+        // stable EVM chain (mainnet is never under development).
+        let info = supported_chain_info(SupportedChainId::Mainnet);
+        assert!(!info.is_under_development());
     }
 
     // ── Iteration helpers ───────────────────────────────────────────────

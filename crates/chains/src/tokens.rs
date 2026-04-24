@@ -754,4 +754,17 @@ mod tests {
             assert!(!token.address.is_zero(), "Expected non-zero address for {chain:?}");
         }
     }
+
+    // ── nibble ───────────────────────────────────────────────────────────
+
+    #[test]
+    fn nibble_decodes_hex_ranges_and_falls_back_to_zero() {
+        assert_eq!(nibble(b'0'), 0);
+        assert_eq!(nibble(b'9'), 9);
+        assert_eq!(nibble(b'a'), 10);
+        assert_eq!(nibble(b'f'), 15);
+        // Non-hex ASCII takes the `_ => 0` fallback.
+        assert_eq!(nibble(b'z'), 0);
+        assert_eq!(nibble(b'G'), 0);
+    }
 }
