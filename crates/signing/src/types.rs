@@ -16,7 +16,7 @@ pub use cow_types::UnsignedOrder;
 /// Mirrors `TypedDataDomain` from the `TypeScript` SDK.
 #[derive(Debug, Clone)]
 pub struct OrderDomain {
-    /// Protocol name (`"Gnosis Protocol v2"`).
+    /// Protocol name (`"Gnosis Protocol"`).
     pub name: &'static str,
     /// Protocol version (`"v2"`).
     pub version: &'static str,
@@ -42,7 +42,7 @@ impl OrderDomain {
     #[must_use]
     pub const fn for_chain(chain_id: u64) -> Self {
         Self {
-            name: "Gnosis Protocol v2",
+            name: "Gnosis Protocol",
             version: "v2",
             chain_id,
             verifying_contract: cow_chains::contracts::SETTLEMENT_CONTRACT,
@@ -51,7 +51,7 @@ impl OrderDomain {
 
     /// Compute the EIP-712 domain separator for this domain.
     ///
-    /// When all fields are at their default values (`"Gnosis Protocol v2"`,
+    /// When all fields are at their default values (`"Gnosis Protocol"`,
     /// `"v2"`, canonical settlement contract), this is equivalent to
     /// [`crate::domain_separator`]. When any field has been
     /// overridden via the `with_*` builder methods, the separator is
@@ -71,7 +71,7 @@ impl OrderDomain {
 
     /// Override the protocol name used in the EIP-712 domain separator.
     ///
-    /// The default is `"Gnosis Protocol v2"`. Use this when computing
+    /// The default is `"Gnosis Protocol"`. Use this when computing
     /// domain separators for forks or alternative deployments.
     ///
     /// # Arguments
@@ -666,7 +666,7 @@ mod tests {
     #[test]
     fn order_domain_for_chain() {
         let d = OrderDomain::for_chain(1);
-        assert_eq!(d.name, "Gnosis Protocol v2");
+        assert_eq!(d.name, "Gnosis Protocol");
         assert_eq!(d.version, "v2");
         assert_eq!(d.chain_id, 1);
     }
