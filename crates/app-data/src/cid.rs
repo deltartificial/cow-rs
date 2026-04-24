@@ -6,10 +6,14 @@
 //! between the 32-byte `appDataHex` stored on-chain and the `CIDv1` string
 //! used by IPFS.
 //!
-//! The modern encoding uses `keccak256` with the `raw` multicodec (`0x55`)
-//! and multibase base16 (lowercase, prefix `f`). Legacy helpers using
-//! `dag-pb` / `sha2-256` are preserved for backwards compatibility but are
-//! deprecated.
+//! The modern encoding uses `keccak256` with the `raw` multicodec (`0x55`).
+//! Produced CIDs use multibase base16 lowercase (prefix `f`). Parsing also
+//! accepts multibase base32 lowercase (prefix `b`, RFC 4648 unpadded), which
+//! is the default multibase used by `multiformats`' `CID.parse` when no
+//! explicit decoder is provided — so strings like
+//! `bafkrei...` produced by the `TypeScript` SDK round-trip correctly.
+//! Legacy helpers using `dag-pb` / `sha2-256` are preserved for backwards
+//! compatibility but are deprecated.
 //!
 //! # Key functions
 //!
@@ -97,7 +101,7 @@ pub fn appdata_hex_to_cid(app_data_hex: &str) -> Result<String, CowError> {
     Ok(format!("f{}", alloy_primitives::hex::encode(&cid)))
 }
 
-/// Extract the digest from a `CIDv1` base16 string and return it as
+/// Extract the digest from a `CIDv1` string and return it as
 /// `0x`-prefixed hex.
 ///
 /// This is the inverse of [`appdata_hex_to_cid`]: given a CID stored
@@ -105,15 +109,15 @@ pub fn appdata_hex_to_cid(app_data_hex: &str) -> Result<String, CowError> {
 /// header. The returned value can be used as the `appData` field in an
 /// on-chain order struct.
 ///
-/// Only base16 CIDs (prefix `f` or `F`) are supported; other multibase
-/// encodings will return an error.
+/// Accepts multibase base16 (`f`/`F`) and base32 lowercase (`b`/`B`); other
+/// multibase encodings return an error.
 ///
 /// Mirrors `cidToAppDataHex` from the `@cowprotocol/app-data` `TypeScript`
 /// package.
 ///
 /// # Parameters
 ///
-/// * `cid` — a base16 multibase CID string (e.g. `"f015501201b20..."`).
+/// * `cid` — a multibase CID string (e.g. `"f015501201b20..."` or `"bafkrei..."`).
 ///
 /// # Returns
 ///
@@ -121,8 +125,9 @@ pub fn appdata_hex_to_cid(app_data_hex: &str) -> Result<String, CowError> {
 ///
 /// # Errors
 ///
-/// Returns [`CowError::AppData`] if the CID is not base16, not valid hex,
-/// or shorter than 36 bytes (4-byte header + 32-byte digest).
+/// Returns [`CowError::AppData`] if the multibase prefix is unsupported,
+/// the payload is not valid, or the decoded bytes are shorter than 36
+/// (4-byte header + 32-byte digest).
 ///
 /// # Example
 ///
@@ -136,13 +141,7 @@ pub fn appdata_hex_to_cid(app_data_hex: &str) -> Result<String, CowError> {
 /// assert_eq!(recovered.len(), 66); // "0x" + 64 hex chars
 /// ```
 pub fn cid_to_appdata_hex(cid: &str) -> Result<String, CowError> {
-    let lower = cid.to_ascii_lowercase();
-    let hex = lower
-        .strip_prefix('f')
-        .ok_or_else(|| CowError::AppData("only base16 CIDs are supported (prefix 'f')".into()))?;
-
-    let bytes = alloy_primitives::hex::decode(hex)
-        .map_err(|e| CowError::AppData(format!("invalid CID hex: {e}")))?;
+    let bytes = decode_multibase(cid)?;
 
     // Skip CIDv1 header: version(1) + codec(1) + hash_fn(1) + hash_len(1) = 4 bytes
     if bytes.len() < 4 + 32 {
@@ -150,6 +149,67 @@ pub fn cid_to_appdata_hex(cid: &str) -> Result<String, CowError> {
     }
     let digest = &bytes[4..4 + 32];
     Ok(format!("0x{}", alloy_primitives::hex::encode(digest)))
+}
+
+/// Decode a multibase-prefixed CID string into raw bytes.
+///
+/// Supports the two prefixes emitted by the `multiformats` default base
+/// registry for `CIDv1` payloads we care about:
+///
+/// - `f` / `F` → base16 lowercase (hex)
+/// - `b` / `B` → base32 lowercase, RFC 4648, no padding
+///
+/// Returns [`CowError::AppData`] on unknown prefixes, invalid characters,
+/// or empty input.
+fn decode_multibase(cid: &str) -> Result<Vec<u8>, CowError> {
+    let mut chars = cid.chars();
+    let prefix = chars.next().ok_or_else(|| CowError::AppData("empty CID string".into()))?;
+    let body = chars.as_str();
+
+    match prefix {
+        'f' | 'F' => alloy_primitives::hex::decode(body)
+            .map_err(|e| CowError::AppData(format!("invalid CID hex: {e}"))),
+        'b' | 'B' => decode_base32_lower_nopad(body),
+        other => Err(CowError::AppData(format!(
+            "unsupported CID multibase prefix '{other}' (expected 'f' or 'b')"
+        ))),
+    }
+}
+
+/// RFC 4648 base32 lowercase decoder, no padding (multibase `b`).
+///
+/// Alphabet: `abcdefghijklmnopqrstuvwxyz234567`. Uppercase input is also
+/// accepted (callers should not rely on this — multibase reserves `B` for
+/// the uppercase variant — but matching on a lowercased char is cheaper
+/// than branching twice in [`decode_multibase`]).
+fn decode_base32_lower_nopad(s: &str) -> Result<Vec<u8>, CowError> {
+    let mut out = Vec::with_capacity(s.len() * 5 / 8);
+    let mut buf: u32 = 0;
+    let mut bits: u32 = 0;
+
+    for c in s.chars() {
+        let v: u32 = match c {
+            'a'..='z' => (c as u32) - ('a' as u32),
+            'A'..='Z' => (c as u32) - ('A' as u32),
+            '2'..='7' => (c as u32) - ('2' as u32) + 26,
+            _ => {
+                return Err(CowError::AppData(format!("invalid base32 character '{c}'")));
+            }
+        };
+        buf = (buf << 5) | v;
+        bits += 5;
+        if bits >= 8 {
+            bits -= 8;
+            out.push(((buf >> bits) & 0xff) as u8);
+        }
+    }
+
+    // Trailing bits must be zero (canonical unpadded base32).
+    if bits > 0 && (buf & ((1u32 << bits) - 1)) != 0 {
+        return Err(CowError::AppData("non-canonical base32: trailing bits not zero".into()));
+    }
+
+    Ok(out)
 }
 
 // ── Legacy CID helpers ──────────────────────────────────────────────────────
@@ -283,15 +343,15 @@ pub struct CidComponents {
 /// Decodes the multibase prefix, strips it, hex-decodes the remainder, and
 /// splits the resulting bytes into the four header fields plus the digest.
 ///
-/// Currently supports base16 multibase encoding (prefix `f` or `F`). Other
-/// multibase encodings (e.g. `base58btc` starting with `Qm`) return an
-/// error.
+/// Supports multibase base16 (`f`/`F`) and base32 lowercase (`b`/`B`, RFC
+/// 4648 unpadded). Other multibase encodings (e.g. `base58btc` starting
+/// with `Qm`) return an error.
 ///
 /// Mirrors `parseCid` from the `@cowprotocol/app-data` `TypeScript` package.
 ///
 /// # Parameters
 ///
-/// * `ipfs_hash` — a multibase-encoded CID string (e.g. `"f015501201b20..."`).
+/// * `ipfs_hash` — a multibase-encoded CID string (e.g. `"f015501201b20..."` or `"bafkrei..."`).
 ///
 /// # Returns
 ///
@@ -300,8 +360,8 @@ pub struct CidComponents {
 ///
 /// # Errors
 ///
-/// Returns [`CowError::AppData`] if the CID encoding is unsupported, the
-/// hex is invalid, or the payload is shorter than 4 bytes.
+/// Returns [`CowError::AppData`] if the multibase prefix is unsupported,
+/// the body is malformed, or the decoded payload is shorter than 4 bytes.
 ///
 /// # Example
 ///
@@ -315,13 +375,7 @@ pub struct CidComponents {
 /// assert_eq!(c.digest.len(), 32);
 /// ```
 pub fn parse_cid(ipfs_hash: &str) -> Result<CidComponents, CowError> {
-    let lower = ipfs_hash.to_ascii_lowercase();
-    let hex = lower
-        .strip_prefix('f')
-        .ok_or_else(|| CowError::AppData("only base16 CIDs are supported (prefix 'f')".into()))?;
-
-    let bytes = alloy_primitives::hex::decode(hex)
-        .map_err(|e| CowError::AppData(format!("invalid CID hex: {e}")))?;
+    let bytes = decode_multibase(ipfs_hash)?;
 
     if bytes.len() < 4 {
         return Err(CowError::AppData("CID too short".into()));
@@ -471,9 +525,22 @@ mod tests {
     }
 
     #[test]
-    fn cid_to_appdata_hex_rejects_non_base16() {
+    fn cid_to_appdata_hex_rejects_unsupported_multibase() {
+        // base58btc (prefix 'Q') is not supported.
         assert!(cid_to_appdata_hex("Qmabc123").is_err());
-        assert!(cid_to_appdata_hex("babc123").is_err());
+        // 'z' multibase is not supported.
+        assert!(cid_to_appdata_hex("zabc123").is_err());
+    }
+
+    #[test]
+    fn cid_to_appdata_hex_decodes_base32_vector() {
+        // Parity vector produced by @cowprotocol/app-data's `cidToAppDataHex`.
+        // Multibase base32 lowercase (prefix 'b'), RFC 4648 unpadded — the
+        // default encoding emitted by `multiformats`' `CID.toString()` for
+        // CIDv1 when no explicit base is chosen.
+        let cid = "bafkreieaqhrrdsftxwxaseaymnemp7f7v6py6psbh7nqcnpm5rqhmesvxi";
+        let expected = "0x8081e311c8b3bdae0910186348c7fcbfaf9f8f3e413fdb0135ecec60761255ba";
+        assert_eq!(cid_to_appdata_hex(cid).unwrap(), expected);
     }
 
     #[test]
@@ -499,8 +566,26 @@ mod tests {
     }
 
     #[test]
-    fn parse_cid_rejects_non_base16() {
-        assert!(parse_cid("not_a_cid").is_err());
+    fn parse_cid_rejects_unsupported_multibase() {
+        // '_' is not a multibase prefix we support.
+        assert!(parse_cid("_not_a_cid").is_err());
+        // base58btc CIDv0 (leading 'Q') is rejected.
+        assert!(parse_cid("QmSomething").is_err());
+    }
+
+    #[test]
+    fn parse_cid_base32_components() {
+        // This vector comes from the TypeScript SDK parity suite. It is a
+        // `raw` CIDv1 but hashed with sha2-256 (0x12), not keccak, so we
+        // assert the actual header the decoder must produce rather than the
+        // keccak-specific constants used elsewhere in the module.
+        let cid = "bafkreieaqhrrdsftxwxaseaymnemp7f7v6py6psbh7nqcnpm5rqhmesvxi";
+        let c = parse_cid(cid).unwrap();
+        assert_eq!(c.version, CID_VERSION);
+        assert_eq!(c.codec, MULTICODEC_RAW);
+        assert_eq!(c.hash_function, HASH_SHA2_256);
+        assert_eq!(c.hash_length, HASH_LEN);
+        assert_eq!(c.digest.len(), 32);
     }
 
     #[test]
