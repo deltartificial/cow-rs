@@ -725,3 +725,279 @@ fn ipfs_client_default_read_uri_is_none() {
     let ipfs = Ipfs::default();
     assert!(ipfs.read_uri.is_none());
 }
+
+// ── Legacy encoding helpers ─────────────────────────────────────────────────
+//
+// The legacy CID and Pinata helpers mirror the original TypeScript SDK
+// encoding. They are deprecated but still publicly exported, so they
+// participate in the coverage budget until removed.
+
+#[allow(deprecated, reason = "intentionally exercising deprecated legacy functions")]
+#[test]
+fn legacy_get_app_data_info_produces_cid_and_hex() {
+    use cow_rs::app_data::get_app_data_info_legacy;
+    let doc = AppDataDoc::new("LegacyApp");
+    let info = get_app_data_info_legacy(&doc).unwrap();
+    assert!(!info.cid.is_empty());
+    assert!(info.app_data_hex.starts_with("0x"));
+}
+
+#[allow(deprecated, reason = "intentionally exercising deprecated legacy functions")]
+#[tokio::test]
+async fn legacy_fetch_doc_from_app_data_hex_via_free_function() {
+    use cow_rs::app_data::{fetch_doc_from_app_data_hex_legacy, get_app_data_info_legacy};
+    let server = MockServer::start().await;
+
+    let doc_json = json!({ "version": "1.14.0", "appCode": "LegacyFetch", "metadata": {} });
+    Mock::given(matchers::method("GET"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(&doc_json))
+        .mount(&server)
+        .await;
+
+    let info = get_app_data_info_legacy(&AppDataDoc::new("LegacyFetch")).unwrap();
+    let doc =
+        fetch_doc_from_app_data_hex_legacy(&info.app_data_hex, Some(&server.uri())).await.unwrap();
+    assert_eq!(doc.app_code.as_deref(), Some("LegacyFetch"));
+}
+
+#[allow(deprecated, reason = "intentionally exercising deprecated legacy functions")]
+#[tokio::test]
+async fn legacy_upload_metadata_doc_to_ipfs_success() {
+    use cow_rs::app_data::upload_metadata_doc_to_ipfs_legacy;
+    let server = MockServer::start().await;
+
+    Mock::given(matchers::method("POST"))
+        .and(matchers::path("/pinning/pinJSONToIPFS"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "IpfsHash": "f01551b20deadbeefcafef00ddeadbeefcafef00ddeadbeefcafef00ddeadbeefcafef00d",
+            "PinSize": 1,
+            "Timestamp": "2025-01-01T00:00:00Z"
+        })))
+        .mount(&server)
+        .await;
+
+    let ipfs = Ipfs::default().with_write_uri(server.uri()).with_pinata("key", "secret");
+    let result =
+        upload_metadata_doc_to_ipfs_legacy(&AppDataDoc::new("LegacyUpload"), &ipfs).await.unwrap();
+    assert!(result.cid.starts_with('f'));
+    assert_eq!(
+        result.app_data,
+        "0xdeadbeefcafef00ddeadbeefcafef00ddeadbeefcafef00ddeadbeefcafef00d"
+    );
+}
+
+#[allow(deprecated, reason = "intentionally exercising deprecated legacy functions")]
+#[tokio::test]
+async fn legacy_upload_requires_both_credentials() {
+    use cow_rs::app_data::upload_metadata_doc_to_ipfs_legacy;
+    // Missing api_key.
+    let ipfs_no_key =
+        Ipfs { pinata_api_key: None, pinata_api_secret: Some("s".into()), ..Ipfs::default() };
+    assert!(upload_metadata_doc_to_ipfs_legacy(&AppDataDoc::new("X"), &ipfs_no_key).await.is_err());
+
+    // Missing api_secret.
+    let ipfs_no_secret =
+        Ipfs { pinata_api_key: Some("k".into()), pinata_api_secret: None, ..Ipfs::default() };
+    assert!(
+        upload_metadata_doc_to_ipfs_legacy(&AppDataDoc::new("X"), &ipfs_no_secret).await.is_err()
+    );
+
+    // Empty strings are equivalent to "missing".
+    let ipfs_empty = Ipfs::default().with_pinata("", "");
+    assert!(upload_metadata_doc_to_ipfs_legacy(&AppDataDoc::new("X"), &ipfs_empty).await.is_err());
+}
+
+#[allow(deprecated, reason = "intentionally exercising deprecated legacy functions")]
+#[tokio::test]
+async fn legacy_upload_propagates_api_error() {
+    use cow_rs::app_data::upload_metadata_doc_to_ipfs_legacy;
+    let server = MockServer::start().await;
+
+    Mock::given(matchers::method("POST"))
+        .and(matchers::path("/pinning/pinJSONToIPFS"))
+        .respond_with(ResponseTemplate::new(401).set_body_string("unauthorized"))
+        .mount(&server)
+        .await;
+
+    let ipfs = Ipfs::default().with_write_uri(server.uri()).with_pinata("k", "s");
+    assert!(upload_metadata_doc_to_ipfs_legacy(&AppDataDoc::new("X"), &ipfs).await.is_err());
+}
+
+#[allow(deprecated, reason = "intentionally exercising deprecated legacy functions")]
+#[tokio::test]
+async fn legacy_upload_propagates_malformed_response() {
+    use cow_rs::app_data::upload_metadata_doc_to_ipfs_legacy;
+    let server = MockServer::start().await;
+
+    Mock::given(matchers::method("POST"))
+        .and(matchers::path("/pinning/pinJSONToIPFS"))
+        .respond_with(ResponseTemplate::new(200).set_body_string("not json"))
+        .mount(&server)
+        .await;
+
+    let ipfs = Ipfs::default().with_write_uri(server.uri()).with_pinata("k", "s");
+    assert!(upload_metadata_doc_to_ipfs_legacy(&AppDataDoc::new("X"), &ipfs).await.is_err());
+}
+
+// ── MetadataApi delegators ──────────────────────────────────────────────────
+
+#[allow(deprecated, reason = "intentionally exercising deprecated legacy delegators")]
+#[test]
+fn metadata_api_legacy_get_app_data_info_matches_free_function() {
+    use cow_rs::app_data::{MetadataApi, get_app_data_info_legacy};
+    let api = MetadataApi::new();
+    let doc = AppDataDoc::new("ApiLegacy");
+    let via_api = api.get_app_data_info_legacy(&doc).unwrap();
+    let via_fn = get_app_data_info_legacy(&doc).unwrap();
+    assert_eq!(via_api.cid, via_fn.cid);
+    assert_eq!(via_api.app_data_hex, via_fn.app_data_hex);
+}
+
+#[allow(deprecated, reason = "intentionally exercising deprecated legacy delegators")]
+#[tokio::test]
+async fn metadata_api_legacy_fetch_doc_from_app_data_hex() {
+    use cow_rs::app_data::{MetadataApi, get_app_data_info_legacy};
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("GET"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "version": "1.14.0",
+            "appCode": "ApiLegacyFetch",
+            "metadata": {}
+        })))
+        .mount(&server)
+        .await;
+
+    let info = get_app_data_info_legacy(&AppDataDoc::new("ApiLegacyFetch")).unwrap();
+    let ipfs = Ipfs::default().with_read_uri(server.uri());
+    let api = MetadataApi::with_ipfs(ipfs);
+    let doc = api.fetch_doc_from_app_data_hex_legacy(&info.app_data_hex).await.unwrap();
+    assert_eq!(doc.app_code.as_deref(), Some("ApiLegacyFetch"));
+}
+
+#[allow(deprecated, reason = "intentionally exercising deprecated legacy delegators")]
+#[tokio::test]
+async fn metadata_api_legacy_upload_metadata_doc_to_ipfs() {
+    use cow_rs::app_data::MetadataApi;
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("POST"))
+        .and(matchers::path("/pinning/pinJSONToIPFS"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "IpfsHash": "f01551b20deadbeefcafef00ddeadbeefcafef00ddeadbeefcafef00ddeadbeefcafef00d",
+            "PinSize": 1,
+            "Timestamp": "2025-01-01T00:00:00Z"
+        })))
+        .mount(&server)
+        .await;
+
+    let ipfs = Ipfs::default().with_write_uri(server.uri()).with_pinata("k", "s");
+    let api = MetadataApi::with_ipfs(ipfs);
+    let result = api.upload_metadata_doc_to_ipfs_legacy(&AppDataDoc::new("ApiUp")).await.unwrap();
+    assert!(result.cid.starts_with('f'));
+}
+
+#[allow(deprecated, reason = "intentionally exercising deprecated legacy delegators")]
+#[test]
+fn metadata_api_legacy_app_data_hex_to_cid_matches_free_function() {
+    use cow_rs::app_data::{MetadataApi, app_data_hex_to_cid_legacy};
+    let api = MetadataApi::new();
+    let hex = "0xdeadbeefcafef00ddeadbeefcafef00ddeadbeefcafef00ddeadbeefcafef00d";
+    assert_eq!(
+        api.app_data_hex_to_cid_legacy(hex).unwrap(),
+        app_data_hex_to_cid_legacy(hex).unwrap()
+    );
+}
+
+#[test]
+fn metadata_api_get_app_data_schema_delegates() {
+    use cow_rs::app_data::MetadataApi;
+    let api = MetadataApi::new();
+    let doc = api.get_app_data_schema("1.3.0").unwrap();
+    assert_eq!(doc.version, "1.3.0");
+    assert!(api.get_app_data_schema("99.0.0").is_err());
+}
+
+#[test]
+fn metadata_api_import_schema_delegates() {
+    use cow_rs::app_data::MetadataApi;
+    let api = MetadataApi::new();
+    let doc = api.import_schema("0.7.0").unwrap();
+    assert_eq!(doc.version, "0.7.0");
+    assert!(api.import_schema("99.0.0").is_err());
+}
+
+#[test]
+fn metadata_api_parse_cid_delegates() {
+    use cow_rs::app_data::{MetadataApi, appdata_hex_to_cid};
+    let hex = "0xdeadbeefcafef00ddeadbeefcafef00ddeadbeefcafef00ddeadbeefcafef00d";
+    let cid = appdata_hex_to_cid(hex).unwrap();
+    let api = MetadataApi::new();
+    let parsed = api.parse_cid(&cid).unwrap();
+    assert_eq!(parsed.digest.len(), 32);
+}
+
+#[test]
+fn metadata_api_decode_cid_delegates() {
+    use cow_rs::app_data::MetadataApi;
+    let mut bytes = vec![0x01, 0x55, 0x1b, 0x20];
+    bytes.extend_from_slice(&[0xaau8; 32]);
+    let api = MetadataApi::new();
+    let parts = api.decode_cid(&bytes).unwrap();
+    assert_eq!(parts.version, 1);
+    assert_eq!(parts.digest.len(), 32);
+}
+
+#[test]
+fn metadata_api_extract_digest_delegates() {
+    use cow_rs::app_data::{MetadataApi, appdata_hex_to_cid};
+    let hex = "0xdeadbeefcafef00ddeadbeefcafef00ddeadbeefcafef00ddeadbeefcafef00d";
+    let cid = appdata_hex_to_cid(hex).unwrap();
+    let api = MetadataApi::new();
+    assert_eq!(api.extract_digest(&cid).unwrap(), hex);
+}
+
+#[test]
+fn metadata_api_display_is_stable() {
+    use cow_rs::app_data::MetadataApi;
+    assert_eq!(format!("{}", MetadataApi::new()), "metadata-api");
+}
+
+// ── Small remaining branches ────────────────────────────────────────────────
+
+#[test]
+fn validate_doc_with_post_hooks_exercises_post_branch() {
+    use cow_rs::app_data::{CowHook, OrderInteractionHooks};
+    // The pre branch is already covered by existing fixtures; this hits the
+    // `post` branch of `validate_hooks`.
+    let pre = CowHook {
+        target: "0x1111111111111111111111111111111111111111".into(),
+        call_data: "0x".into(),
+        gas_limit: "100000".into(),
+        dapp_id: None,
+    };
+    let post = CowHook {
+        target: "0x2222222222222222222222222222222222222222".into(),
+        call_data: "0x".into(),
+        gas_limit: "200000".into(),
+        dapp_id: Some("dapp".into()),
+    };
+    let hooks = OrderInteractionHooks::new(vec![pre], vec![post]);
+    let doc = AppDataDoc::new("PostHooks").with_hooks(hooks);
+    let result = validate_app_data_doc(&doc);
+    assert!(result.is_valid(), "doc with post hook should be valid: {result:?}");
+}
+
+#[test]
+fn partner_fee_entry_display_falls_back_when_all_bps_absent() {
+    use cow_rs::app_data::PartnerFeeEntry;
+    // Bypass the constructors (which always set at least one bps field) by
+    // building the entry directly via its JSON representation — an empty
+    // object leaves every `Option<u64>` as `None`, exercising the final
+    // `fee({recipient})` arm of `Display`.
+    let raw = json!({
+        "recipient": "0x1111111111111111111111111111111111111111"
+    });
+    let entry: PartnerFeeEntry = serde_json::from_value(raw).unwrap();
+    let rendered = format!("{entry}");
+    assert!(rendered.starts_with("fee("), "unexpected render: {rendered}");
+    assert!(rendered.contains("0x1111"));
+}
