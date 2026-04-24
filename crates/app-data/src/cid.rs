@@ -533,6 +533,35 @@ mod tests {
     }
 
     #[test]
+    fn cid_to_appdata_hex_rejects_empty() {
+        assert!(cid_to_appdata_hex("").is_err());
+    }
+
+    #[test]
+    fn cid_to_appdata_hex_decodes_uppercase_base32() {
+        // Multibase 'B' (uppercase base32) must decode identically to 'b'.
+        let cid = "BAFKREIEAQHRRDSFTXWXASEAYMNEMP7F7V6PY6PSBH7NQCNPM5RQHMESVXI";
+        let expected = "0x8081e311c8b3bdae0910186348c7fcbfaf9f8f3e413fdb0135ecec60761255ba";
+        assert_eq!(cid_to_appdata_hex(cid).unwrap(), expected);
+    }
+
+    #[test]
+    fn cid_to_appdata_hex_rejects_invalid_base32_char() {
+        // '1' is not in the RFC 4648 base32 alphabet.
+        let err = cid_to_appdata_hex("b1xyz").unwrap_err();
+        assert!(format!("{err}").contains("invalid base32 character"));
+    }
+
+    #[test]
+    fn cid_to_appdata_hex_rejects_non_canonical_base32() {
+        // "az" yields 1 decoded byte with 2 trailing bits equal to 0b01;
+        // the decoder must reject this as non-canonical rather than silently
+        // truncating.
+        let err = cid_to_appdata_hex("baz").unwrap_err();
+        assert!(format!("{err}").contains("non-canonical base32"));
+    }
+
+    #[test]
     fn cid_to_appdata_hex_decodes_base32_vector() {
         // Parity vector produced by @cowprotocol/app-data's `cidToAppDataHex`.
         // Multibase base32 lowercase (prefix 'b'), RFC 4648 unpadded — the
