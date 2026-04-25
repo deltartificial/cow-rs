@@ -1831,4 +1831,93 @@ mod provider_tests {
         assert!(matches!(err, BridgeError::TxBuildError(_)));
         assert!(msg.contains("EVM buy_token"), "unexpected err: {err}");
     }
+
+    // ── Direct unit tests for short-slice guards in private helpers ──────
+
+    #[test]
+    fn bytes32_to_address_returns_zero_for_short_slice() {
+        // Anything shorter than 32 bytes must fall through to Address::ZERO
+        // rather than panic on the slice operation.
+        assert_eq!(super::bytes32_to_address(&[]), Address::ZERO);
+        assert_eq!(super::bytes32_to_address(&[0u8; 31]), Address::ZERO);
+    }
+
+    #[test]
+    fn bytes32_to_u256_returns_zero_for_short_slice() {
+        assert_eq!(super::bytes32_to_u256(&[]), U256::ZERO);
+        assert_eq!(super::bytes32_to_u256(&[0u8; 31]), U256::ZERO);
+    }
+
+    #[test]
+    fn bytes32_to_u32_returns_zero_for_short_slice() {
+        assert_eq!(super::bytes32_to_u32(&[]), 0);
+        assert_eq!(super::bytes32_to_u32(&[0u8; 31]), 0);
+    }
+
+    // ── parse_cow_trade_event: truncated dynamic-bytes payload ───────────
+
+    fn cow_trade_log_with_data(data: Vec<u8>) -> EvmLogEntry {
+        EvmLogEntry {
+            // Prod settlement on mainnet, so the topic/address filter passes.
+            address: cow_chains::settlement_contract(SupportedChainId::Mainnet),
+            topics: vec![
+                super::cow_trade_event_topic0(),
+                B256::repeat_byte(0xaa), // owner (indexed)
+            ],
+            data,
+        }
+    }
+
+    #[test]
+    fn parse_cow_trade_event_returns_none_when_offset_exceeds_data() {
+        // 7 static words (5 fixed + offset + length placeholder), so 7*32 = 224 bytes
+        // pass the minimum-length check, but the offset word points past the data,
+        // exercising the `data.len() < offset + 32` guard.
+        let mut data = vec![0u8; 7 * 32];
+        // Encode an offset of 1024 (way past `data.len() = 224`) at bytes 160..192.
+        let huge_offset = U256::from(1024u64);
+        data[160..192].copy_from_slice(&huge_offset.to_be_bytes::<32>());
+        let logs = vec![cow_trade_log_with_data(data)];
+        let parsed = get_cow_trade_events(SupportedChainId::Mainnet.as_u64(), &logs, None);
+        assert!(parsed.is_empty(), "expected no events, got {parsed:?}");
+    }
+
+    #[test]
+    fn parse_cow_trade_event_returns_none_when_uid_length_exceeds_data() {
+        // Same shape as above, but the offset is 192 (one word past the static
+        // section) and the length word at data[192..224] reports a length the
+        // payload cannot satisfy — exercises `data.len() < uid_start + uid_len`.
+        let mut data = vec![0u8; 7 * 32];
+        // Offset = 192 (so the length word lives at bytes 192..224, the last word).
+        data[160..192].copy_from_slice(&U256::from(192u64).to_be_bytes::<32>());
+        // Claim 4096 bytes of UID — far more than the 224-byte payload holds.
+        data[192..224].copy_from_slice(&U256::from(4096u64).to_be_bytes::<32>());
+        let logs = vec![cow_trade_log_with_data(data)];
+        let parsed = get_cow_trade_events(SupportedChainId::Mainnet.as_u64(), &logs, None);
+        assert!(parsed.is_empty(), "expected no events, got {parsed:?}");
+    }
+
+    // ── token_symbol_to_info: fallback arm for unknown symbols ───────────
+
+    #[test]
+    fn token_symbol_to_info_falls_back_for_unknown_symbol() {
+        // A symbol the explicit match doesn't know must take the
+        // `_ => (18u8, upper.clone())` branch and report 18 decimals
+        // with the upper-cased symbol as the human name.
+        let info = super::token_symbol_to_info("foo", Address::ZERO, 1);
+        assert_eq!(info.decimals, 18);
+        assert_eq!(info.symbol, "FOO");
+        assert_eq!(info.name, "FOO");
+    }
+
+    // ── as_hook_bridge_provider: trait downcast on AcrossBridgeProvider ──
+
+    #[test]
+    fn as_hook_bridge_provider_returns_self() {
+        // Across is a hook-bridge provider, so the downcast must return
+        // `Some` rather than the default `None` from the parent trait.
+        let provider = test_provider();
+        assert!(provider.as_hook_bridge_provider().is_some());
+        assert!(provider.as_receiver_account_bridge_provider().is_none());
+    }
 }

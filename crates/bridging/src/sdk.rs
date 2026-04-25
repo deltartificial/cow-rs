@@ -3002,6 +3002,10 @@ mod orchestration_tests {
         }
 
         let provider = QuoteFailing { info: hook_info() };
+        // Confirm the trait downcasts return the expected variants — covers
+        // the as_hook_bridge_provider arm on this mock provider.
+        assert!(provider.as_hook_bridge_provider().is_some());
+        assert!(provider.as_receiver_account_bridge_provider().is_none());
         exercise_bridge_surface(&provider).await;
         exercise_hook_bridge_surface(&provider).await;
         let signer = make_signer();
@@ -3454,5 +3458,152 @@ mod miscellaneous_coverage_tests {
         // Hardhat account #0.
         let expected: Address = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266".parse().unwrap();
         assert_eq!(test_address(), expected);
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::tests_outside_test_module, reason = "inner module pattern")]
+mod cross_chain_order_tests {
+    use crate::{
+        across::{EvmLogEntry, get_cow_trade_events},
+        sdk::{GetCrossChainOrderParams, get_cross_chain_order},
+    };
+    use alloy_primitives::{Address, B256, U256, keccak256};
+
+    fn pad_u256(value: U256) -> [u8; 32] {
+        value.to_be_bytes::<32>()
+    }
+
+    fn left_pad_address(addr: Address) -> [u8; 32] {
+        let mut buf = [0u8; 32];
+        buf[12..32].copy_from_slice(addr.as_slice());
+        buf
+    }
+
+    struct DepositLogArgs {
+        spoke_pool: Address,
+        destination_chain: u64,
+        deposit_id: u64,
+        depositor: Address,
+        recipient: Address,
+        sell_token: Address,
+        buy_token: Address,
+    }
+
+    fn deposit_event_log(args: DepositLogArgs) -> EvmLogEntry {
+        let DepositLogArgs {
+            spoke_pool,
+            destination_chain,
+            deposit_id,
+            depositor,
+            recipient,
+            sell_token,
+            buy_token,
+        } = args;
+        // Topic 0 must match keccak256 of the canonical signature so the
+        // filter in `get_across_deposit_events` accepts the log.
+        let topic0 = keccak256(
+            "FundsDeposited(bytes32,bytes32,uint256,uint256,uint256,uint256,uint32,uint32,uint32,bytes32,bytes32,bytes32,bytes)",
+        );
+        let topics = vec![
+            topic0,
+            B256::from(pad_u256(U256::from(destination_chain))),
+            B256::from(pad_u256(U256::from(deposit_id))),
+            B256::from(left_pad_address(depositor)),
+        ];
+        let mut data = Vec::with_capacity(9 * 32);
+        data.extend_from_slice(&left_pad_address(sell_token)); // inputToken
+        data.extend_from_slice(&left_pad_address(buy_token)); // outputToken
+        data.extend_from_slice(&pad_u256(U256::from(1_000_000u64))); // inputAmount
+        data.extend_from_slice(&pad_u256(U256::from(999_500u64))); // outputAmount
+        data.extend_from_slice(&pad_u256(U256::from(1_700_000_000u64))); // quoteTimestamp
+        data.extend_from_slice(&pad_u256(U256::from(1_700_999_999u64))); // fillDeadline
+        data.extend_from_slice(&pad_u256(U256::ZERO)); // exclusivityDeadline
+        data.extend_from_slice(&left_pad_address(recipient)); // recipient
+        data.extend_from_slice(&left_pad_address(Address::ZERO)); // exclusiveRelayer
+
+        EvmLogEntry { address: spoke_pool, topics, data }
+    }
+
+    fn cow_trade_log(
+        settlement: Address,
+        owner: Address,
+        sell_token: Address,
+        buy_token: Address,
+        order_uid_bytes: &[u8],
+    ) -> EvmLogEntry {
+        let topic0 = keccak256("Trade(address,address,address,uint256,uint256,uint256,bytes)");
+        let topics = vec![topic0, B256::from(left_pad_address(owner))];
+        // 5 static words + offset + length + UID payload (rounded up to a 32-byte word).
+        let uid_len = order_uid_bytes.len();
+        let uid_padded_len = uid_len.div_ceil(32) * 32;
+        let mut data = Vec::with_capacity(7 * 32 + uid_padded_len);
+        data.extend_from_slice(&left_pad_address(sell_token)); // sellToken
+        data.extend_from_slice(&left_pad_address(buy_token)); // buyToken
+        data.extend_from_slice(&pad_u256(U256::from(1_000_000u64))); // sellAmount
+        data.extend_from_slice(&pad_u256(U256::from(999_500u64))); // buyAmount
+        data.extend_from_slice(&pad_u256(U256::ZERO)); // feeAmount
+        // Offset to dynamic bytes — the next word starts at byte 192.
+        data.extend_from_slice(&pad_u256(U256::from(6 * 32u64)));
+        // Length of orderUid bytes.
+        data.extend_from_slice(&pad_u256(U256::from(uid_len as u64)));
+        data.extend_from_slice(order_uid_bytes);
+        // Pad to a 32-byte boundary so the slice math in the parser stays valid.
+        if !uid_len.is_multiple_of(32) {
+            data.extend(vec![0u8; 32 - uid_len % 32]);
+        }
+        EvmLogEntry { address: settlement, topics, data }
+    }
+
+    #[test]
+    fn get_cross_chain_order_builds_order_when_logs_match() {
+        // Build a synthetic deposit + matching trade event for mainnet so
+        // `get_deposit_params` resolves the order — this is the only path
+        // that exercises the success branch of `get_cross_chain_order`.
+        use cow_chains::SupportedChainId;
+        let chain_id = SupportedChainId::Mainnet.as_u64();
+        let spoke_pool = crate::across::across_spoke_pool_addresses()[&chain_id];
+        let settlement = cow_chains::settlement_contract(SupportedChainId::Mainnet);
+
+        let depositor = Address::repeat_byte(0x11);
+        let recipient = Address::repeat_byte(0x22);
+        let sell_token = Address::repeat_byte(0x33);
+        let buy_token = Address::repeat_byte(0x44);
+        let order_uid_bytes: Vec<u8> = (0..56u8).collect(); // 56-byte UID like CoW Protocol uses
+        let order_uid_hex = format!("0x{}", alloy_primitives::hex::encode(&order_uid_bytes));
+
+        let logs = vec![
+            cow_trade_log(settlement, depositor, sell_token, buy_token, &order_uid_bytes),
+            deposit_event_log(DepositLogArgs {
+                spoke_pool,
+                destination_chain: 42_161,
+                deposit_id: 7,
+                depositor,
+                recipient,
+                sell_token,
+                buy_token,
+            }),
+        ];
+        // Sanity check: the trade log decodes to the expected order id.
+        let trades = get_cow_trade_events(chain_id, &logs, None);
+        assert_eq!(trades.len(), 1, "expected one trade event, got {trades:?}");
+        assert_eq!(trades[0].order_uid, order_uid_hex);
+
+        let params = GetCrossChainOrderParams {
+            chain_id,
+            order_id: order_uid_hex,
+            full_app_data: None,
+            trade_tx_hash: "0xdeadbeef".to_owned(),
+            logs: &logs,
+            settlement_override: None,
+        };
+        let order = get_cross_chain_order(&params).expect("logs cover both event types");
+        assert_eq!(order.chain_id, chain_id);
+        assert_eq!(order.trade_tx_hash, "0xdeadbeef");
+        assert!(order.explorer_url.is_none());
+        assert_eq!(order.bridging_params.source_chain_id, chain_id);
+        assert_eq!(order.bridging_params.destination_chain_id, 42_161);
+        assert_eq!(order.bridging_params.bridging_id, "7");
+        assert_eq!(order.bridging_params.recipient, recipient);
     }
 }
