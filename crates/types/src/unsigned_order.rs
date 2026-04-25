@@ -237,3 +237,52 @@ impl fmt::Display for UnsignedOrder {
         write!(f, "{} {:#x} → {:#x}", self.kind, self.sell_token, self.buy_token)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn base() -> UnsignedOrder {
+        UnsignedOrder::sell(Address::ZERO, Address::ZERO, U256::from(1_000u64), U256::from(500u64))
+    }
+
+    #[test]
+    fn with_partially_fillable_sets_flag() {
+        let order = base().with_partially_fillable();
+        assert!(order.is_partially_fillable());
+    }
+
+    #[test]
+    fn with_sell_token_balance_overrides_default() {
+        let order = base().with_sell_token_balance(TokenBalance::External);
+        assert_eq!(order.sell_token_balance, TokenBalance::External);
+    }
+
+    #[test]
+    fn with_buy_token_balance_overrides_default() {
+        let order = base().with_buy_token_balance(TokenBalance::Internal);
+        assert_eq!(order.buy_token_balance, TokenBalance::Internal);
+    }
+
+    #[test]
+    fn total_amount_saturates_on_overflow() {
+        // saturating_add must clamp to U256::MAX rather than panic.
+        let order = UnsignedOrder::sell(Address::ZERO, Address::ZERO, U256::MAX, U256::from(1u64));
+        assert_eq!(order.total_amount(), U256::MAX);
+    }
+
+    #[test]
+    fn total_amount_sums_sell_and_buy() {
+        let order =
+            UnsignedOrder::sell(Address::ZERO, Address::ZERO, U256::from(7u64), U256::from(11u64));
+        assert_eq!(order.total_amount(), U256::from(18u64));
+    }
+
+    #[test]
+    fn display_renders_kind_and_token_addresses() {
+        let order = base();
+        let rendered = format!("{order}");
+        assert!(rendered.contains("sell"));
+        assert!(rendered.contains("0x0000000000000000000000000000000000000000"));
+    }
+}

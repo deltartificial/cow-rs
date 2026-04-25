@@ -926,6 +926,10 @@ mod tests {
         assert!(!are_tokens_equal::<Tok>(None, Some(&t)));
         assert!(!are_tokens_equal::<Tok>(Some(&t), None));
         assert!(!are_tokens_equal::<Tok>(None, None));
+        // Both-Some path runs the trait methods on `Tok`.
+        assert!(are_tokens_equal::<Tok>(Some(&t), Some(&t)));
+        assert_eq!(t.chain_id(), 1);
+        assert_eq!(t.address(), "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2");
     }
 
     #[test]

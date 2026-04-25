@@ -851,4 +851,42 @@ mod tests {
     fn price_quality_display() {
         assert_eq!(format!("{}", PriceQuality::Verified), "verified");
     }
+
+    // ── CowHook ─────────────────────────────────────────────────────────
+
+    #[test]
+    fn cow_hook_with_dapp_id_sets_field() {
+        let hook = CowHook::new("0xtarget", "0xdata", "21000").with_dapp_id("my-dapp");
+        assert!(hook.has_dapp_id());
+        assert_eq!(hook.dapp_id.as_deref(), Some("my-dapp"));
+    }
+
+    #[test]
+    fn cow_hook_has_dapp_id_false_by_default() {
+        let hook = CowHook::new("0xtarget", "0xdata", "21000");
+        assert!(!hook.has_dapp_id());
+    }
+
+    #[test]
+    fn cow_hook_display_renders_target_and_gas() {
+        let hook = CowHook::new("0xabc", "0xff", "50000");
+        assert_eq!(format!("{hook}"), "hook(target=0xabc, gas=50000)");
+    }
+
+    // ── OnchainOrderData ────────────────────────────────────────────────
+
+    #[test]
+    fn onchain_order_data_has_placement_error_predicates() {
+        let mut data = OnchainOrderData::new(alloy_primitives::Address::ZERO);
+        assert!(!data.has_placement_error());
+        data.placement_error = Some("rejected".into());
+        assert!(data.has_placement_error());
+    }
+
+    #[test]
+    fn onchain_order_data_display_includes_sender() {
+        let data = OnchainOrderData::new(alloy_primitives::Address::ZERO);
+        let rendered = format!("{data}");
+        assert!(rendered.starts_with("onchain(sender=0x"));
+    }
 }
