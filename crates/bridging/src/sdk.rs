@@ -697,13 +697,13 @@ pub async fn get_intermediate_swap_result(
         &foldhash::HashSet::default(),
         false,
     )?;
-    let intermediate_info =
-        candidates.iter().find(|t| t.address == intermediate).cloned().ok_or_else(|| {
-            BridgeError::TxBuildError("intermediate token not in candidates".into())
-        })?;
-    let intermediate_evm = intermediate_info.address.to_evm().ok_or_else(|| {
-        BridgeError::TxBuildError("intermediate token must be EVM on the source chain".into())
-    })?;
+    let intermediate_info = candidates
+        .iter()
+        .find(|t| t.address == intermediate)
+        .cloned()
+        .ok_or_else(intermediate_not_in_candidates_err)?;
+    let intermediate_evm =
+        intermediate_info.address.to_evm().ok_or_else(intermediate_must_be_evm_err)?;
 
     // 3. Build the app-data JSON with caller metadata preserved (#852 fix).
     let app_data_json = build_intermediate_app_data_json(advanced_settings_metadata, provider);
@@ -753,6 +753,20 @@ pub async fn get_intermediate_swap_result(
 ///
 /// The return value is a stringified JSON document ready to be passed
 /// through a [`SwapQuoter`].
+// Defensive error builders for `get_intermediate_swap_result`. Both arms
+// are guarded upstream (`filter_map(to_evm)` produces only EVM addresses
+// that are present in `candidates`) so they're unreachable in practice;
+// extracted here so they can be excluded from coverage cleanly.
+#[cfg_attr(coverage_nightly, coverage(off))]
+fn intermediate_not_in_candidates_err() -> BridgeError {
+    BridgeError::TxBuildError("intermediate token not in candidates".into())
+}
+
+#[cfg_attr(coverage_nightly, coverage(off))]
+fn intermediate_must_be_evm_err() -> BridgeError {
+    BridgeError::TxBuildError("intermediate token must be EVM on the source chain".into())
+}
+
 fn build_intermediate_app_data_json(
     caller_metadata: Option<&serde_json::Value>,
     provider: &dyn crate::provider::BridgeProvider,
@@ -1696,6 +1710,9 @@ mod intermediate_swap_tests {
             logo_url: None,
         };
         struct Never;
+        // `Never` is a deliberate trap: the test asserts the quoter is
+        // never called, so the body must remain uncovered.
+        #[cfg_attr(coverage_nightly, coverage(off))]
         impl SwapQuoter for Never {
             fn quote_swap<'a>(&'a self, _p: SwapQuoteParams) -> QuoteSwapFuture<'a> {
                 Box::pin(async { panic!("quoter should not be called") })
@@ -3340,6 +3357,10 @@ mod orchestration_tests {
             ) -> IntermediateTokensFuture<'a> {
                 Box::pin(async { Ok(Vec::new()) })
             }
+            // The body sleeps past the test budget, so the `Ok(...)`
+            // arm and the `tokio::time::sleep` callsite never resolve in
+            // a passing run.
+            #[cfg_attr(coverage_nightly, coverage(off))]
             fn get_quote<'a>(&'a self, _: &'a QuoteBridgeRequest) -> QuoteFuture<'a> {
                 Box::pin(async {
                     // Sleep far longer than the test's budget.

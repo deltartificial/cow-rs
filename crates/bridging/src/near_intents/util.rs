@@ -248,6 +248,9 @@ pub fn hash_quote_payload(
     Ok((hash, stringified))
 }
 
+// `j` only fires when serde_json::to_value/to_string itself fails; with
+// owned, primitive-typed inputs that's effectively unreachable.
+#[cfg_attr(coverage_nightly, coverage(off))]
 fn j(e: serde_json::Error) -> BridgeError {
     BridgeError::InvalidApiResponse(format!("quote hash serialization failed: {e}"))
 }

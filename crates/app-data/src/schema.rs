@@ -334,6 +334,10 @@ mod tests {
         Quote, Referrer, Utm, Widget,
     };
 
+    // Test helper: only the panic body is uncovered (the success path
+    // matters but is duplicated in every test's call-site). Excluding the
+    // helper from coverage avoids reporting the unreachable panic arm.
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn must_validate(doc: &AppDataDoc) {
         if let Err(e) = validate(doc) {
             panic!("doc should validate but failed: {e}");

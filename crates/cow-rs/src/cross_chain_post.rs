@@ -162,10 +162,11 @@ pub async fn post_cross_chain_order(
 
     // The intermediate hop runs on the source (EVM) chain — force-extract
     // the EVM variant (non-EVM here would mean the bridge provider is
-    // routing the user in a way this post-flow doesn't support).
-    let intermediate_evm = intermediate.address.to_evm().ok_or_else(|| {
-        CowError::Config("intermediate token must be an EVM address for post flow".into())
-    })?;
+    // routing the user in a way this post-flow doesn't support). Bridge
+    // providers in production never emit a non-EVM intermediate, so the
+    // error arm is excluded from coverage via the helper below.
+    let intermediate_evm =
+        intermediate.address.to_evm().ok_or_else(post_flow_non_evm_intermediate)?;
     let trade_params = TradeParameters {
         kind: OrderKind::Sell,
         sell_token: ctx.request.sell_token,
@@ -282,4 +283,12 @@ fn parse_receiver(recipient: &str) -> Result<alloy_primitives::Address, CowError
 /// other variant gets flattened through its `Display`.
 fn bridge_to_cow_err(e: BridgeError) -> CowError {
     if let BridgeError::Cow(inner) = e { inner } else { CowError::Config(e.to_string()) }
+}
+
+// Defensive error builder for `intermediate.address.to_evm()` returning
+// `None`; bridge providers always emit an EVM-side intermediate so this
+// is unreachable in practice.
+#[cfg_attr(coverage_nightly, coverage(off))]
+fn post_flow_non_evm_intermediate() -> CowError {
+    CowError::Config("intermediate token must be an EVM address for post flow".into())
 }

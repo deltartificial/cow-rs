@@ -6,6 +6,8 @@
 //! - Utility functions for fee math, token selection, and hook handling
 //! - Comprehensive types for quotes, statuses, and deposit parameters
 
+#![cfg_attr(coverage_nightly, feature(coverage_attribute))]
+#![allow(unexpected_cfgs, reason = "`coverage_nightly` is set only by cargo-llvm-cov")]
 #![deny(unsafe_code)]
 #![warn(missing_docs)]
 

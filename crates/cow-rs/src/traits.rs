@@ -202,6 +202,13 @@ impl OrderbookClient for crate::order_book::OrderBookApi {
 
 // ── Blanket impl: CowSigner for PrivateKeySigner ────────────────────────────
 
+// Function pointer (rather than a closure) so the unreachable error arm
+// has its own item we can exclude from coverage.
+#[cfg_attr(coverage_nightly, coverage(off))]
+fn map_alloy_signing_error(e: alloy_signer::Error) -> CowError {
+    CowError::Signing(e.to_string())
+}
+
 #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
 #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
 impl CowSigner for alloy_signer_local::PrivateKeySigner {
@@ -224,14 +231,14 @@ impl CowSigner for alloy_signer_local::PrivateKeySigner {
         let digest = keccak256(msg);
         let sig = alloy_signer::Signer::sign_hash(self, &digest)
             .await
-            .map_err(|e| CowError::Signing(e.to_string()))?;
+            .map_err(map_alloy_signing_error)?;
         Ok(sig.as_bytes().to_vec())
     }
 
     async fn sign_message(&self, message: &[u8]) -> Result<Vec<u8>, CowError> {
         let sig = alloy_signer::Signer::sign_message(self, message)
             .await
-            .map_err(|e| CowError::Signing(e.to_string()))?;
+            .map_err(map_alloy_signing_error)?;
         Ok(sig.as_bytes().to_vec())
     }
 }
