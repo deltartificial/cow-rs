@@ -454,4 +454,25 @@ mod tests {
         let s = format!("{reader:?}");
         assert!(s.contains("OnchainReader"));
     }
+
+    #[test]
+    fn decode_string_length_overflows_usize() {
+        // Place a non-zero byte in the high half of the length word so the
+        // decoded `U256` is larger than `usize::MAX` on a 64-bit host. This
+        // forces the `usize::try_from` branch to return `Err`, exercising
+        // the overflow `map_err` arm in `decode_string`.
+        let mut buf = vec![0u8; 64];
+        buf[31] = 32; // offset = 32
+        // Length word: bytes[32..64]. Set byte 32 (top byte of the 256-bit
+        // big-endian length) so the value is way beyond usize::MAX.
+        buf[32] = 0x01;
+        let result = decode_string(&buf);
+        let err = result.expect_err("length > usize::MAX should fail");
+        if let CowError::Parse { field, reason } = err {
+            assert_eq!(field, "string");
+            assert!(reason.contains("overflows usize"), "unexpected reason: {reason}");
+        } else {
+            panic!("expected Parse error, got {err:?}");
+        }
+    }
 }

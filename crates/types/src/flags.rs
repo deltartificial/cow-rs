@@ -478,4 +478,13 @@ mod tests {
             assert_eq!(decoded, scheme);
         }
     }
+
+    #[test]
+    fn normalize_buy_token_balance_covers_all_variants() {
+        // External collapses to Erc20 on the buy side.
+        assert_eq!(normalize_buy_token_balance(TokenBalance::Erc20), TokenBalance::Erc20);
+        assert_eq!(normalize_buy_token_balance(TokenBalance::External), TokenBalance::Erc20);
+        // Internal must round-trip unchanged — covers the second match arm.
+        assert_eq!(normalize_buy_token_balance(TokenBalance::Internal), TokenBalance::Internal);
+    }
 }

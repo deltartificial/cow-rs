@@ -636,6 +636,64 @@ async fn read_token_permit_info_success() {
     assert!(result.is_err());
 }
 
+// ── read_token_permit_info full success ────────────────────────────────────
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn read_token_permit_info_returns_decoded_struct() {
+    // Each ERC-20 / EIP-2612 view has a unique 4-byte selector at the
+    // start of the calldata. We mount one mock per selector so the five
+    // concurrent `eth_call`s each get the right ABI-encoded shape:
+    //   balanceOf  → uint256 (1_000_000)
+    //   allowance  → uint256 (500)
+    //   nonces     → uint256 (3)
+    //   decimals   → uint8   (18)
+    //   version    → string  ("1")
+    fn selector(sig: &[u8]) -> String {
+        let s = &keccak256(sig)[..4];
+        format!("\"data\":\"0x{}", alloy_primitives::hex::encode(s))
+    }
+
+    let server = MockServer::start().await;
+
+    Mock::given(matchers::method("POST"))
+        .and(matchers::body_string_contains(selector(b"balanceOf(address)")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(jsonrpc_ok(&u256_result(1_000_000))))
+        .mount(&server)
+        .await;
+    Mock::given(matchers::method("POST"))
+        .and(matchers::body_string_contains(selector(b"allowance(address,address)")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(jsonrpc_ok(&u256_result(500))))
+        .mount(&server)
+        .await;
+    Mock::given(matchers::method("POST"))
+        .and(matchers::body_string_contains(selector(b"nonces(address)")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(jsonrpc_ok(&u256_result(3))))
+        .mount(&server)
+        .await;
+    Mock::given(matchers::method("POST"))
+        .and(matchers::body_string_contains(selector(b"decimals()")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(jsonrpc_ok(&u8_result(18))))
+        .mount(&server)
+        .await;
+    Mock::given(matchers::method("POST"))
+        .and(matchers::body_string_contains(selector(b"version()")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(jsonrpc_ok(&string_result("1"))))
+        .mount(&server)
+        .await;
+
+    let reader = make_reader(&server);
+    let info = reader
+        .read_token_permit_info(token(), owner(), spender())
+        .await
+        .expect("all five calls should succeed");
+    assert_eq!(info.balance, U256::from(1_000_000u64));
+    assert_eq!(info.allowance, U256::from(500u64));
+    assert_eq!(info.nonce, U256::from(3u64));
+    assert_eq!(info.decimals, 18u8);
+    assert_eq!(info.version, "1");
+}
+
 // ── owner_address success ──────────────────────────────────────────────────
 
 #[cfg_attr(miri, ignore)]

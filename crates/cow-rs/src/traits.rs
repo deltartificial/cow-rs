@@ -1006,4 +1006,115 @@ mod tests {
         assert_eq!(ipfs.read_uri.as_deref(), Some("https://custom.gateway.io/ipfs"));
         assert_eq!(ipfs.write_uri.as_deref(), Some("https://custom.write.io"));
     }
+
+    // ── OrderBookApi blanket impl ────────────────────────────────────────
+    //
+    // The `impl OrderbookClient for OrderBookApi` block (lines ~181-201)
+    // contains five pure delegating wrappers. We exercise each one against
+    // an unreachable base URL — the inner HTTP call returns a transport
+    // error, which is fine: the wrapper body itself runs end-to-end.
+    //
+    // Port 1 is reserved and refuses connections immediately, and we
+    // disable retries so each test fails promptly rather than walking the
+    // default backoff schedule.
+
+    fn unreachable_orderbook_api() -> crate::order_book::OrderBookApi {
+        use cow_chains::{Env, SupportedChainId};
+        use cow_http::RetryPolicy;
+        crate::order_book::OrderBookApi::new_with_url(
+            SupportedChainId::Mainnet,
+            Env::Prod,
+            "http://127.0.0.1:1",
+        )
+        .with_retry_policy(RetryPolicy::no_retry())
+    }
+
+    fn minimal_quote_request() -> OrderQuoteRequest {
+        serde_json::from_value(serde_json::json!({
+            "sellToken": "0xfff9976782d46cc05630d1f6ebab18b2324d6b14",
+            "buyToken": "0x1c7d4b196cb0c7b01d743fbc6116a902379c7238",
+            "from": "0x0000000000000000000000000000000000000000",
+            "appData": "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "partiallyFillable": false,
+            "sellTokenBalance": "erc20",
+            "buyTokenBalance": "erc20",
+            "priceQuality": "optimal",
+            "signingScheme": "eip712",
+            "kind": "sell",
+            "sellAmountBeforeFee": "1000000000000000"
+        }))
+        .unwrap_or_else(|e| panic!("bad fixture: {e}"))
+    }
+
+    fn minimal_order_creation() -> OrderCreation {
+        serde_json::from_value(serde_json::json!({
+            "sellToken": "0xfff9976782d46cc05630d1f6ebab18b2324d6b14",
+            "buyToken": "0x1c7d4b196cb0c7b01d743fbc6116a902379c7238",
+            "receiver": "0x0000000000000000000000000000000000000000",
+            "sellAmount": "1000000000000000",
+            "buyAmount": "500000",
+            "validTo": 1_700_000_000u64,
+            "appData": "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "feeAmount": "0",
+            "kind": "sell",
+            "partiallyFillable": false,
+            "sellTokenBalance": "erc20",
+            "buyTokenBalance": "erc20",
+            "signingScheme": "eip712",
+            "signature": "0x",
+            "from": "0x0000000000000000000000000000000000000000"
+        }))
+        .unwrap_or_else(|e| panic!("bad fixture: {e}"))
+    }
+
+    #[tokio::test]
+    async fn orderbook_api_blanket_get_quote_delegates() {
+        let api = unreachable_orderbook_api();
+        let res = OrderbookClient::get_quote(&api, &minimal_quote_request()).await;
+        assert!(res.is_err());
+    }
+
+    #[tokio::test]
+    async fn orderbook_api_blanket_send_order_delegates() {
+        let api = unreachable_orderbook_api();
+        let res = OrderbookClient::send_order(&api, &minimal_order_creation()).await;
+        assert!(res.is_err());
+    }
+
+    #[tokio::test]
+    async fn orderbook_api_blanket_get_order_delegates() {
+        let api = unreachable_orderbook_api();
+        let res = OrderbookClient::get_order(&api, "0xdeadbeef").await;
+        assert!(res.is_err());
+    }
+
+    #[tokio::test]
+    async fn orderbook_api_blanket_get_trades_delegates() {
+        let api = unreachable_orderbook_api();
+        let res = OrderbookClient::get_trades(&api, "0xdeadbeef").await;
+        assert!(res.is_err());
+    }
+
+    #[tokio::test]
+    async fn orderbook_api_blanket_cancel_orders_delegates() {
+        let api = unreachable_orderbook_api();
+        let cancellation = OrderCancellations {
+            order_uids: vec!["0xdeadbeef".to_owned()],
+            signature: "0x".to_owned(),
+            signing_scheme: crate::types::EcdsaSigningScheme::Eip712,
+        };
+        let res = OrderbookClient::cancel_orders(&api, &cancellation).await;
+        assert!(res.is_err());
+    }
+
+    // ── ErrorSigner.address() coverage ───────────────────────────────────
+    //
+    // The existing `ErrorSigner` mock has an `address()` body that is not
+    // exercised by any other test. Call it directly to close that gap.
+
+    #[test]
+    fn error_signer_address_returns_zero() {
+        let signer = ErrorSigner;
+        assert_eq!(<ErrorSigner as CowSigner>::address(&signer), Address::ZERO);
+    }
 }
