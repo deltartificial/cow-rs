@@ -682,4 +682,69 @@ mod tests {
         // 2000-01-01T00:00:00Z (leap-year boundary).
         assert_eq!(format_iso8601_utc(946_684_800), "2000-01-01T00:00:00.000Z");
     }
+
+    // ── canonicalise_value array variant ─────────────────────────────────
+
+    #[test]
+    fn canonicalise_value_recurses_into_arrays() {
+        // Object inside an array should still have its keys re-sorted, which
+        // exercises the Array branch alongside the Object branch.
+        let input = serde_json::json!([{ "z": 1, "a": 2 }, "x", 7]);
+        let out = canonicalise_value(&input);
+        let s = serde_json::to_string(&out).unwrap();
+        assert_eq!(s, r#"[{"a":2,"z":1},"x",7]"#);
+    }
+
+    // ── hash_quote_payload optional fields ───────────────────────────────
+
+    #[test]
+    fn hash_quote_payload_includes_quote_waiting_time_ms_when_set() {
+        let mut req = sample_quote_request();
+        req.quote_waiting_time_ms = Some(1_500);
+        let (_, s) = hash_quote_payload(&sample_quote(), &req, "t").unwrap();
+        // The canonical JSON must contain the numeric value verbatim.
+        assert!(s.contains("\"quoteWaitingTimeMs\":1500"), "missing key: {s}");
+    }
+
+    #[test]
+    fn hash_quote_payload_includes_virtual_chain_refund_recipient_when_set() {
+        let mut req = sample_quote_request();
+        req.virtual_chain_refund_recipient = Some("near.testnet".into());
+        let (_, s) = hash_quote_payload(&sample_quote(), &req, "t").unwrap();
+        assert!(s.contains("\"virtualChainRefundRecipient\":\"near.testnet\""), "missing key: {s}");
+    }
+
+    // ── recover_attestation: malformed signature bytes / odd hex ─────────
+
+    #[test]
+    fn recover_attestation_rejects_invalid_v_byte() {
+        // 65-byte signature passes the length check but fails Signature::try_from
+        // when the v byte is not in {0,1,27,28,35..}. v=2 is the smallest invalid
+        // raw v value, so the parser must reject it before recovery is attempted.
+        let addr = Address::repeat_byte(0xab);
+        let hash = B256::repeat_byte(0xcd);
+        let mut sig_bytes = [0u8; 65];
+        sig_bytes[0..32].fill(0x11); // r
+        sig_bytes[32..64].fill(0x22); // s
+        sig_bytes[64] = 2; // invalid v
+        let sig_hex = format!("0x{}", hex_encode(&sig_bytes));
+        let err = recover_attestation(addr, hash, &sig_hex).unwrap_err();
+        assert!(
+            matches!(err, BridgeError::InvalidApiResponse(_)),
+            "expected InvalidApiResponse, got {err:?}"
+        );
+    }
+
+    #[test]
+    fn recover_attestation_rejects_odd_length_hex() {
+        // "0xabc" trims to "abc" which has odd length — exercises
+        // parse_hex_bytes's odd-length error branch (lines 308–311).
+        let addr = Address::repeat_byte(0xab);
+        let hash = B256::repeat_byte(0xcd);
+        let err = recover_attestation(addr, hash, "0xabc").unwrap_err();
+        let BridgeError::InvalidApiResponse(msg) = err else {
+            panic!("expected InvalidApiResponse, got {err:?}")
+        };
+        assert!(msg.contains("odd length"), "unexpected error: {msg}");
+    }
 }

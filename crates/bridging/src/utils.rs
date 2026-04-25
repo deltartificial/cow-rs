@@ -1286,4 +1286,129 @@ mod tests {
         assert!(TokenPriority::Medium > TokenPriority::Low);
         assert!(TokenPriority::Low > TokenPriority::Lowest);
     }
+
+    // ── determine_intermediate_token: secondary priority arms ───────────────
+
+    #[test]
+    fn determine_intermediate_token_prefers_correlated_over_random() {
+        // A correlated candidate must out-rank a random one when neither is
+        // the sell token nor a priority stablecoin (covers the Medium arm).
+        let sell: Address = "0x2222222222222222222222222222222222222222".parse().unwrap();
+        let correlated_addr: Address =
+            "0x3333333333333333333333333333333333333333".parse().unwrap();
+        let random: Address = "0x4444444444444444444444444444444444444444".parse().unwrap();
+        let mut correlated = HashSet::default();
+        correlated.insert(correlated_addr);
+
+        // Use chain 999 so neither candidate is a priority stablecoin.
+        let result =
+            determine_intermediate_token(999, sell, &[random, correlated_addr], &correlated, false)
+                .unwrap();
+        assert_eq!(result, correlated_addr);
+    }
+
+    #[test]
+    fn determine_intermediate_token_prefers_native_when_sell_is_not_native() {
+        // The native-currency arm only fires when the sell token is *not*
+        // native (otherwise the source==candidate branch handled it).
+        let sell: Address = "0x2222222222222222222222222222222222222222".parse().unwrap();
+        let native = cow_chains::NATIVE_CURRENCY_ADDRESS;
+        let random: Address = "0x4444444444444444444444444444444444444444".parse().unwrap();
+        let correlated = HashSet::default();
+
+        let result =
+            determine_intermediate_token(999, sell, &[random, native], &correlated, false).unwrap();
+        assert_eq!(result, native);
+    }
+
+    // ── is_better_quote: Some/Some, Some/None, None/None arms ───────────────
+
+    fn make_amounts(buy_amount: u128) -> BridgeQuoteAmountsAndCosts {
+        BridgeQuoteAmountsAndCosts {
+            costs: BridgeCosts {
+                bridging_fee: BridgingFee {
+                    fee_bps: 0,
+                    amount_in_sell_currency: U256::ZERO,
+                    amount_in_buy_currency: U256::ZERO,
+                },
+            },
+            before_fee: BridgeAmounts {
+                sell_amount: U256::from(100u64),
+                buy_amount: U256::from(buy_amount),
+            },
+            after_fee: BridgeAmounts {
+                sell_amount: U256::from(100u64),
+                buy_amount: U256::from(buy_amount),
+            },
+            after_slippage: BridgeAmounts {
+                sell_amount: U256::from(100u64),
+                buy_amount: U256::from(buy_amount),
+            },
+            slippage_bps: 0,
+        }
+    }
+
+    #[test]
+    fn is_better_quote_higher_buy_amount_wins() {
+        let candidate = MultiQuoteResult {
+            provider_dapp_id: "a".into(),
+            quote: Some(make_amounts(200)),
+            error: None,
+        };
+        let best = MultiQuoteResult {
+            provider_dapp_id: "b".into(),
+            quote: Some(make_amounts(100)),
+            error: None,
+        };
+        assert!(is_better_quote(&candidate, Some(&best)));
+        // Reversed comparison must return false (covers the same match arm).
+        assert!(!is_better_quote(&best, Some(&candidate)));
+    }
+
+    #[test]
+    fn is_better_quote_some_vs_none_in_best_wins() {
+        let candidate = MultiQuoteResult {
+            provider_dapp_id: "a".into(),
+            quote: Some(make_amounts(1)),
+            error: None,
+        };
+        let best = MultiQuoteResult {
+            provider_dapp_id: "b".into(),
+            quote: None,
+            error: Some("err".into()),
+        };
+        // (Some, None) returns true (covers the explicit `(Some(_), None)` arm).
+        assert!(is_better_quote(&candidate, Some(&best)));
+    }
+
+    #[test]
+    fn is_better_quote_none_vs_anything_is_false() {
+        let candidate = MultiQuoteResult { provider_dapp_id: "a".into(), quote: None, error: None };
+        let best = MultiQuoteResult {
+            provider_dapp_id: "b".into(),
+            quote: Some(make_amounts(100)),
+            error: None,
+        };
+        // (None, Some) and (None, None) both fall to the wildcard `false` arm.
+        assert!(!is_better_quote(&candidate, Some(&best)));
+        let other_best =
+            MultiQuoteResult { provider_dapp_id: "c".into(), quote: None, error: None };
+        assert!(!is_better_quote(&candidate, Some(&other_best)));
+    }
+
+    // ── fill_timeout_results: existing-but-empty entry overwrite ────────────
+
+    #[test]
+    fn fill_timeout_results_overwrites_entry_with_no_quote_no_error() {
+        // An entry that already exists but carries neither a quote nor an
+        // error means the provider task never reported back — the timeout
+        // helper must overwrite it in place rather than push a new one.
+        let mut results =
+            vec![MultiQuoteResult { provider_dapp_id: "p1".into(), quote: None, error: None }];
+        let providers = vec!["p1".to_owned()];
+        fill_timeout_results(&mut results, &providers);
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].provider_dapp_id, "p1");
+        assert_eq!(results[0].error.as_deref(), Some("provider request timed out"));
+    }
 }
