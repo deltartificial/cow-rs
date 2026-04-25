@@ -554,6 +554,22 @@ mod tests {
         assert_eq!(result.signature.len(), 132);
     }
 
+    #[tokio::test]
+    async fn sign_order_cancellations_eth_sign_branch() {
+        // Covers the `EcdsaSigningScheme::EthSign` arm inside
+        // `sign_order_cancellations` (the `Eip712` arm is exercised above).
+        let signer: PrivateKeySigner =
+            "0x4c0883a69102937d6231471b5dbb6204fe512961708279f99ae5f1e7b8a6c5e1".parse().unwrap();
+        let o1 = default_order().with_valid_to(100);
+        let uid1 = compute_order_uid(1, &o1, signer.address());
+        let result =
+            sign_order_cancellations(&[uid1.as_str()], 1, &signer, EcdsaSigningScheme::EthSign)
+                .await
+                .unwrap();
+        assert!(result.is_eth_sign());
+        assert_eq!(result.signature.len(), 132);
+    }
+
     // ── eth_sign_digest ─────────────────────────────────────────────────
 
     #[test]
