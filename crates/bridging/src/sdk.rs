@@ -3483,20 +3483,20 @@ mod miscellaneous_coverage_tests {
     fn intermediate_not_in_candidates_err_returns_tx_build_error() {
         use crate::types::BridgeError;
         let err = super::intermediate_not_in_candidates_err();
-        let BridgeError::TxBuildError(msg) = err else {
-            panic!("expected TxBuildError, got {err:?}");
-        };
-        assert!(msg.contains("not in candidates"));
+        assert!(
+            matches!(&err, BridgeError::TxBuildError(m) if m.contains("not in candidates")),
+            "got {err:?}"
+        );
     }
 
     #[test]
     fn intermediate_must_be_evm_err_returns_tx_build_error() {
         use crate::types::BridgeError;
         let err = super::intermediate_must_be_evm_err();
-        let BridgeError::TxBuildError(msg) = err else {
-            panic!("expected TxBuildError, got {err:?}");
-        };
-        assert!(msg.contains("must be EVM"));
+        assert!(
+            matches!(&err, BridgeError::TxBuildError(m) if m.contains("must be EVM")),
+            "got {err:?}"
+        );
     }
 }
 
