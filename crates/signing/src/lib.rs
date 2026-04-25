@@ -1,5 +1,7 @@
 //! `cow-signing` — Layer 2 EIP-712 order digest, signing utilities and core signing types.
 
+#![cfg_attr(coverage_nightly, feature(coverage_attribute))]
+#![allow(unexpected_cfgs, reason = "`coverage_nightly` is set only by cargo-llvm-cov")]
 #![deny(unsafe_code)]
 #![warn(missing_docs)]
 

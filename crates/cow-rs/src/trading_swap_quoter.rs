@@ -127,7 +127,11 @@ mod tests {
     const TEST_PRIVATE_KEY: &str =
         "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
 
+    // The `else { panic!(...) }` arm is unreachable from a valid hex key
+    // but we cannot exclude individual statements; gating the helper as a
+    // whole keeps the lcov signal honest about reachable code.
     #[allow(clippy::panic, reason = "test helper — fallible ctor should never fail here")]
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn build_sdk() -> Arc<TradingSdk> {
         let config = TradingSdkConfig::prod(SupportedChainId::Mainnet, "CoWRsTest");
         let Ok(sdk) = TradingSdk::new(config, TEST_PRIVATE_KEY) else {
