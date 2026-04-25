@@ -943,6 +943,105 @@ mod tests {
     // ── Transform order ─────────────────────────────────────────────────
 
     #[test]
+    fn protocol_fee_bps_below_scaling_resolution_returns_zero() {
+        // BPS small enough that `(bps * 100_000).round() as u64 == 0` —
+        // i.e. inside the scaling resolution. Drives the early-return
+        // branch that guards against U256-zero division by checking
+        // `protocol_fee_bps_big.is_zero()` after rounding.
+        let result = get_protocol_fee_amount(&ProtocolFeeAmountParams {
+            order_params: sell_order(),
+            protocol_fee_bps: 1e-6,
+        });
+        assert_eq!(result, U256::ZERO);
+    }
+
+    #[test]
+    fn transform_order_with_ethflow_data_overrides_owner_and_sell_token() {
+        // Drives the EthFlow branch of `transform_order`: when an order
+        // carries `ethflow_data` and an `onchain_user`, the `valid_to` is
+        // taken from `ethflow_data.user_valid_to`, the `owner` is replaced
+        // with `onchain_user`, and the `sell_token` is rewritten to the
+        // native-currency sentinel.
+        let onchain_user = "0x2222222222222222222222222222222222222222"
+            .parse::<alloy_primitives::Address>()
+            .unwrap();
+        let json = serde_json::json!({
+            "uid": "0xmockuid",
+            "sellToken": "0xfff9976782d46cc05630d1f6ebab18b2324d6b14",
+            "buyToken": "0x1c7d4b196cb0c7b01d743fbc6116a902379c7238",
+            "receiver": "0x0000000000000000000000000000000000000000",
+            "sellAmount": "1000",
+            "buyAmount": "500",
+            "validTo": 1_700_000_000u32,
+            "appData": "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "feeAmount": "10",
+            "kind": "sell",
+            "partiallyFillable": false,
+            "creationDate": "2024-01-01T00:00:00Z",
+            "owner": "0x0000000000000000000000000000000000000000",
+            "executedSellAmount": "100",
+            "executedSellAmountBeforeFees": "100",
+            "executedBuyAmount": "50",
+            "executedFeeAmount": "5",
+            "invalidated": false,
+            "status": "open",
+            "signingScheme": "eip712",
+            "signature": "0x",
+            "ethflowData": { "userValidTo": 1_999_999_999u32, "isRefundClaimed": false },
+            "onchainUser": format!("{onchain_user:#x}"),
+        });
+        let order: super::super::Order = serde_json::from_value(json).unwrap();
+        let enriched = transform_order(order);
+
+        // EthFlow `valid_to` overrides the on-chain order `valid_to`.
+        assert_eq!(enriched.valid_to, 1_999_999_999);
+        // `owner` is replaced with the real user behind the EthFlow contract.
+        assert_eq!(enriched.owner, onchain_user);
+        // `sell_token` is rewritten to the native-currency sentinel because
+        // EthFlow always sells native ETH.
+        assert_eq!(enriched.sell_token, cow_chains::NATIVE_CURRENCY_ADDRESS);
+    }
+
+    #[test]
+    fn transform_order_with_ethflow_data_without_onchain_user_keeps_owner() {
+        // Same EthFlow branch as above but with `onchain_user = None` —
+        // confirms the inner `if let Some(user)` arm is correctly skipped
+        // while the `valid_to` and `sell_token` rewrites still happen.
+        let original_owner = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            .parse::<alloy_primitives::Address>()
+            .unwrap();
+        let json = serde_json::json!({
+            "uid": "0xmockuid",
+            "sellToken": "0xfff9976782d46cc05630d1f6ebab18b2324d6b14",
+            "buyToken": "0x1c7d4b196cb0c7b01d743fbc6116a902379c7238",
+            "receiver": "0x0000000000000000000000000000000000000000",
+            "sellAmount": "1000",
+            "buyAmount": "500",
+            "validTo": 1_700_000_000u32,
+            "appData": "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "feeAmount": "10",
+            "kind": "sell",
+            "partiallyFillable": false,
+            "creationDate": "2024-01-01T00:00:00Z",
+            "owner": format!("{original_owner:#x}"),
+            "executedSellAmount": "100",
+            "executedSellAmountBeforeFees": "100",
+            "executedBuyAmount": "50",
+            "executedFeeAmount": "5",
+            "invalidated": false,
+            "status": "open",
+            "signingScheme": "eip712",
+            "signature": "0x",
+            "ethflowData": { "userValidTo": 42, "isRefundClaimed": true },
+        });
+        let order: super::super::Order = serde_json::from_value(json).unwrap();
+        let enriched = transform_order(order);
+        assert_eq!(enriched.valid_to, 42);
+        assert_eq!(enriched.owner, original_owner); // unchanged — no onchain_user
+        assert_eq!(enriched.sell_token, cow_chains::NATIVE_CURRENCY_ADDRESS);
+    }
+
+    #[test]
     fn transform_order_sets_total_fee() {
         let json = serde_json::json!({
             "uid": "0xmockuid",

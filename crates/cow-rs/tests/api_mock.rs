@@ -423,6 +423,91 @@ async fn get_version_gives_up_after_max_attempts() {
     );
 }
 
+/// Spawn a one-shot TCP listener that, on the first connection, returns a
+/// non-2xx HTTP response whose advertised `Content-Length` is far larger
+/// than the body actually written, then drops the socket. This forces
+/// `reqwest::Response::text()` to fail with an `is_body()` decode error
+/// once it tries to read the missing bytes — exactly the path
+/// `orderbook::api::api_error` warns on when it returns an empty body.
+#[allow(clippy::unwrap_used, reason = "test-only helper; bind/local_addr never fails on loopback")]
+async fn spawn_truncated_body_server() -> u16 {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    tokio::spawn(async move {
+        if let Ok((mut stream, _)) = listener.accept().await {
+            use tokio::io::{AsyncReadExt, AsyncWriteExt};
+            // Read & discard a single HTTP request (best-effort — small
+            // peek is enough for keep-alive-less connections). Errors are
+            // ignored: even a half-read request is enough to provoke the
+            // truncated-body path we want to test.
+            let mut buf = [0u8; 1024];
+            let _read = stream.read(&mut buf).await;
+            // Promise 1024 bytes of body, deliver only 5, then drop.
+            let _write = stream
+                .write_all(
+                    b"HTTP/1.1 500 Internal Server Error\r\n\
+                      Content-Type: text/plain\r\n\
+                      Content-Length: 1024\r\n\
+                      Connection: close\r\n\
+                      \r\n\
+                      short",
+                )
+                .await;
+            // Closing the stream before the promised bytes are written
+            // surfaces an `is_body()` transport error to the client. The
+            // stream goes out of scope here, which closes the socket.
+        }
+    });
+    port
+}
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn api_error_handles_unreadable_response_body() {
+    // Drives the `Err(err) => { tracing::warn!(...); String::new() }` arm
+    // of `api_error`: the server returns a 500 status with a truncated
+    // body (Content-Length lies), so `resp.text()` errors and `api_error`
+    // logs the failure and returns `CowError::Api { body: "" }`.
+    let port = spawn_truncated_body_server().await;
+    let api = OrderBookApi::new_with_url(
+        SupportedChainId::Mainnet,
+        Env::Prod,
+        format!("http://127.0.0.1:{port}"),
+    )
+    .with_retry_policy(RetryPolicy::no_retry());
+
+    let result = api.get_version().await;
+    match result {
+        Err(cow_rs::error::CowError::Api { status, body }) => {
+            assert_eq!(status, 500);
+            assert!(body.is_empty(), "body must fall back to empty string when text() fails");
+        }
+        other => panic!("expected Api error with empty body, got {other:?}"),
+    }
+}
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn retry_loop_falls_through_on_transient_transport_error() {
+    // Drives the `Err(e) => { if !should_retry_error(&e) || last_attempt
+    // { return Err(...); } }` arm of `send_with_policy` along the path
+    // where neither short-circuit fires: we point at a closed port (so
+    // every attempt produces a transport error), retries are enabled,
+    // and `max_attempts > 1` — the first attempt's error therefore
+    // falls through to the wait/bump tail before the second attempt
+    // (the last) finally returns the error.
+    let api =
+        OrderBookApi::new_with_url(SupportedChainId::Mainnet, Env::Prod, "http://127.0.0.1:1")
+            .with_retry_policy(RetryPolicy {
+                max_attempts: 2,
+                initial_delay: Duration::from_millis(1),
+                max_delay: Duration::from_millis(2),
+                retry_status_codes: cow_rs::order_book::DEFAULT_RETRY_STATUS_CODES,
+            });
+    let err = api.get_version().await.expect_err("transport failures must surface as an error");
+    assert!(matches!(err, cow_rs::error::CowError::Http(_)), "got: {err:?}");
+}
+
 #[cfg_attr(miri, ignore)]
 #[tokio::test]
 async fn no_retry_policy_fires_exactly_once() {

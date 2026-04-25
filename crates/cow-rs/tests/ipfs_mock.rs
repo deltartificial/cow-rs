@@ -762,6 +762,31 @@ async fn legacy_fetch_doc_from_app_data_hex_via_free_function() {
 
 #[allow(deprecated, reason = "intentionally exercising deprecated legacy functions")]
 #[tokio::test]
+async fn legacy_fetch_doc_from_app_data_hex_with_invalid_hex_propagates_decode_error() {
+    // Drives the `hex_to_cid(...).map_err(...)` branch in
+    // `fetch_doc_from_cid_aux`: the legacy hex-to-CID conversion fails,
+    // and the wrapping `CowError::AppData("Error decoding AppData: ...")`
+    // surfaces with both the hex and the inner decoder message intact.
+    use cow_rs::app_data::fetch_doc_from_app_data_hex_legacy;
+
+    let bad_hex = "not-a-hex-string";
+    let err = fetch_doc_from_app_data_hex_legacy(bad_hex, None)
+        .await
+        .expect_err("invalid hex must surface as a decode error");
+
+    let msg = err.to_string();
+    assert!(
+        msg.contains("Error decoding AppData"),
+        "decode error must use the wrapping context message; got: {msg}"
+    );
+    assert!(
+        msg.contains(bad_hex),
+        "decode error must include the original hex for debugging; got: {msg}"
+    );
+}
+
+#[allow(deprecated, reason = "intentionally exercising deprecated legacy functions")]
+#[tokio::test]
 async fn legacy_upload_metadata_doc_to_ipfs_success() {
     use cow_rs::app_data::upload_metadata_doc_to_ipfs_legacy;
     let server = MockServer::start().await;

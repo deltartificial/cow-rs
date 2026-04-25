@@ -31,7 +31,7 @@ mod tests {
         schema::{self, Definition as SchemaDefinition, Type, TypeDefinition},
     };
 
-    use crate::queries::{CRATE_QUERIES, PUBLIC_QUERIES};
+    use crate::queries::{CRATE_QUERIES, PUBLIC_QUERIES, QueryEntry};
 
     // ── Schema model ────────────────────────────────────────────────────────
 
@@ -214,18 +214,30 @@ mod tests {
         }
     }
 
-    #[test]
-    fn every_crate_query_matches_schema() {
-        let model = build_schema_model();
+    /// Aggregate lint errors for every `(name, query, root_entity)` tuple
+    /// in `queries`, prefixing each diagnostic with its query name.
+    ///
+    /// Extracted so the drift-aggregation logic can be exercised both
+    /// against the production query list (clean — empty output) and
+    /// against synthetic broken queries (covers the per-error push arm
+    /// that production never reaches).
+    fn collect_drift_errors(queries: &[QueryEntry], model: &SchemaModel) -> Vec<String> {
         let mut all_errors: Vec<String> = Vec::new();
-
-        for (name, query, root) in CRATE_QUERIES.iter().chain(PUBLIC_QUERIES) {
-            let errors = lint_query(query, root, &model);
+        for (name, query, root) in queries {
+            let errors = lint_query(query, root, model);
             for err in errors {
                 all_errors.push(format!("[{name}] {err}"));
             }
         }
+        all_errors
+    }
 
+    #[test]
+    fn every_crate_query_matches_schema() {
+        let model = build_schema_model();
+        let queries: Vec<QueryEntry> =
+            CRATE_QUERIES.iter().chain(PUBLIC_QUERIES).copied().collect();
+        let all_errors = collect_drift_errors(&queries, &model);
         assert!(
             all_errors.is_empty(),
             "subgraph query drift detected ({} issues):\n  - {}",
@@ -285,6 +297,40 @@ mod tests {
         assert!(
             errors.iter().any(|e| e.contains("fragment")),
             "linter must flag fragments; got: {errors:?}"
+        );
+    }
+
+    #[test]
+    fn drift_aggregation_labels_each_failing_query() {
+        // Drives the per-error push arm of `collect_drift_errors` on a
+        // synthetic list of intentionally broken queries. Production
+        // queries are clean, so the helper's inner loop never runs end-
+        // to-end without this test.
+        let model = build_schema_model();
+        let queries: &[QueryEntry] = &[
+            ("bad_one", "query { totals { tokens nope_a } }", "Total"),
+            ("bad_two", "query { totals { tokens nope_b } }", "Total"),
+        ];
+        let all_errors = collect_drift_errors(queries, &model);
+        assert!(all_errors.iter().any(|e| e.contains("[bad_one]") && e.contains("nope_a")));
+        assert!(all_errors.iter().any(|e| e.contains("[bad_two]") && e.contains("nope_b")));
+    }
+
+    #[test]
+    #[should_panic(expected = "subgraph query drift detected")]
+    fn drift_aggregation_panics_with_count_and_joined_messages_on_failure() {
+        // Triggers the failing branch of the production `assert!` so the
+        // panic-message format arguments (count + joined error list)
+        // execute end-to-end. The clean upstream queries cannot exercise
+        // this branch, so a synthetic broken query stands in.
+        let model = build_schema_model();
+        let queries: &[QueryEntry] = &[("bad_one", "query { totals { tokens nope_a } }", "Total")];
+        let all_errors = collect_drift_errors(queries, &model);
+        assert!(
+            all_errors.is_empty(),
+            "subgraph query drift detected ({} issues):\n  - {}",
+            all_errors.len(),
+            all_errors.join("\n  - ")
         );
     }
 
