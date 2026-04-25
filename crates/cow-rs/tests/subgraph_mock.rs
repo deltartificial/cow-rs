@@ -775,6 +775,61 @@ async fn run_query_non_200_returns_api_error() {
     }
 }
 
+// ── retry policy ──────────────────────────────────────────────────────
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn run_query_retries_on_503_then_breaks_with_success() {
+    // Drives the post-success `break resp` arm and the wait/attempt-bump
+    // tail of the retry loop. First attempt 503 (status retryable, not
+    // last → wait + retry). Second attempt 200 (not retryable, break).
+    let server = MockServer::start().await;
+    Mock::given(matchers::method("POST"))
+        .respond_with(ResponseTemplate::new(503))
+        .up_to_n_times(1)
+        .expect(1)
+        .mount(&server)
+        .await;
+    Mock::given(matchers::method("POST"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(graphql_data(serde_json::json!({
+            "totals": [{
+                "tokens": "1", "orders": "1", "traders": "1", "settlements": "1",
+                "volumeUsd": "0", "volumeEth": "0", "feesUsd": "0", "feesEth": "0"
+            }]
+        }))))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    let api = SubgraphApi::new_with_url(server.uri()).with_retry_policy(cow_rs::RetryPolicy {
+        max_attempts: 3,
+        initial_delay: std::time::Duration::from_millis(1),
+        max_delay: std::time::Duration::from_millis(5),
+        retry_status_codes: cow_rs::DEFAULT_RETRY_STATUS_CODES,
+    });
+    let totals = api.get_totals().await.expect("retry must succeed on the second attempt");
+    assert_eq!(totals.len(), 1);
+    assert_eq!(totals[0].tokens, "1");
+}
+
+#[cfg_attr(miri, ignore)]
+#[tokio::test]
+async fn run_query_retries_on_transport_error_then_surfaces_error() {
+    // Drives the `Err(e)` arm that does NOT short-circuit on the first
+    // attempt — the transport error matches the retry policy and is not
+    // the last attempt, so the loop falls through into the wait/bump
+    // branch before erroring on the final attempt.
+    let api =
+        SubgraphApi::new_with_url("http://127.0.0.1:1").with_retry_policy(cow_rs::RetryPolicy {
+            max_attempts: 2,
+            initial_delay: std::time::Duration::from_millis(1),
+            max_delay: std::time::Duration::from_millis(2),
+            retry_status_codes: &[],
+        });
+    let result = api.get_totals().await;
+    assert!(result.is_err(), "transport failure on every attempt must surface as an error");
+}
+
 // ── missing field in data ───────────────────────────────────────────────
 
 #[cfg_attr(miri, ignore)]

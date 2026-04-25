@@ -485,4 +485,42 @@ mod tests {
         // Two invalid hooks (one in `pre`, one in `post`) → two violations.
         assert_eq!(invalid_target_count, 2);
     }
+
+    #[test]
+    fn validate_hooks_pre_only_falls_through_post_arm() {
+        // Sibling to `validate_hooks_runs_pre_and_post_lists`: drives only
+        // the `pre` branch (no `post`) so the closing region of the
+        // `if let Some(pre)` arm is reached on its own — without piggy-
+        // backing on the post-list iteration that the dual-list test
+        // exercises.
+        let hook = CowHook {
+            target: "not-an-address".to_owned(),
+            call_data: "0x".to_owned(),
+            gas_limit: "100000".to_owned(),
+            dapp_id: None,
+        };
+        let hooks = OrderInteractionHooks { version: None, pre: Some(vec![hook]), post: None };
+        let mut errors = Vec::new();
+        validate_hooks(&hooks, &mut errors);
+        assert_eq!(errors.len(), 1);
+        assert!(matches!(errors[0], ValidationError::InvalidHookTarget { .. }));
+    }
+
+    #[test]
+    fn validate_hooks_post_only_skips_pre_arm() {
+        // Mirror of the pre-only test: only `post` is set, so the
+        // `if let Some(pre)` arm is fully skipped while the `if let
+        // Some(post)` arm runs end-to-end.
+        let hook = CowHook {
+            target: "0x1111111111111111111111111111111111111111".to_owned(),
+            call_data: "0x".to_owned(),
+            gas_limit: "not-a-number".to_owned(),
+            dapp_id: None,
+        };
+        let hooks = OrderInteractionHooks { version: None, pre: None, post: Some(vec![hook]) };
+        let mut errors = Vec::new();
+        validate_hooks(&hooks, &mut errors);
+        assert_eq!(errors.len(), 1);
+        assert!(matches!(errors[0], ValidationError::InvalidHookGasLimit { .. }));
+    }
 }
