@@ -457,4 +457,32 @@ mod tests {
         validate_metadata(&meta, &mut errors);
         assert!(errors.is_empty());
     }
+
+    #[test]
+    fn validate_hooks_runs_pre_and_post_lists() {
+        // Drives the `if let Some(pre)` and `if let Some(post)` arms of
+        // `validate_hooks`. We mix one valid hook with one invalid hook in
+        // each list to confirm both lists are walked end-to-end.
+        let valid_target = "0x1111111111111111111111111111111111111111".to_owned();
+        let invalid_target = "not-an-address".to_owned();
+        let mk = |target: &str| CowHook {
+            target: target.to_owned(),
+            call_data: "0x".to_owned(),
+            gas_limit: "100000".to_owned(),
+            dapp_id: None,
+        };
+        let hooks = OrderInteractionHooks {
+            version: None,
+            pre: Some(vec![mk(&valid_target), mk(&invalid_target)]),
+            post: Some(vec![mk(&valid_target), mk(&invalid_target)]),
+        };
+        let mut errors = Vec::new();
+        validate_hooks(&hooks, &mut errors);
+        let invalid_target_count = errors
+            .iter()
+            .filter(|e| matches!(e, ValidationError::InvalidHookTarget { .. }))
+            .count();
+        // Two invalid hooks (one in `pre`, one in `post`) → two violations.
+        assert_eq!(invalid_target_count, 2);
+    }
 }

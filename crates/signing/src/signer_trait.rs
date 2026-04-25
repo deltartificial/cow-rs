@@ -71,3 +71,82 @@ impl CowSigner for alloy_signer_local::PrivateKeySigner {
         Ok(sig.as_bytes().to_vec())
     }
 }
+
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    reason = "test code; panic on unexpected state is acceptable"
+)]
+mod tests {
+    use alloy_signer_local::PrivateKeySigner;
+
+    use super::*;
+
+    const TEST_KEY: &str = "0x4c0883a69102937d6231471b5dbb6204fe512961708279f99ae5f1e7b8a6c5e1";
+
+    fn signer() -> PrivateKeySigner {
+        TEST_KEY.parse().expect("valid test key")
+    }
+
+    #[tokio::test]
+    async fn private_key_signer_address_via_trait() {
+        let s = signer();
+        let direct = alloy_signer::Signer::address(&s);
+        // Calls the trait impl, not the inherent method.
+        let via_trait = <PrivateKeySigner as CowSigner>::address(&s);
+        assert_eq!(direct, via_trait);
+    }
+
+    #[tokio::test]
+    async fn private_key_signer_sign_typed_data_via_trait() {
+        let s = signer();
+        let domain = B256::from([0xaa; 32]);
+        let struct_hash = B256::from([0xbb; 32]);
+        let sig = <PrivateKeySigner as CowSigner>::sign_typed_data(&s, domain, struct_hash)
+            .await
+            .expect("signing should succeed");
+        assert_eq!(sig.len(), 65, "ECDSA signature is r || s || v = 65 bytes");
+    }
+
+    #[tokio::test]
+    async fn private_key_signer_sign_typed_data_is_deterministic() {
+        // alloy's deterministic-ECDSA (RFC 6979) means identical inputs
+        // always yield identical signatures, which is what we rely on for
+        // EIP-712 verification stability.
+        let s = signer();
+        let domain = B256::from([0x11; 32]);
+        let struct_hash = B256::from([0x22; 32]);
+        let a = <PrivateKeySigner as CowSigner>::sign_typed_data(&s, domain, struct_hash)
+            .await
+            .unwrap();
+        let b = <PrivateKeySigner as CowSigner>::sign_typed_data(&s, domain, struct_hash)
+            .await
+            .unwrap();
+        assert_eq!(a, b);
+    }
+
+    #[tokio::test]
+    async fn private_key_signer_sign_message_via_trait() {
+        let s = signer();
+        let sig = <PrivateKeySigner as CowSigner>::sign_message(&s, b"hello world")
+            .await
+            .expect("signing should succeed");
+        assert_eq!(sig.len(), 65);
+    }
+
+    #[tokio::test]
+    async fn private_key_signer_typed_and_message_signatures_differ() {
+        let s = signer();
+        let typed = <PrivateKeySigner as CowSigner>::sign_typed_data(
+            &s,
+            B256::from([0x33; 32]),
+            B256::from([0x44; 32]),
+        )
+        .await
+        .unwrap();
+        let msg =
+            <PrivateKeySigner as CowSigner>::sign_message(&s, b"different scheme").await.unwrap();
+        assert_ne!(typed, msg);
+    }
+}

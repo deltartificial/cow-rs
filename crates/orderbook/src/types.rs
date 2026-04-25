@@ -3562,4 +3562,82 @@ mod tests {
         let auction = Auction { id: None, block: 100, orders: vec![], prices: HashMap::default() };
         assert_eq!(auction.to_string(), "auction(-1, 0 orders, block=100)");
     }
+
+    // ── OrderCreation::from_unsigned_order ──────────────────────────────
+
+    #[test]
+    fn from_unsigned_order_uses_explicit_receiver_when_non_zero() {
+        use alloy_primitives::{Address, B256, U256, address};
+        use cow_signing::types::SigningResult;
+        use cow_types::UnsignedOrder;
+
+        let order = UnsignedOrder {
+            sell_token: address!("dac17f958d2ee523a2206206994597c13d831ec7"),
+            buy_token: address!("a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"),
+            receiver: Address::ZERO,
+            sell_amount: U256::from(1_000_000u64),
+            buy_amount: U256::from(2_000u64),
+            valid_to: 1_700_000_000,
+            app_data: B256::from([0xab; 32]),
+            fee_amount: U256::from(42u64),
+            kind: OrderKind::Sell,
+            partially_fillable: false,
+            sell_token_balance: TokenBalance::Erc20,
+            buy_token_balance: TokenBalance::Erc20,
+        };
+        let from = address!("1111111111111111111111111111111111111111");
+        let receiver = address!("2222222222222222222222222222222222222222");
+        let signing = SigningResult {
+            signature: "0xdeadbeef".to_owned(),
+            signing_scheme: SigningScheme::Eip712,
+        };
+        let creation = OrderCreation::from_unsigned_order(&order, from, receiver, signing);
+        assert_eq!(creation.from, from);
+        assert_eq!(creation.receiver, receiver);
+        assert_eq!(creation.sell_amount, "1000000");
+        assert_eq!(creation.buy_amount, "2000");
+        assert_eq!(creation.fee_amount, "42");
+        assert_eq!(creation.signature, "0xdeadbeef");
+        assert!(creation.app_data.starts_with("0x"));
+        assert!(creation.quote_id.is_none());
+    }
+
+    #[test]
+    fn from_unsigned_order_falls_back_to_from_when_receiver_is_zero() {
+        use alloy_primitives::{Address, B256, U256, address};
+        use cow_signing::types::SigningResult;
+        use cow_types::UnsignedOrder;
+
+        let order = UnsignedOrder {
+            sell_token: Address::ZERO,
+            buy_token: Address::ZERO,
+            receiver: Address::ZERO,
+            sell_amount: U256::ZERO,
+            buy_amount: U256::ZERO,
+            valid_to: 0,
+            app_data: B256::ZERO,
+            fee_amount: U256::ZERO,
+            kind: OrderKind::Buy,
+            partially_fillable: true,
+            sell_token_balance: TokenBalance::Erc20,
+            buy_token_balance: TokenBalance::Erc20,
+        };
+        let from = address!("3333333333333333333333333333333333333333");
+        let signing =
+            SigningResult { signature: "0x".to_owned(), signing_scheme: SigningScheme::EthSign };
+        let creation = OrderCreation::from_unsigned_order(&order, from, Address::ZERO, signing);
+        // When `receiver` is the zero address the helper substitutes `from`.
+        assert_eq!(creation.receiver, from);
+        assert_eq!(creation.kind, OrderKind::Buy);
+        assert!(creation.partially_fillable);
+    }
+
+    // ── OrderClass Display ──────────────────────────────────────────────
+
+    #[test]
+    fn order_class_display_matches_as_str() {
+        for class in [OrderClass::Market, OrderClass::Limit, OrderClass::Liquidity] {
+            assert_eq!(class.to_string(), class.as_str());
+        }
+    }
 }
