@@ -294,14 +294,12 @@ fn post_flow_non_evm_intermediate() -> CowError {
 }
 
 #[cfg(test)]
-#[allow(clippy::panic, reason = "test code; panic on unexpected variant is acceptable")]
 mod tests {
     use super::*;
 
     #[test]
     fn post_flow_non_evm_intermediate_returns_config_error() {
         let err = post_flow_non_evm_intermediate();
-        let CowError::Config(msg) = err else { panic!("expected CowError::Config, got {err:?}") };
-        assert!(msg.contains("EVM address"));
+        assert!(matches!(&err, CowError::Config(m) if m.contains("EVM address")), "got {err:?}");
     }
 }

@@ -1127,7 +1127,6 @@ mod tests {
     #[test]
     fn map_alloy_signing_error_wraps_into_cow_signing() {
         let err = super::map_alloy_signing_error(alloy_signer::Error::other("boom"));
-        let CowError::Signing(msg) = err else { panic!("expected CowError::Signing, got {err:?}") };
-        assert!(msg.contains("boom"), "unexpected message: {msg}");
+        assert!(matches!(&err, CowError::Signing(m) if m.contains("boom")), "got {err:?}");
     }
 }
