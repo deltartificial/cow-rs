@@ -3101,3 +3101,60 @@ pub async fn get_quote_with_signer(
     .await?;
     Ok(QuoteResultsWithSigner { result, signer })
 }
+
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    reason = "test code; panic on unexpected state is acceptable"
+)]
+mod tests {
+    //! Unit tests for crate-private helpers that integration tests can't touch.
+
+    use super::*;
+
+    const TEST_KEY: &str = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
+
+    /// Exercise the fallback path used when `build_app_data_doc_full` fails.
+    /// The fallback is otherwise effectively unreachable because the input is
+    /// always serialisable; covering the constants directly ensures the
+    /// "{}" / zero-hash defaults remain stable.
+    #[test]
+    fn default_app_data_info_returns_zero_hash() {
+        let info = default_app_data_info();
+        assert_eq!(info.full_app_data, "{}");
+        assert_eq!(info.app_data_keccak256, DEFAULT_APP_DATA);
+    }
+
+    /// `resolve_orderbook` is `#[allow(dead_code)]` — kept for downstream use.
+    /// Both branches (injected client / default API) are tested here so that
+    /// the helper does not silently rot.
+    #[test]
+    fn resolve_orderbook_returns_injected_client_when_set() {
+        let api = OrderBookApi::new(SupportedChainId::Mainnet, Env::Prod);
+        let injected: Arc<dyn cow_orderbook::OrderbookClient> = Arc::new(api);
+        let injected_ptr: *const dyn cow_orderbook::OrderbookClient =
+            Arc::as_ptr(&injected) as *const _;
+
+        let config = TradingSdkConfig::prod(SupportedChainId::Mainnet, "TestApp")
+            .with_orderbook_client(Arc::clone(&injected));
+        let sdk = TradingSdk::new(config, TEST_KEY).unwrap();
+        let resolved = sdk.resolve_orderbook();
+        let resolved_ptr: *const dyn cow_orderbook::OrderbookClient =
+            Arc::as_ptr(&resolved) as *const _;
+        assert_eq!(injected_ptr, resolved_ptr, "should clone the injected Arc");
+    }
+
+    #[test]
+    fn resolve_orderbook_falls_back_to_default_api_when_unset() {
+        let config = TradingSdkConfig::prod(SupportedChainId::Mainnet, "TestApp");
+        let sdk = TradingSdk::new(config, TEST_KEY).unwrap();
+        let resolved = sdk.resolve_orderbook();
+        let api_ptr: *const cow_orderbook::OrderBookApi = Arc::as_ptr(&sdk.api);
+        let resolved_ptr: *const dyn cow_orderbook::OrderbookClient =
+            Arc::as_ptr(&resolved) as *const _;
+        // The fallback re-shares the inner OrderBookApi; cast both to thin
+        // pointers and compare data addresses.
+        assert_eq!(api_ptr.cast::<()>(), resolved_ptr.cast::<()>());
+    }
+}
