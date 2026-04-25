@@ -756,13 +756,11 @@ pub async fn get_intermediate_swap_result(
 // Defensive error builders for `get_intermediate_swap_result`. Both arms
 // are guarded upstream (`filter_map(to_evm)` produces only EVM addresses
 // that are present in `candidates`) so they're unreachable in practice;
-// extracted here so they can be excluded from coverage cleanly.
-#[cfg_attr(coverage_nightly, coverage(off))]
+// exercised directly in the tests below to keep codecov happy.
 fn intermediate_not_in_candidates_err() -> BridgeError {
     BridgeError::TxBuildError("intermediate token not in candidates".into())
 }
 
-#[cfg_attr(coverage_nightly, coverage(off))]
 fn intermediate_must_be_evm_err() -> BridgeError {
     BridgeError::TxBuildError("intermediate token must be EVM on the source chain".into())
 }
@@ -3479,6 +3477,26 @@ mod miscellaneous_coverage_tests {
         // Hardhat account #0.
         let expected: Address = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266".parse().unwrap();
         assert_eq!(test_address(), expected);
+    }
+
+    #[test]
+    fn intermediate_not_in_candidates_err_returns_tx_build_error() {
+        use crate::types::BridgeError;
+        let err = super::intermediate_not_in_candidates_err();
+        let BridgeError::TxBuildError(msg) = err else {
+            panic!("expected TxBuildError, got {err:?}");
+        };
+        assert!(msg.contains("not in candidates"));
+    }
+
+    #[test]
+    fn intermediate_must_be_evm_err_returns_tx_build_error() {
+        use crate::types::BridgeError;
+        let err = super::intermediate_must_be_evm_err();
+        let BridgeError::TxBuildError(msg) = err else {
+            panic!("expected TxBuildError, got {err:?}");
+        };
+        assert!(msg.contains("must be EVM"));
     }
 }
 

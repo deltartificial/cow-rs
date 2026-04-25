@@ -41,8 +41,8 @@ pub trait CowSigner: Send + Sync {
 }
 
 // Function pointer (rather than a closure) so the unreachable error
-// arm has its own item we can exclude from coverage.
-#[cfg_attr(coverage_nightly, coverage(off))]
+// arm has its own item — exercised directly in the tests below to keep
+// codecov's patch coverage honest.
 fn map_alloy_signing_error(e: alloy_signer::Error) -> CowError {
     CowError::Signing(e.to_string())
 }
@@ -155,5 +155,12 @@ mod tests {
         let msg =
             <PrivateKeySigner as CowSigner>::sign_message(&s, b"different scheme").await.unwrap();
         assert_ne!(typed, msg);
+    }
+
+    #[test]
+    fn map_alloy_signing_error_wraps_into_cow_signing() {
+        let err = super::map_alloy_signing_error(alloy_signer::Error::other("boom"));
+        let CowError::Signing(msg) = err else { panic!("expected CowError::Signing, got {err:?}") };
+        assert!(msg.contains("boom"), "unexpected message: {msg}");
     }
 }

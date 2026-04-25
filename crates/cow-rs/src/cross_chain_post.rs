@@ -287,8 +287,21 @@ fn bridge_to_cow_err(e: BridgeError) -> CowError {
 
 // Defensive error builder for `intermediate.address.to_evm()` returning
 // `None`; bridge providers always emit an EVM-side intermediate so this
-// is unreachable in practice.
-#[cfg_attr(coverage_nightly, coverage(off))]
+// is unreachable in practice. Exercised directly in the tests below to
+// keep codecov's patch coverage honest.
 fn post_flow_non_evm_intermediate() -> CowError {
     CowError::Config("intermediate token must be an EVM address for post flow".into())
+}
+
+#[cfg(test)]
+#[allow(clippy::panic, reason = "test code; panic on unexpected variant is acceptable")]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn post_flow_non_evm_intermediate_returns_config_error() {
+        let err = post_flow_non_evm_intermediate();
+        let CowError::Config(msg) = err else { panic!("expected CowError::Config, got {err:?}") };
+        assert!(msg.contains("EVM address"));
+    }
 }

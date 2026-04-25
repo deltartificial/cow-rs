@@ -203,8 +203,7 @@ impl OrderbookClient for crate::order_book::OrderBookApi {
 // ── Blanket impl: CowSigner for PrivateKeySigner ────────────────────────────
 
 // Function pointer (rather than a closure) so the unreachable error arm
-// has its own item we can exclude from coverage.
-#[cfg_attr(coverage_nightly, coverage(off))]
+// has its own item — exercised directly in the tests below.
 fn map_alloy_signing_error(e: alloy_signer::Error) -> CowError {
     CowError::Signing(e.to_string())
 }
@@ -1123,5 +1122,12 @@ mod tests {
     fn error_signer_address_returns_zero() {
         let signer = ErrorSigner;
         assert_eq!(<ErrorSigner as CowSigner>::address(&signer), Address::ZERO);
+    }
+
+    #[test]
+    fn map_alloy_signing_error_wraps_into_cow_signing() {
+        let err = super::map_alloy_signing_error(alloy_signer::Error::other("boom"));
+        let CowError::Signing(msg) = err else { panic!("expected CowError::Signing, got {err:?}") };
+        assert!(msg.contains("boom"), "unexpected message: {msg}");
     }
 }
