@@ -58,8 +58,9 @@ pub const SOCKET_VERIFIER_ADDRESS: &str = "0xa27A3f5A96DF7D8Be26EE2790999860C00e
 ///
 /// Panics if [`BUNGEE_APPROVE_AND_BRIDGE_V1_ADDRESS`] is not a valid
 /// `0x`-prefixed 40-char hex string. The constant is hardcoded and
-/// covered by [`approve_and_bridge_v1_address_constant_parses`] so this
-/// fires only if someone breaks the literal at edit time.
+/// covered by `approve_and_bridge_v1_address_constant_parses` (in
+/// the test module) so this fires only if someone breaks the literal
+/// at edit time.
 #[must_use]
 #[allow(
     clippy::expect_used,
