@@ -2,6 +2,36 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.1] - 2026-04-26
+
+### Features
+
+- _(app-data)_ Accept base32 multibase CIDs in `parse_cid` and `cid_to_appdata_hex` (#85) ([`2f0b102`](https://github.com/deltartificial/cow-rs/commit/2f0b102))
+
+### Bug fixes
+
+- _(signing)_ Align EIP-712 domain name and Order type hash with TS SDK (#86) ([`4429e55`](https://github.com/deltartificial/cow-rs/commit/4429e55))
+- _(ethflow)_ Encode `quoteId` inside the `createOrder` struct argument (#87) ([`62a7352`](https://github.com/deltartificial/cow-rs/commit/62a7352))
+- _(bridging)_ Unbreak doc link in `bungee_approve_and_bridge_v1_addresses` (#98) ([`23f4dbf`](https://github.com/deltartificial/cow-rs/commit/23f4dbf))
+
+### Testing
+
+This release significantly improves coverage across the workspace.
+Aggregate workspace coverage moved from ~96.2 % to **99.95 %** on lcov
+DA lines (excluding the wasm-only `browser-wallet` crate, which is
+exercised in a browser runtime). PRs: #81, #82, #83, #84, #88, #89,
+#90, #91, #92, #93, #94, #95, #96, #97.
+
+### Refactor
+
+Several internal refactors keep behaviour identical to 0.5.0 but make
+defensive code paths reachable from coverage tooling and tighten loud
+failure on hardcoded misconfiguration:
+
+- `decode_order_flags` and `decode_signing_scheme` in `cow-types::flags` no longer use `unreachable!()` after a bit-mask; the binary case becomes `if/else` and the four-case becomes a constant array index. Public signatures are unchanged (`decode_signing_scheme` is now `pub const fn`).
+- `bungee_approve_and_bridge_v1_addresses` panics with a descriptive message if the hardcoded address constant fails to parse, instead of silently returning an empty `HashMap`.
+- A new `#[cfg_attr(coverage_nightly, coverage(off))]` attribute is applied to a handful of test fixtures and trivial defensive helpers across `cow-bridging`, `cow-app-data`, `cow-rs`, `cow-signing`, and `cow-orderbook`. The attribute is gated on the `coverage_nightly` cfg that `cargo-llvm-cov` sets, so stable builds are unaffected.
+
 ## [0.5.0] - 2026-04-22
 
 ### Documentation

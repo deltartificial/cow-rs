@@ -1035,7 +1035,7 @@ checksum = "773648b94d0e5d620f64f280777445740e61fe701025087ec8b57f45c791888b"
 
 [[package]]
 name = "cow-app-data"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "alloy-primitives",
  "cow-errors",
@@ -1049,7 +1049,7 @@ dependencies = [
 
 [[package]]
 name = "cow-bridging"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "alloy-primitives",
  "alloy-signer",
@@ -1074,7 +1074,7 @@ dependencies = [
 
 [[package]]
 name = "cow-browser-wallet"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "alloy-primitives",
  "alloy-signer-local",
@@ -1100,7 +1100,7 @@ dependencies = [
 
 [[package]]
 name = "cow-chains"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "alloy-primitives",
  "cow-errors",
@@ -1110,7 +1110,7 @@ dependencies = [
 
 [[package]]
 name = "cow-composable"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "alloy-primitives",
  "chrono",
@@ -1124,11 +1124,11 @@ dependencies = [
 
 [[package]]
 name = "cow-contracts-abi"
-version = "0.5.0"
+version = "0.5.1"
 
 [[package]]
 name = "cow-erc20"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "alloy-primitives",
  "cow-chains",
@@ -1136,7 +1136,7 @@ dependencies = [
 
 [[package]]
 name = "cow-errors"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "reqwest",
  "thiserror 2.0.18",
@@ -1144,7 +1144,7 @@ dependencies = [
 
 [[package]]
 name = "cow-ethflow"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "alloy-primitives",
  "cow-chains",
@@ -1153,7 +1153,7 @@ dependencies = [
 
 [[package]]
 name = "cow-flash-loans"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "alloy-primitives",
  "cow-errors",
@@ -1162,11 +1162,11 @@ dependencies = [
 
 [[package]]
 name = "cow-graph"
-version = "0.5.0"
+version = "0.5.1"
 
 [[package]]
 name = "cow-http"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "reqwest",
  "tokio",
@@ -1175,11 +1175,11 @@ dependencies = [
 
 [[package]]
 name = "cow-ipfs"
-version = "0.5.0"
+version = "0.5.1"
 
 [[package]]
 name = "cow-onchain"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "alloy-primitives",
  "cow-chains",
@@ -1193,7 +1193,7 @@ dependencies = [
 
 [[package]]
 name = "cow-orderbook"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "alloy-primitives",
  "alloy-signer-local",
@@ -1221,7 +1221,7 @@ dependencies = [
 
 [[package]]
 name = "cow-permit"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "alloy-primitives",
  "alloy-signer",
@@ -1234,14 +1234,14 @@ dependencies = [
 
 [[package]]
 name = "cow-primitives"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "alloy-primitives",
 ]
 
 [[package]]
 name = "cow-rs"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "alloy-primitives",
  "alloy-signer",
@@ -1315,7 +1315,7 @@ dependencies = [
 
 [[package]]
 name = "cow-settlement"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "alloy-primitives",
  "cow-chains",
@@ -1329,7 +1329,7 @@ dependencies = [
 
 [[package]]
 name = "cow-shed"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "alloy-primitives",
  "alloy-signer",
@@ -1341,7 +1341,7 @@ dependencies = [
 
 [[package]]
 name = "cow-signing"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "alloy-primitives",
  "alloy-signer",
@@ -1356,7 +1356,7 @@ dependencies = [
 
 [[package]]
 name = "cow-subgraph"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "alloy-primitives",
  "cow-chains",
@@ -1371,11 +1371,11 @@ dependencies = [
 
 [[package]]
 name = "cow-testing"
-version = "0.5.0"
+version = "0.5.1"
 
 [[package]]
 name = "cow-trading"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "alloy-primitives",
  "alloy-signer",
@@ -1397,7 +1397,7 @@ dependencies = [
 
 [[package]]
 name = "cow-types"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "alloy-primitives",
  "cow-errors",
@@ -1408,7 +1408,7 @@ dependencies = [
 
 [[package]]
 name = "cow-weiroll"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "alloy-primitives",
  "cow-chains",
