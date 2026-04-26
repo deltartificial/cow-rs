@@ -52,15 +52,23 @@ pub const SOCKET_VERIFIER_ADDRESS: &str = "0xa27A3f5A96DF7D8Be26EE2790999860C00e
 /// # Returns
 ///
 /// A [`HashMap`] keyed by chain ID (`u64`) whose values are the parsed
-/// [`Address`] of the `ApproveAndBridge` V1 contract.  Returns an empty
-/// map if the hard-coded address constant fails to parse (should never
-/// happen in practice).
+/// [`Address`] of the `ApproveAndBridge` V1 contract.
+///
+/// # Panics
+///
+/// Panics if [`BUNGEE_APPROVE_AND_BRIDGE_V1_ADDRESS`] is not a valid
+/// `0x`-prefixed 40-char hex string. The constant is hardcoded and
+/// covered by [`approve_and_bridge_v1_address_constant_parses`] so this
+/// fires only if someone breaks the literal at edit time.
 #[must_use]
+#[allow(
+    clippy::expect_used,
+    reason = "address literal is hardcoded; a panic on misconfig is preferable to silently returning an empty map"
+)]
 pub fn bungee_approve_and_bridge_v1_addresses() -> HashMap<u64, Address> {
-    // Safety: the address literal is a valid hex address.
-    let Ok(addr) = BUNGEE_APPROVE_AND_BRIDGE_V1_ADDRESS.parse::<Address>() else {
-        return HashMap::default();
-    };
+    let addr: Address = BUNGEE_APPROVE_AND_BRIDGE_V1_ADDRESS
+        .parse()
+        .expect("BUNGEE_APPROVE_AND_BRIDGE_V1_ADDRESS is a hardcoded valid hex literal");
     let mut m = HashMap::default();
     for chain in &[
         SupportedChainId::Mainnet,
@@ -149,11 +157,8 @@ pub fn decode_bungee_bridge_tx_data(tx_data: &str) -> Result<DecodedBungeeTxData
         return Err(BridgeError::TxBuildError("txData must start with 0x".to_owned()));
     }
 
+    // After the two guards above, `without_prefix.len() >= 8` is invariant.
     let without_prefix = &tx_data[2..];
-    if without_prefix.len() < 8 {
-        return Err(BridgeError::TxBuildError("insufficient data for routeId".to_owned()));
-    }
-
     let route_id = format!("0x{}", &without_prefix[..8]);
     let encoded_function_data = format!("0x{}", &without_prefix[8..]);
 
@@ -1602,5 +1607,13 @@ mod bungee_provider_trait_tests {
         let p = BungeeProvider::new("test").with_events_api_base(server.uri());
         let status = p.get_status("0xdeadbeef", 1).await.unwrap();
         assert_eq!(status.status, BridgeStatus::Unknown);
+    }
+
+    #[test]
+    fn approve_and_bridge_v1_address_constant_parses() {
+        // Locks in the invariant the panicking expect in
+        // `bungee_approve_and_bridge_v1_addresses` relies on.
+        let addr: Address = BUNGEE_APPROVE_AND_BRIDGE_V1_ADDRESS.parse().unwrap();
+        assert_eq!(addr, "0xD06a673fe1fa27B1b9E5BA0be980AB15Dbce85cc".parse::<Address>().unwrap());
     }
 }

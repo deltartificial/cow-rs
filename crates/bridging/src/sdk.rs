@@ -1683,13 +1683,10 @@ mod intermediate_swap_tests {
         let err = get_intermediate_swap_result(&sample_request(), &provider, &FailingQuoter, None)
             .await
             .unwrap_err();
-        let msg = if let BridgeError::TxBuildError(s) = err {
-            s
-        } else {
-            panic!("expected TxBuildError, got {err:?}")
-        };
-        assert!(msg.contains("500"));
-        assert!(msg.contains("orderbook down"));
+        assert!(
+            matches!(&err, BridgeError::TxBuildError(s) if s.contains("500") && s.contains("orderbook down")),
+            "got {err:?}"
+        );
     }
 
     #[tokio::test]

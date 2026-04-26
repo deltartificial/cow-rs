@@ -1056,50 +1056,38 @@ mod tests {
     // ── poll_validate ────────────────────────────────────────────────────
 
     #[test]
-    #[allow(clippy::wildcard_enum_match_arm, reason = "test catch-all for unexpected variants")]
     fn poll_validate_at_mining_time_always_success() {
         let order = TwapOrder::new(sample_data());
-        match order.poll_validate(0) {
-            PollResult::Success { .. } => {}
-            other => panic!("expected Success, got {other:?}"),
-        }
+        let r = order.poll_validate(0);
+        assert!(matches!(r, PollResult::Success { .. }), "got {r:?}");
     }
 
     #[test]
-    #[allow(clippy::wildcard_enum_match_arm, reason = "test catch-all for unexpected variants")]
     fn poll_validate_before_start() {
         let mut data = sample_data();
         data.start_time = TwapStartTime::At(1_000_000);
         let order = TwapOrder::new(data);
-        match order.poll_validate(999_999) {
-            PollResult::TryAtEpoch { epoch } => assert_eq!(epoch, 1_000_000),
-            other => panic!("expected TryAtEpoch, got {other:?}"),
-        }
+        let r = order.poll_validate(999_999);
+        assert!(matches!(r, PollResult::TryAtEpoch { epoch } if epoch == 1_000_000), "got {r:?}");
     }
 
     #[test]
-    #[allow(clippy::wildcard_enum_match_arm, reason = "test catch-all for unexpected variants")]
     fn poll_validate_within_window() {
         let mut data = sample_data();
         data.start_time = TwapStartTime::At(1_000_000);
         let order = TwapOrder::new(data);
         // end = 1_000_000 + 4 * 3600 = 1_014_400
-        match order.poll_validate(1_007_000) {
-            PollResult::Success { .. } => {}
-            other => panic!("expected Success, got {other:?}"),
-        }
+        let r = order.poll_validate(1_007_000);
+        assert!(matches!(r, PollResult::Success { .. }), "got {r:?}");
     }
 
     #[test]
-    #[allow(clippy::wildcard_enum_match_arm, reason = "test catch-all for unexpected variants")]
     fn poll_validate_after_expiry() {
         let mut data = sample_data();
         data.start_time = TwapStartTime::At(1_000_000);
         let order = TwapOrder::new(data);
-        match order.poll_validate(1_014_400) {
-            PollResult::DontTryAgain { .. } => {}
-            other => panic!("expected DontTryAgain, got {other:?}"),
-        }
+        let r = order.poll_validate(1_014_400);
+        assert!(matches!(r, PollResult::DontTryAgain { .. }), "got {r:?}");
     }
 
     // ── Accessor methods ─────────────────────────────────────────────────

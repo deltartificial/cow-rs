@@ -43,7 +43,9 @@ use super::{
 
 /// Round-trip a hand-written value through `serde_json` into the matching
 /// generated type. Panics with a descriptive message on failure so the
-/// mismatch is visible in test output.
+/// mismatch is visible in test output. The panic arms are unreachable in
+/// passing runs, so the helper is excluded from coverage.
+#[cfg_attr(coverage_nightly, coverage(off))]
 fn roundtrip<T: Serialize, G: DeserializeOwned>(label: &str, value: &T) -> G {
     let json = serde_json::to_value(value)
         .unwrap_or_else(|e| panic!("{label}: failed to serialise hand-written value: {e}"));

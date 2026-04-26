@@ -579,14 +579,8 @@ mod tests {
 
     #[test]
     fn parse_cid_components() {
-        let cid = appdata_hex_to_cid(SAMPLE_HEX).unwrap_or_default();
-        let c = parse_cid(&cid).unwrap_or_else(|_| CidComponents {
-            version: 0,
-            codec: 0,
-            hash_function: 0,
-            hash_length: 0,
-            digest: vec![],
-        });
+        let cid = appdata_hex_to_cid(SAMPLE_HEX).expect("SAMPLE_HEX is a valid 32-byte digest");
+        let c = parse_cid(&cid).expect("round-tripped CID is valid");
         assert_eq!(c.version, CID_VERSION);
         assert_eq!(c.codec, MULTICODEC_RAW);
         assert_eq!(c.hash_function, HASH_KECCAK256);
@@ -626,13 +620,7 @@ mod tests {
     fn decode_cid_from_bytes() {
         let mut bytes = vec![0x01, 0x55, 0x1b, 0x20];
         bytes.extend_from_slice(&[0xaa; 32]);
-        let c = decode_cid(&bytes).unwrap_or_else(|_| CidComponents {
-            version: 0,
-            codec: 0,
-            hash_function: 0,
-            hash_length: 0,
-            digest: vec![],
-        });
+        let c = decode_cid(&bytes).expect("hand-crafted CID bytes are valid");
         assert_eq!(c.version, 1);
         assert_eq!(c.codec, 0x55);
         assert_eq!(c.digest.len(), 32);
