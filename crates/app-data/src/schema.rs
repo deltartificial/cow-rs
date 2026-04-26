@@ -519,12 +519,9 @@ mod tests {
         // and the path must localise to /metadata/referrer/code.
         let doc = AppDataDoc::new("TestApp").with_referrer(Referrer::code("abc"));
         let err = validate(&doc).expect_err("malformed code must fail");
-        let SchemaError::Violations(errs) = err else {
-            panic!("expected Violations, got {err:?}");
-        };
         assert!(
-            errs.iter().any(|e| e.path.contains("referrer")),
-            "expected a violation on /metadata/referrer, got: {errs:?}"
+            matches!(&err, SchemaError::Violations(errs) if errs.iter().any(|e| e.path.contains("referrer"))),
+            "got {err:?}"
         );
     }
 
@@ -566,14 +563,15 @@ mod tests {
     fn unknown_version_is_reported_as_unsupported() {
         let bad = json!({ "version": "99.0.0", "metadata": {} });
         let err = validate_json(&bad).expect_err("unknown version must fail");
-        let SchemaError::UnsupportedVersion { requested, supported } = err else {
-            panic!("expected UnsupportedVersion, got {err:?}");
-        };
-        assert_eq!(requested, "99.0.0");
-        assert!(!supported.is_empty(), "supported list should not be empty");
         assert!(
-            supported.iter().any(|s| s == LATEST_VERSION),
-            "LATEST_VERSION must appear in the supported list"
+            matches!(
+                &err,
+                SchemaError::UnsupportedVersion { requested, supported }
+                    if requested == "99.0.0"
+                    && !supported.is_empty()
+                    && supported.iter().any(|s| s == LATEST_VERSION)
+            ),
+            "got {err:?}"
         );
     }
 

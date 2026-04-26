@@ -235,11 +235,8 @@ pub fn decode_order_flags(bits: u8) -> Result<OrderFlags, CowError> {
     let sell_index = (bits >> SELL_TOKEN_BALANCE_OFFSET) & 0x03;
     let buy_index = (bits >> BUY_TOKEN_BALANCE_OFFSET) & 0x01;
 
-    let kind = match kind_index {
-        0 => OrderKind::Sell,
-        1 => OrderKind::Buy,
-        _ => unreachable!(),
-    };
+    // `kind_index` is `bits & 0x01` so only `0` or `1` are reachable.
+    let kind = if kind_index == 0 { OrderKind::Sell } else { OrderKind::Buy };
 
     let partially_fillable = pf_index != 0;
 
@@ -255,11 +252,9 @@ pub fn decode_order_flags(bits: u8) -> Result<OrderFlags, CowError> {
         }
     };
 
-    let buy_token_balance = match buy_index {
-        0 => TokenBalance::Erc20,
-        1 => TokenBalance::Internal,
-        _ => unreachable!(),
-    };
+    // `buy_index` is `bits & 0x01` so only `0` or `1` are reachable.
+    let buy_token_balance =
+        if buy_index == 0 { TokenBalance::Erc20 } else { TokenBalance::Internal };
 
     Ok(OrderFlags { kind, partially_fillable, sell_token_balance, buy_token_balance })
 }
@@ -289,15 +284,16 @@ pub fn decode_order_flags(bits: u8) -> Result<OrderFlags, CowError> {
 /// let bits = encode_signing_scheme(SigningScheme::Eip1271);
 /// assert_eq!(decode_signing_scheme(bits).unwrap(), SigningScheme::Eip1271);
 /// ```
-pub fn decode_signing_scheme(bits: u8) -> Result<SigningScheme, CowError> {
-    let index = (bits >> SIGNING_SCHEME_OFFSET) & 0x03;
-    match index {
-        0 => Ok(SigningScheme::Eip712),
-        1 => Ok(SigningScheme::EthSign),
-        2 => Ok(SigningScheme::Eip1271),
-        3 => Ok(SigningScheme::PreSign),
-        _ => unreachable!(),
-    }
+pub const fn decode_signing_scheme(bits: u8) -> Result<SigningScheme, CowError> {
+    // `bits & 0x03` is `0..=3`; the four arms below are exhaustive.
+    const SCHEMES: [SigningScheme; 4] = [
+        SigningScheme::Eip712,
+        SigningScheme::EthSign,
+        SigningScheme::Eip1271,
+        SigningScheme::PreSign,
+    ];
+    let index = ((bits >> SIGNING_SCHEME_OFFSET) & 0x03) as usize;
+    Ok(SCHEMES[index])
 }
 
 /// Encode trade flags (order flags + signing scheme) as a single byte bitfield.

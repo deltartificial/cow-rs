@@ -468,11 +468,9 @@ mod tests {
         buf[32] = 0x01;
         let result = decode_string(&buf);
         let err = result.expect_err("length > usize::MAX should fail");
-        if let CowError::Parse { field, reason } = err {
-            assert_eq!(field, "string");
-            assert!(reason.contains("overflows usize"), "unexpected reason: {reason}");
-        } else {
-            panic!("expected Parse error, got {err:?}");
-        }
+        assert!(
+            matches!(&err, CowError::Parse { field, reason } if *field == "string" && reason.contains("overflows usize")),
+            "got {err:?}"
+        );
     }
 }

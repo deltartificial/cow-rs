@@ -745,9 +745,9 @@ mod tests {
         let addr = Address::repeat_byte(0xab);
         let hash = B256::repeat_byte(0xcd);
         let err = recover_attestation(addr, hash, "0xabc").unwrap_err();
-        let BridgeError::InvalidApiResponse(msg) = err else {
-            panic!("expected InvalidApiResponse, got {err:?}")
-        };
-        assert!(msg.contains("odd length"), "unexpected error: {msg}");
+        assert!(
+            matches!(&err, BridgeError::InvalidApiResponse(msg) if msg.contains("odd length")),
+            "got {err:?}"
+        );
     }
 }
