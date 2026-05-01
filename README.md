@@ -326,6 +326,14 @@ Conformance tests replay fixtures produced by the TypeScript SDK to guarantee
 byte-for-byte parity on signing and encoding. See
 [`crates/cow-rs/specs/`](./crates/cow-rs/specs).
 
+The repo ships a [`.git-blame-ignore-revs`](./.git-blame-ignore-revs) file that
+hides reformat-only and crate-split commits from `git blame`. GitHub honors it
+automatically; for the local `git blame` to use it, run once:
+
+```bash
+git config blame.ignoreRevsFile .git-blame-ignore-revs
+```
+
 ## Contributing
 
 Contributions are welcome. Before opening a PR:

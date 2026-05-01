@@ -1,2 +1,16 @@
 # This file lists commits that should be ignored by `git blame`.
-# To use: git config blame.ignoreRevsFile .git-blame-ignore-revs
+# To use locally, run once:
+#
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+#
+# GitHub honors this file automatically in its blame UI.
+
+# refactor(workspace)!: split monolithic cow-rs into 26 layered crates (#48)
+# Pure file-relocation; the original authorship lives in the pre-split history.
+3c2844a3185432bece303a228bc310024525279a
+
+# style(readme): apply dprint table formatting
+4a0ff3a5550e87c8ab7aaa464fa453487ab30ab8
+
+# docs(changelog): use underscore italics to match dprint markdown style
+2d8f6ba9fa03e9167894c3c98ca3f4ebff7842d6
