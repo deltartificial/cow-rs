@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.0] - 2026-05-02
+
+### Bug fixes
+
+- _(trading)_ [**breaking**] Thread `protocol_fee_bps` through `get_order_to_sign` (#100) ([`0e3a9ac`](https://github.com/deltartificial/cow-rs/commit/0e3a9ac)) — ports [cow-sdk #867](https://github.com/cowprotocol/cow-sdk/pull/867). Without `protocol_fee_bps`, orders that combine a partner fee with a protocol fee compute the partner-fee base against the wrong `before_all_fees` and overstate the final `buy_amount`. `get_order_to_sign` now routes through `cow_orderbook::get_quote_amounts_and_costs` when `apply_costs_slippage_and_fees` is true so protocol fee + partner fee + slippage compose against the correct baseline. Locked by a conformance test mirroring the TS PR #867 vector (`1970100000000000000` vs `1970090045022511257`).
+
+### Breaking changes
+
+- `PostTradeAdditionalParams` gains a new `protocol_fee_bps: Option<f64>` field (struct literals must include it; the `with_protocol_fee_bps` builder is the recommended path).
+- `get_order_to_sign` gains a trailing `protocol_fee_bps: Option<f64>` parameter.
+- `post_sell_native_currency_order` gains a trailing `protocol_fee_bps: Option<f64>` parameter.
+
 ## [0.5.1] - 2026-04-26
 
 ### Features
