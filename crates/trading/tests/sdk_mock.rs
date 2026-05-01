@@ -1458,6 +1458,7 @@ fn get_order_to_sign_returns_valid_order() {
         false,
         &params,
         "0x0000000000000000000000000000000000000000000000000000000000000000",
+        None,
     );
     assert_eq!(order.sell_token, SELL_TOKEN.parse::<Address>().unwrap());
     assert_eq!(order.valid_to, 9_999_999);
@@ -1489,6 +1490,7 @@ fn get_order_to_sign_with_slippage_adjustment() {
         true,
         &params,
         "0x0000000000000000000000000000000000000000000000000000000000000000",
+        None,
     );
     assert!(order.buy_amount < U256::from(500_000_000_000_000u64));
 }
@@ -1517,6 +1519,7 @@ fn get_order_to_sign_with_valid_for_only() {
         false,
         &params,
         "0x0000000000000000000000000000000000000000000000000000000000000000",
+        None,
     );
     let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs()
         as u32;
@@ -1547,12 +1550,78 @@ fn get_order_to_sign_buy_order_with_slippage() {
         true,
         &params,
         "0x0000000000000000000000000000000000000000000000000000000000000000",
+        None,
     );
     assert!(order.sell_amount > U256::from(1_000_000u64));
     assert_eq!(
         order.receiver,
         "0x1111111111111111111111111111111111111111".parse::<Address>().unwrap()
     );
+}
+
+// ── PR #867 conformance: protocol_fee_bps + partner_fee composition ─────────
+//
+// When an order combines a partner fee with a protocol fee, the partner fee
+// must be applied against `before_all_fees` (which includes the protocol fee
+// component), not `after_network_costs`. Omitting `protocol_fee_bps` on the
+// posting path under-states the partner fee base and the resulting `buy_amount`
+// is too high. Mirrors the divergence test introduced by `cow-sdk` PR #867.
+#[test]
+fn get_order_to_sign_protocol_fee_bps_lowers_buy_amount_with_partner_fee() {
+    let params = LimitTradeParameters {
+        kind: OrderKind::Sell,
+        sell_token: SELL_TOKEN.parse().unwrap(),
+        buy_token: BUY_TOKEN.parse().unwrap(),
+        sell_amount: U256::from_str_radix("1000000000000000000", 10).unwrap(),
+        buy_amount: U256::from_str_radix("2000000000000000000", 10).unwrap(),
+        receiver: None,
+        valid_for: None,
+        valid_to: Some(9_999_999),
+        partially_fillable: false,
+        app_data: None,
+        partner_fee: Some(PartnerFee::single(PartnerFeeEntry::volume(
+            100,
+            "0x000000000000000000000000000000000000fee0",
+        ))),
+    };
+    let from: Address = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266".parse().unwrap();
+    let app_hash = "0x0000000000000000000000000000000000000000000000000000000000000000";
+
+    // Without protocol_fee_bps: partner fee is computed against the bare buy
+    // amount and slippage compounds on the under-fee'd base.
+    let without = get_order_to_sign(
+        SupportedChainId::Mainnet,
+        from,
+        false,
+        U256::ZERO,
+        true,
+        &params,
+        app_hash,
+        None,
+    );
+
+    // With protocol_fee_bps = 5: the partner fee base now includes the
+    // reconstructed protocol fee, so the surplus side is smaller.
+    let with = get_order_to_sign(
+        SupportedChainId::Mainnet,
+        from,
+        false,
+        U256::ZERO,
+        true,
+        &params,
+        app_hash,
+        Some(5.0),
+    );
+
+    assert!(
+        with.buy_amount < without.buy_amount,
+        "expected protocol_fee_bps to lower buy_amount: with={} without={}",
+        with.buy_amount,
+        without.buy_amount,
+    );
+    // Lock the exact divergence (slope of TS PR #867 conformance vector).
+    assert_eq!(without.buy_amount.to_string(), "1970100000000000000");
+    assert_eq!(with.buy_amount.to_string(), "1970090045022511257");
 }
 
 #[test]
@@ -1579,6 +1648,7 @@ fn get_order_to_sign_eth_flow() {
         true,
         &params,
         "0x0000000000000000000000000000000000000000000000000000000000000000",
+        None,
     );
     assert!(order.buy_amount < U256::from(500_000_000_000_000u64));
 }
@@ -1708,6 +1778,7 @@ async fn post_cow_protocol_trade_submits_order() {
         signing_scheme: None,
         network_costs_amount: None,
         apply_costs_slippage_and_fees: None,
+        protocol_fee_bps: None,
     };
     let result = post_cow_protocol_trade(
         &api,
@@ -1760,6 +1831,7 @@ async fn post_cow_protocol_trade_with_eth_sign() {
         signing_scheme: Some(SigningScheme::EthSign),
         network_costs_amount: Some("5000".to_owned()),
         apply_costs_slippage_and_fees: Some(false),
+        protocol_fee_bps: None,
     };
     let result = post_cow_protocol_trade(
         &api,
@@ -1812,6 +1884,7 @@ async fn post_cow_protocol_trade_with_eip1271_scheme_falls_back_to_eip712() {
         signing_scheme: Some(SigningScheme::Eip1271),
         network_costs_amount: None,
         apply_costs_slippage_and_fees: None,
+        protocol_fee_bps: None,
     };
     let result = post_cow_protocol_trade(
         &api,
@@ -1864,6 +1937,7 @@ async fn post_cow_protocol_trade_with_presign_scheme_falls_back_to_eip712() {
         signing_scheme: Some(SigningScheme::PreSign),
         network_costs_amount: None,
         apply_costs_slippage_and_fees: None,
+        protocol_fee_bps: None,
     };
     let result = post_cow_protocol_trade(
         &api,
@@ -1901,6 +1975,7 @@ async fn post_cow_protocol_trade_rejects_eth_flow() {
         signing_scheme: None,
         network_costs_amount: None,
         apply_costs_slippage_and_fees: None,
+        protocol_fee_bps: None,
     };
     let result = post_cow_protocol_trade(
         &api,
@@ -1947,6 +2022,7 @@ async fn post_sell_native_currency_order_builds_eth_flow_tx() {
         &params,
         SupportedChainId::Mainnet,
         Env::Prod,
+        None,
     )
     .await
     .unwrap();
@@ -2293,13 +2369,17 @@ fn post_trade_additional_params_builder() {
         signing_scheme: None,
         network_costs_amount: None,
         apply_costs_slippage_and_fees: None,
+        protocol_fee_bps: None,
     }
     .with_signing_scheme(SigningScheme::EthSign)
     .with_network_costs_amount("5000")
-    .with_apply_costs_slippage_and_fees(true);
+    .with_apply_costs_slippage_and_fees(true)
+    .with_protocol_fee_bps(0.3);
 
     assert!(params.has_signing_scheme());
     assert!(params.has_network_costs());
     assert!(params.should_apply_costs());
+    assert!(params.has_protocol_fee_bps());
+    assert_eq!(params.protocol_fee_bps, Some(0.3));
     assert_eq!(format!("{params}"), "post-trade-params");
 }

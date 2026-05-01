@@ -474,6 +474,15 @@ pub struct PostTradeAdditionalParams {
     ///
     /// Defaults to `None` (amounts are adjusted, as for swap orders).
     pub apply_costs_slippage_and_fees: Option<bool>,
+    /// Optional protocol-fee rate in basis points sourced from the `/quote`
+    /// response (`OrderQuoteResponse::protocol_fee_bps`).
+    ///
+    /// Required for orders that have BOTH a protocol fee AND a partner fee:
+    /// without it, the partner-fee base is computed against the wrong
+    /// `before_all_fees` and the final `buy_amount` is overstated.
+    /// Mirrors `protocolFeeBps` added to `PostTradeAdditionalParams` in
+    /// `cow-sdk` PR #867.
+    pub protocol_fee_bps: Option<f64>,
 }
 
 impl PostTradeAdditionalParams {
@@ -550,6 +559,27 @@ impl PostTradeAdditionalParams {
     #[must_use]
     pub const fn should_apply_costs(&self) -> bool {
         matches!(self.apply_costs_slippage_and_fees, Some(true))
+    }
+
+    /// Override the protocol-fee rate sourced from the `/quote` response.
+    ///
+    /// # Arguments
+    ///
+    /// * `bps` — protocol-fee rate in basis points (may be fractional, e.g. `0.3`).
+    ///
+    /// # Returns
+    ///
+    /// The modified [`PostTradeAdditionalParams`] with the protocol-fee rate set.
+    #[must_use]
+    pub const fn with_protocol_fee_bps(mut self, bps: f64) -> Self {
+        self.protocol_fee_bps = Some(bps);
+        self
+    }
+
+    /// Returns `true` if a protocol-fee rate is set.
+    #[must_use]
+    pub const fn has_protocol_fee_bps(&self) -> bool {
+        self.protocol_fee_bps.is_some()
     }
 }
 
