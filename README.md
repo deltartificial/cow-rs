@@ -81,7 +81,7 @@ layered crate under one entry point:
 
 ```toml
 [dependencies]
-cow-rs = "0.5"
+cow-rs = "0.6"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 alloy-primitives = "1"
 ```
@@ -92,11 +92,11 @@ to the orderbook:
 
 ```toml
 [dependencies]
-cow-chains = "0.5"
-cow-orderbook = "0.5"
-cow-signing = "0.5"
-cow-trading = "0.5"
-cow-types = "0.5"
+cow-chains = "0.6"
+cow-orderbook = "0.6"
+cow-signing = "0.6"
+cow-trading = "0.6"
+cow-types = "0.6"
 ```
 
 See [Workspace Crates](#workspace-crates) for the full list.
@@ -253,7 +253,7 @@ A separate WebAssembly example lives in [`examples/wasm`](./examples/wasm).
 Enable WASM builds with:
 
 ```toml
-cow-rs = { version = "0.5", default-features = false, features = ["wasm"] }
+cow-rs = { version = "0.6", default-features = false, features = ["wasm"] }
 ```
 
 ## WebAssembly

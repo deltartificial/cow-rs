@@ -5,7 +5,7 @@ exclude = ["examples/wasm", "fuzz"]
 resolver = "3"
 
 [workspace.package]
-version = "0.5.1"
+version = "0.6.0"
 edition = "2024"
 rust-version = "1.93"
 authors = ["CoW Protocol Contributors"]
@@ -194,33 +194,33 @@ alloy-signer = "1"
 alloy-signer-local = "1"
 async-trait = "0.1"
 chrono = { version = "0.4", features = ["serde"] }
-cow-app-data = { path = "crates/app-data", version = "0.5.1", default-features = false }
-cow-bridging = { path = "crates/bridging", version = "0.5.1" }
-cow-browser-wallet = { path = "crates/browser-wallet", version = "0.5.1" }
-cow-chains = { path = "crates/chains", version = "0.5.1" }
-cow-composable = { path = "crates/composable", version = "0.5.1" }
-cow-contracts-abi = { path = "crates/contracts-abi", version = "0.5.1" }
-cow-erc20 = { path = "crates/erc20", version = "0.5.1" }
-cow-errors = { path = "crates/errors", version = "0.5.1" }
-cow-ethflow = { path = "crates/ethflow", version = "0.5.1" }
-cow-flash-loans = { path = "crates/flash-loans", version = "0.5.1" }
-cow-graph = { path = "crates/graph", version = "0.5.1" }
-cow-http = { path = "crates/http", version = "0.5.1" }
-cow-ipfs = { path = "crates/ipfs", version = "0.5.1" }
-cow-onchain = { path = "crates/onchain", version = "0.5.1" }
-cow-orderbook = { path = "crates/orderbook", version = "0.5.1" }
-cow-permit = { path = "crates/permit", version = "0.5.1" }
-cow-primitives = { path = "crates/primitives", version = "0.5.1" }
+cow-app-data = { path = "crates/app-data", version = "0.6.0", default-features = false }
+cow-bridging = { path = "crates/bridging", version = "0.6.0" }
+cow-browser-wallet = { path = "crates/browser-wallet", version = "0.6.0" }
+cow-chains = { path = "crates/chains", version = "0.6.0" }
+cow-composable = { path = "crates/composable", version = "0.6.0" }
+cow-contracts-abi = { path = "crates/contracts-abi", version = "0.6.0" }
+cow-erc20 = { path = "crates/erc20", version = "0.6.0" }
+cow-errors = { path = "crates/errors", version = "0.6.0" }
+cow-ethflow = { path = "crates/ethflow", version = "0.6.0" }
+cow-flash-loans = { path = "crates/flash-loans", version = "0.6.0" }
+cow-graph = { path = "crates/graph", version = "0.6.0" }
+cow-http = { path = "crates/http", version = "0.6.0" }
+cow-ipfs = { path = "crates/ipfs", version = "0.6.0" }
+cow-onchain = { path = "crates/onchain", version = "0.6.0" }
+cow-orderbook = { path = "crates/orderbook", version = "0.6.0" }
+cow-permit = { path = "crates/permit", version = "0.6.0" }
+cow-primitives = { path = "crates/primitives", version = "0.6.0" }
 # Internal crates
-cow-rs = { path = "crates/cow-rs", version = "0.5.1" }
-cow-settlement = { path = "crates/settlement", version = "0.5.1" }
-cow-shed = { path = "crates/cow-shed", version = "0.5.1" }
-cow-signing = { path = "crates/signing", version = "0.5.1" }
-cow-subgraph = { path = "crates/subgraph", version = "0.5.1" }
-cow-testing = { path = "crates/testing", version = "0.5.1" }
-cow-trading = { path = "crates/trading", version = "0.5.1" }
-cow-types = { path = "crates/types", version = "0.5.1" }
-cow-weiroll = { path = "crates/weiroll", version = "0.5.1" }
+cow-rs = { path = "crates/cow-rs", version = "0.6.0" }
+cow-settlement = { path = "crates/settlement", version = "0.6.0" }
+cow-shed = { path = "crates/cow-shed", version = "0.6.0" }
+cow-signing = { path = "crates/signing", version = "0.6.0" }
+cow-subgraph = { path = "crates/subgraph", version = "0.6.0" }
+cow-testing = { path = "crates/testing", version = "0.6.0" }
+cow-trading = { path = "crates/trading", version = "0.6.0" }
+cow-types = { path = "crates/types", version = "0.6.0" }
+cow-weiroll = { path = "crates/weiroll", version = "0.6.0" }
 foldhash = { version = "0.2", features = ["std"] }
 futures = "0.3"
 getrandom = { version = "0.2", default-features = false }
