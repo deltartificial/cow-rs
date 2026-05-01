@@ -1,6 +1,19 @@
 [workspace]
 allow-branch = ["main"]
 shared-version = true
-pre-release-commit-message = "chore: release {{version}}"
-tag-prefix = "v"
+consolidate-commits = true
+pre-release-commit-message = "chore(release): bump workspace to v{{version}}"
 tag-name = "v{{version}}"
+
+# README install snippets and CHANGELOG header are not auto-handled by
+# cargo-release (it only bumps Cargo.toml version refs). The replacements
+# below keep both files in sync with the workspace version on each release.
+pre-release-replacements = [
+    # README install snippets: bump every `cow-* = "X.Y[.Z]"` to the new
+    # full version, including the WASM inline-table form.
+    { file = "README.md", search = "(cow-[a-z-]+) = \"\\d+\\.\\d+(\\.\\d+)?\"", replace = "${1} = \"{{version}}\"" },
+    { file = "README.md", search = "cow-rs = \\{ version = \"\\d+\\.\\d+(\\.\\d+)?\"", replace = "cow-rs = { version = \"{{version}}\"" },
+    # CHANGELOG: prepend a section header for the new release. Body
+    # entries are still added by hand from PR titles.
+    { file = "CHANGELOG.md", search = "All notable changes to this project will be documented in this file\\.\n", replace = "All notable changes to this project will be documented in this file.\n\n## [{{version}}] - {{date}}\n", exactly = 1 },
+]
