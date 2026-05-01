@@ -5,7 +5,7 @@ use std::sync::Arc;
 use alloy_primitives::{Address, U256};
 use alloy_signer_local::PrivateKeySigner;
 use cow_app_data::{
-    build_app_data_doc, build_app_data_doc_full,
+    build_app_data_doc, build_app_data_doc_full, get_partner_fee_bps,
     types::{Metadata, OrderClass, OrderClassKind, PartnerFee, Quote, Utm},
 };
 use cow_chains::{
@@ -15,7 +15,7 @@ use cow_erc20::build_erc20_approve_calldata;
 use cow_errors::CowError;
 use cow_onchain::OnchainReader;
 use cow_orderbook::{
-    Order, OrderBookApi,
+    Order, OrderBookApi, QuoteAmountsAndCostsParams, QuoteOrderParams, get_quote_amounts_and_costs,
     types::{
         AppDataObject, Auction, CompetitionOrderStatus, GetOrdersRequest, GetTradesRequest,
         OrderCancellations, OrderCreation, OrderQuoteRequest, OrderQuoteResponse, QuoteSide,
@@ -1661,6 +1661,11 @@ impl TradingSdk {
 ///
 /// Mirrors `getOrderToSign` from the `TypeScript` SDK.
 ///
+/// When `apply_costs_slippage_and_fees` is `true`, amounts are routed through
+/// [`get_quote_amounts_and_costs`]
+/// so that protocol fee, partner fee, and slippage all compose against the
+/// correct `before_all_fees` baseline (matching the canonical TS calculation).
+///
 /// # Returns
 ///
 /// An [`UnsignedOrder`] ready for signing or submission.
@@ -1676,24 +1681,22 @@ impl TradingSdk {
 ///   verbatim.
 /// * `params` — the limit-order parameters (token pair, amounts, validity, etc.).
 /// * `app_data_keccak256` — `0x`-prefixed 32-byte hex string of the app-data hash.
+/// * `protocol_fee_bps` — protocol-fee rate in basis points sourced from
+///   `OrderQuoteResponse::protocol_fee_bps`. When the order also carries a partner fee, omitting
+///   this overstates the final `buy_amount` (see `cow-sdk` PR #867).
 #[must_use]
 #[allow(clippy::too_many_arguments, reason = "domain parameters that belong together")]
 pub fn get_order_to_sign(
     chain_id: SupportedChainId,
     from: Address,
     is_eth_flow: bool,
-    _network_costs_amount: U256,
+    network_costs_amount: U256,
     apply_costs_slippage_and_fees: bool,
     params: &LimitTradeParameters,
     app_data_keccak256: &str,
+    protocol_fee_bps: Option<f64>,
 ) -> UnsignedOrder {
-    let slippage_bps = params
-        .valid_for
-        .map(|_| get_default_slippage_bps(chain_id, is_eth_flow))
-        .unwrap_or_else(|| get_default_slippage_bps(chain_id, is_eth_flow));
-
-    // Use explicitly provided slippage_bps if the caller set one, otherwise default.
-    let _ = slippage_bps; // Default slippage is available if needed.
+    let slippage_bps = get_default_slippage_bps(chain_id, is_eth_flow);
 
     let receiver = params.receiver.map_or(from, |r| r);
     let valid_to = if let Some(v) = params.valid_to {
@@ -1703,21 +1706,22 @@ pub fn get_order_to_sign(
         get_order_deadline_from_now(valid_for)
     };
 
-    let mut sell_amount = params.sell_amount;
-    let mut buy_amount = params.buy_amount;
-
-    if apply_costs_slippage_and_fees {
-        let default_slippage = get_default_slippage_bps(chain_id, is_eth_flow);
-        let is_sell = params.kind.is_sell();
-        // Apply slippage: for sell orders, decrease buy; for buy orders, increase sell.
-        if is_sell {
-            buy_amount =
-                buy_amount * U256::from(10_000u32 - default_slippage) / U256::from(10_000u32);
-        } else {
-            sell_amount =
-                sell_amount * U256::from(10_000u32 + default_slippage) / U256::from(10_000u32);
-        }
-    }
+    let (sell_amount, buy_amount) = if apply_costs_slippage_and_fees {
+        let result = get_quote_amounts_and_costs(&QuoteAmountsAndCostsParams {
+            order_params: QuoteOrderParams {
+                kind: params.kind,
+                sell_amount: params.sell_amount,
+                buy_amount: params.buy_amount,
+                fee_amount: network_costs_amount,
+            },
+            protocol_fee_bps,
+            partner_fee_bps: get_partner_fee_bps(params.partner_fee.as_ref()),
+            slippage_percent_bps: slippage_bps,
+        });
+        (result.amounts_to_sign.sell_amount, result.amounts_to_sign.buy_amount)
+    } else {
+        (params.sell_amount, params.buy_amount)
+    };
 
     let app_data = parse_app_data_hex(app_data_keccak256);
 
@@ -2469,6 +2473,7 @@ pub async fn post_cow_protocol_trade(
         apply,
         params,
         &app_data.app_data_keccak256,
+        additional.protocol_fee_bps,
     );
 
     // Upload app-data — failure is non-fatal; the order can still be placed.
@@ -2525,6 +2530,9 @@ pub async fn post_cow_protocol_trade(
 /// * `params` — limit-order parameters (token pair, amounts, validity, etc.).
 /// * `chain_id` — target chain.
 /// * `env` — `Prod` or `Staging` (determines the ETH-flow contract address).
+/// * `protocol_fee_bps` — protocol-fee rate in basis points sourced from the `/quote` response.
+///   Required for orders that combine a partner fee with a protocol fee; pass `None` when no
+///   protocol fee applies.
 ///
 /// # Returns
 ///
@@ -2534,12 +2542,14 @@ pub async fn post_cow_protocol_trade(
 /// # Errors
 ///
 /// Returns [`CowError`] if app-data upload fails.
+#[allow(clippy::too_many_arguments, reason = "domain parameters that belong together")]
 pub async fn post_sell_native_currency_order(
     api: &OrderBookApi,
     app_data: &TradingAppDataInfo,
     params: &LimitTradeParameters,
     chain_id: SupportedChainId,
     env: Env,
+    protocol_fee_bps: Option<f64>,
 ) -> Result<(OrderPostingResult, TradingTransactionParams), CowError> {
     let eth_flow_addr = get_eth_flow_contract(chain_id, env);
 
@@ -2551,6 +2561,7 @@ pub async fn post_sell_native_currency_order(
         true,
         params,
         &app_data.app_data_keccak256,
+        protocol_fee_bps,
     );
 
     let order_id = calculate_unique_order_id(chain_id, &order_to_sign, env);

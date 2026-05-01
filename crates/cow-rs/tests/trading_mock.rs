@@ -1256,6 +1256,7 @@ fn get_order_to_sign_returns_valid_order() {
         false,
         &params,
         "0x0000000000000000000000000000000000000000000000000000000000000000",
+        None,
     );
     assert_eq!(order.sell_token, SELL_TOKEN.parse::<Address>().unwrap());
     assert_eq!(order.buy_token, BUY_TOKEN.parse::<Address>().unwrap());
@@ -1289,6 +1290,7 @@ fn get_order_to_sign_with_slippage_adjustment() {
         true,
         &params,
         "0x0000000000000000000000000000000000000000000000000000000000000000",
+        None,
     );
     // For sell orders with apply_costs_slippage_and_fees=true, buy_amount should be reduced.
     assert!(order.buy_amount < U256::from(500_000_000_000_000u64));
@@ -1520,6 +1522,7 @@ async fn post_cow_protocol_trade_submits_order() {
         signing_scheme: None,
         network_costs_amount: None,
         apply_costs_slippage_and_fees: None,
+        protocol_fee_bps: None,
     };
     let result = cow_rs::trading::post_cow_protocol_trade(
         &api,
@@ -1577,6 +1580,7 @@ async fn post_cow_protocol_trade_with_eth_sign() {
         signing_scheme: Some(cow_rs::SigningScheme::EthSign),
         network_costs_amount: Some("5000".to_owned()),
         apply_costs_slippage_and_fees: Some(false),
+        protocol_fee_bps: None,
     };
     let result = cow_rs::trading::post_cow_protocol_trade(
         &api,
@@ -1619,6 +1623,7 @@ async fn post_cow_protocol_trade_rejects_eth_flow() {
         signing_scheme: None,
         network_costs_amount: None,
         apply_costs_slippage_and_fees: None,
+        protocol_fee_bps: None,
     };
     let result = cow_rs::trading::post_cow_protocol_trade(
         &api,
@@ -1670,6 +1675,7 @@ async fn post_sell_native_currency_order_builds_eth_flow_tx() {
         &params,
         SupportedChainId::Mainnet,
         Env::Prod,
+        None,
     )
     .await
     .unwrap();
@@ -1907,6 +1913,7 @@ fn get_order_to_sign_with_valid_for_only() {
         false,
         &params,
         "0x0000000000000000000000000000000000000000000000000000000000000000",
+        None,
     );
     // valid_to should be in the future.
     let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs()
@@ -1940,6 +1947,7 @@ fn get_order_to_sign_buy_order_with_slippage() {
         true,
         &params,
         "0x0000000000000000000000000000000000000000000000000000000000000000",
+        None,
     );
     // For buy orders with apply_costs=true, sell_amount should be increased.
     assert!(order.sell_amount > U256::from(1_000_000u64));
@@ -1976,6 +1984,7 @@ fn get_order_to_sign_eth_flow() {
         true,
         &params,
         "0x0000000000000000000000000000000000000000000000000000000000000000",
+        None,
     );
     // ETH-flow slippage should reduce the buy_amount.
     assert!(order.buy_amount < U256::from(500_000_000_000_000u64));
@@ -2348,6 +2357,7 @@ async fn post_cow_protocol_trade_with_eip1271_scheme_falls_back_to_eip712() {
         signing_scheme: Some(cow_rs::SigningScheme::Eip1271),
         network_costs_amount: None,
         apply_costs_slippage_and_fees: None,
+        protocol_fee_bps: None,
     };
     let result = cow_rs::trading::post_cow_protocol_trade(
         &api,
@@ -2403,6 +2413,7 @@ async fn post_cow_protocol_trade_with_presign_scheme_falls_back_to_eip712() {
         signing_scheme: Some(cow_rs::SigningScheme::PreSign),
         network_costs_amount: None,
         apply_costs_slippage_and_fees: None,
+        protocol_fee_bps: None,
     };
     let result = cow_rs::trading::post_cow_protocol_trade(
         &api,
@@ -2425,6 +2436,7 @@ fn post_trade_additional_params_builder() {
         signing_scheme: None,
         network_costs_amount: None,
         apply_costs_slippage_and_fees: None,
+        protocol_fee_bps: None,
     }
     .with_signing_scheme(cow_rs::SigningScheme::EthSign)
     .with_network_costs_amount("5000")
